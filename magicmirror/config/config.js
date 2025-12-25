@@ -157,6 +157,51 @@ let config = {
 			}
 		},
 		{
+			module: "MMM-QuranEmbed",
+			position: "top_center",
+			config: {
+				height: "600px",
+				width: "100%",
+				showControls: true,
+				useAPI: true,
+				clientId: "ef8785ea-8976-4fe3-9009-fbfa64fe544b",
+				clientSecret: "4O-HX00pK6hgnEI9JlndwFMI.q"
+			}
+		},
+		{
+			module: "MMM-WebSpeechTTS",
+			position: "middle_center", // Make it more visible in the center
+			config: {
+				hidden: false, // Set to false to see the text that should be spoken
+				text: "TTS Ready - Press G for greeting, T for time", // Custom placeholder text
+				speechLang: "en-US",
+				speechVoice: "", // Will auto-select first available voice
+				speechRate: 1,
+				speechPitch: 1,
+				speechVolume: 1,
+				translationLang: "",
+				producers: {
+					greeting: {
+						enabled: true,
+						delay: 2000 // Reduced delay to hear it sooner
+					},
+					keyboard: {
+						enabled: true,
+						shortcuts: {
+							greeting: "g",
+							stop: "s",
+							time: "t"
+						}
+					},
+					publicTransport: {
+						enabled: false,
+						shortcut: "d"
+					}
+				}
+			},
+			scripts: ["modules/MMM-WebSpeechTTS/custom.js"] // Add our custom test script
+		},
+		{
 			module: "MMM-MyScoreboard",
 			position: "bottom_left",
 			config: {
