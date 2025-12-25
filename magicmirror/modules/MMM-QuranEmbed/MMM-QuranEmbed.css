@@ -1,0 +1,72 @@
+.MMM-QuranEmbed {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.MMM-QuranEmbed iframe {
+    border: none;
+}
+
+.MMM-QuranEmbed .loading {
+    color: #666;
+    font-size: 20px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+/* Arabic text styling */
+.MMM-QuranEmbed .txt-arabic {
+    color: white;
+    font-size: 28px;
+    line-height: 1.7;
+    text-align: right;
+    direction: rtl;
+    margin: 10px 0;
+    font-family: "KFGQPC Uthmanic Script HAFS", sans-serif;
+    font-weight: normal;
+    margin-bottom: 15px;
+}
+
+/* Translation text styling */
+.MMM-QuranEmbed .txt-translation {
+    color: white;
+    font-size: 16px;
+    line-height: 1.5;
+    text-align: left;
+    opacity: 0.9;
+}
+
+/* Simple container for Quran text */
+.MMM-QuranEmbed .quran-container {
+    width: 100%;
+    max-width: 600px;
+    padding: 10px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+/* Minimalist surah reference styling */
+.MMM-QuranEmbed .surah-reference {
+    font-size: 14px;
+    opacity: 0.8;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* Hide scrollbars for cleaner look */
+.MMM-QuranEmbed ::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+}
+
+.MMM-QuranEmbed ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 1rem;
+}
+
+.MMM-QuranEmbed:hover::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.5);
+}
