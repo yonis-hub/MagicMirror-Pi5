@@ -1,0 +1,11 @@
+{
+    "IMSAK": "Imsak",
+	"FAJR": "Fajr",
+	"SUNRISE": "Sunrise",
+	"DHUHR": "Dhuhr",
+	"ASR": "Asr",
+	"SUNSET": "Sunset",
+	"MAGHRIB": "Maghrib",
+	"ISHA": "Isha",
+	"MIDNIGHT": "Midnight"
+}
