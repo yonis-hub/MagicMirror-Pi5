@@ -1,120 +1,194 @@
-# Magic Mirror with Quran Integration
+# Magic Mirror Pi 5 - Islamic Smart Display
 
-This project creates a "Hardware-Free" Test Bench for a MagicMirror system with Quran display capabilities, powered by a local LLM (Ollama) and Home Assistant for voice command interpretation.
+A MagicMirror² deployment for Raspberry Pi 5 featuring Islamic modules including Prayer Times with Hijri calendar, Quran verse display, and sports scoreboards.
 
-## Components
+**GitHub Repository:** https://github.com/yonis-hub/MagicMirror-Pi5.git
 
-1. **Ollama** - Local LLM for interpreting voice commands
-2. **MagicMirror²** - Display framework running in server mode
-3. **Python Bridge** - Flask server to handle commands and control the mirror
-4. **Home Assistant** - Smart home hub for command processing
+---
 
-## Prerequisites
+## ✅ Current Status: DEPLOYED TO PI 5
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/): For running Home Assistant
-- [Python 3](https://www.python.org/downloads/): For the bridge script
-- [Node.js](https://nodejs.org/): For running MagicMirror
-- [Ollama](https://ollama.com): For local LLM capabilities
+The MagicMirror is fully operational on Raspberry Pi 5 with the following modules:
 
-## Quick Start
+| Module | Status | Description |
+|--------|--------|-------------|
+| MMM-MyPrayerTimes | ✅ Working | Prayer times with Hijri date (Toronto/ISNA) |
+| MMM-QuranEmbed | ✅ Working | Displays Quran verses with Arabic + English |
+| MMM-MyScoreboard | ✅ Working | NBA live scores |
+| Calendar | ✅ Working | US + Islamic holidays |
+| Weather | ✅ Working | London, Ontario forecast |
+| Clock | ✅ Working | Date and time display |
+| MMM-WebSpeechTTS | ✅ Working | Text-to-speech capability |
+| Newsfeed | ✅ Working | BBC World + TechCrunch |
+| Compliments | ✅ Working | Random greetings |
 
-This project includes utility scripts to help you get started quickly:
+---
 
-1. Run `setup.bat` to install dependencies and set up the environment
-2. Run `start_all.bat` to start all services (Home Assistant, Python Bridge, and MagicMirror)
-3. Open your browser to:
-   - MagicMirror: http://localhost:8080
-   - Home Assistant: http://localhost:8123
-4. When finished, run `stop_all.bat` to shut down all services
+## 🖥️ Raspberry Pi 5 Setup
 
-## Detailed Setup Instructions
+### Prerequisites on Pi
+- **Node.js v20+** (required for `fetch` API)
+- **npm**
 
-### Phase 1: Set up Ollama (AI Brain)
+### Installation Commands (on Pi)
 
-1. Download and install Ollama from [ollama.com](https://ollama.com)
-2. Open your terminal and run: `ollama pull llama3.2:3b`
-3. Test it by running:
-   ```
-   curl -d '{"model": "llama3.2:3b", "prompt": "Say hello", "stream": false}' http://localhost:11434/api/generate
-   ```
+```bash
+# 1. Install Node.js v20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
-### Phase 2: Set up MagicMirror
+# 2. Clone the repository
+cd ~
+git clone https://github.com/yonis-hub/MagicMirror-Pi5.git
+cd MagicMirror-Pi5/magicmirror
 
-1. Clone the MagicMirror repository:
-   ```
-   git clone https://github.com/MichMich/MagicMirror
-   cd MagicMirror
-   npm install
-   ```
+# 3. Install MagicMirror dependencies
+npm install
 
-2. Copy the config file:
-   ```
-   cp config/config.js.sample config/config.js
-   ```
+# 4. Install module dependencies
+cd modules/MMM-MyPrayerTimes && npm install && cd ..
+cd MMM-MyScoreboard && npm install && cd ../..
 
-3. Copy the custom module:
-   ```
-   cp -r /path/to/this/project/magicmirror/modules/MMM-QuranEmbed MagicMirror/modules/
-   ```
+# 5. Start MagicMirror
+npm run server
+```
 
-4. Copy our custom config.js to the MagicMirror directory
+### Access the Mirror
+- **Local:** http://localhost:8080
+- **Network:** http://<pi-ip>:8080
 
-### Phase 3: Set up the Python Bridge
+### Useful Commands
 
-1. Install the required Python packages:
-   ```
-   cd bridge
-   pip install -r requirements.txt
-   ```
+```bash
+# Kill stuck process on port 8080
+sudo fuser -k 8080/tcp
 
-2. Run the bridge script:
-   ```
-   python quran_server.py
-   ```
+# Check Node version (must be 18+)
+node -v
 
-### Phase 4: Set up Home Assistant
+# Pull latest changes
+cd ~/MagicMirror-Pi5 && git pull
+```
 
-1. Start Home Assistant using Docker Compose:
-   ```
-   docker-compose up -d
-   ```
+---
 
-2. Open Home Assistant at http://localhost:8123 and create an account
+## 📁 Project Structure
 
-## Testing the System
+```
+Magic_Mirror_v1/
+├── magicmirror/
+│   ├── config/
+│   │   └── config.js          # Main configuration
+│   └── modules/
+│       ├── MMM-MyPrayerTimes/ # Prayer times + Hijri calendar
+│       ├── MMM-QuranEmbed/    # Quran verse display
+│       ├── MMM-MyScoreboard/  # Sports scores
+│       └── MMM-WebSpeechTTS/  # Text-to-speech
+└── README.md
+```
 
-Once all components are running:
+---
 
-1. Arrange your screen with:
-   - Left side: Browser showing MagicMirror (http://localhost:8080)
-   - Right side: Browser showing Home Assistant (http://localhost:8123)
-   - Bottom: Terminal running Python Bridge
+## ⚙️ Configuration
 
-2. In Home Assistant:
-   - Go to Developer Tools > Services
-   - Search for `rest_command.send_quran_request`
-   - Click "YAML mode" and paste:
-     ```yaml
-     data:
-       text: "open surah yasin"
-     ```
-   - Click "Call Service"
+Key settings in `magicmirror/config/config.js`:
 
-3. Watch as:
-   - The Python Terminal shows the command processing
-   - The MagicMirror browser displays Quran.com with Surah Yasin
+### Prayer Times (Toronto, ISNA Method)
+```javascript
+{
+    module: "MMM-MyPrayerTimes",
+    position: "top_left",
+    config: {
+        mptLat: 43.6532,      // Toronto latitude
+        mptLon: -79.3832,     // Toronto longitude
+        mptMethod: 2,         // ISNA calculation
+        showOnlyNext: true    // Show next prayer only
+    }
+}
+```
 
-## Deploying to Raspberry Pi
+### Weather (London, Ontario)
+```javascript
+{
+    module: "weather",
+    config: {
+        locationID: "6058560", // London, ON
+        apiKey: "YOUR_API_KEY"
+    }
+}
+```
 
-After testing on your PC, you can deploy to a Raspberry Pi by:
+---
 
-1. Installing the same prerequisites on the Pi
-2. Transferring the project files
-3. Updating network configurations as needed
-4. Setting up auto-start scripts
+## 🔜 Future Enhancements: "Verse Chainer"
 
-## Troubleshooting
+**Next session goal:** Voice-controlled Quran recitation with verse-by-verse synchronization.
 
-- If Home Assistant cannot connect to the Python Bridge, check your firewall settings
-- If MagicMirror doesn't update, check the browser console for errors
-- For Ollama connection issues, verify it's running with `curl http://localhost:11434/api/tags`
+### Components Needed
+- [ ] **Ollama** - Local AI for voice command interpretation
+- [ ] **MMM-GoogleAssistant** - Voice control module
+- [ ] **MMM-QuranDisplay** - New minimalist verse display module
+- [ ] **quran_chainer.py** - Python script for verse-by-verse playback
+- [ ] **mpv** - Audio player for recitation
+
+### Architecture
+1. Voice command: "Play Surah Fatiha"
+2. Ollama interprets → Surah number (1)
+3. Python fetches from Al Quran Cloud API
+4. Loop: Display verse → Play audio → Wait → Next verse
+
+### API Endpoints
+- **Quran Data:** `http://api.alquran.cloud/v1/surah/{surah}/editions/ar.alafasy,en.asad`
+- **Audio CDN:** Included in API response (`ayahs[].audio`)
+
+---
+
+## 🛠️ Development (Windows)
+
+### Local Testing
+```bash
+cd magicmirror
+npm run server
+# Open http://localhost:8080
+```
+
+### Push Changes to Pi
+```bash
+git add .
+git commit -m "Your message"
+git push
+
+# Then on Pi:
+cd ~/MagicMirror-Pi5 && git pull
+sudo fuser -k 8080/tcp
+cd magicmirror && npm run server
+```
+
+---
+
+## 📝 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `EADDRINUSE: port 8080` | Run `sudo fuser -k 8080/tcp` |
+| `fetch is not defined` | Upgrade Node to v18+ |
+| Module stuck on "Loading..." | Run `npm install` in module folder |
+| Prayer times not loading | Check internet; API: api.aladhan.com |
+
+---
+
+## 📅 Session Log
+
+**December 25, 2025:**
+- ✅ Deployed MagicMirror to Raspberry Pi 5
+- ✅ Fixed MMM-MyPrayerTimes for Node 16→20 compatibility
+- ✅ Added Hijri calendar display
+- ✅ Configured Islamic holidays in calendar
+- ✅ NBA Scoreboard working
+- ✅ All modules operational
+
+**Next Session:**
+- Implement "Verse Chainer" for voice-controlled Quran recitation
+- Install Ollama on Pi
+- Create MMM-QuranDisplay module
+- Set up Google Assistant integration
