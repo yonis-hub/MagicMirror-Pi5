@@ -27,7 +27,7 @@ except ImportError:
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2:0.5b"  # Tiny, fast model for Pi (or tinyllama)
+OLLAMA_MODEL = "tinyllama"  # Fastest model for Pi (~1.1B params, ~637MB)
 
 # System prompt for Ollama
 SYSTEM_PROMPT = """You are a voice command parser for a Quran player. Parse the user's command and respond ONLY with valid JSON.
