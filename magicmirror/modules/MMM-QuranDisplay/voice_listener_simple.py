@@ -119,19 +119,24 @@ class SimpleVoiceListener:
                 os.unlink(audio_file)
 
     def parse_command(self, text):
-        """Parse voice command"""
+        """Parse voice command - requires wake word 'mirror'"""
         if not text:
             return (None, None)
 
         text = text.lower().strip()
         print(f"  Heard: '{text}'")
 
-        # Stop commands
+        # Check for wake word "mirror"
+        if "mirror" not in text:
+            return (None, None)
+
+        # Stop commands: "Mirror Stop"
         if any(word in text for word in ["stop", "pause", "quiet", "silence"]):
             return ("stop", None)
 
-        # Play commands
+        # Play commands: "Mirror Play Quran" or "Mirror Play Surah Fatiha"
         if "play" in text or "recite" in text or "read" in text:
+            # Check for specific surah name
             for name, number in SURAH_NAMES.items():
                 if name in text:
                     return ("play", number)
@@ -143,6 +148,10 @@ class SimpleVoiceListener:
                     num = int(word)
                     if 1 <= num <= 114:
                         return ("play", num)
+
+            # "Mirror Play Quran" without surah = play Surah 1 (Al-Fatiha)
+            if "quran" in text:
+                return ("play", 1)
 
         return (None, None)
 
@@ -173,15 +182,18 @@ class SimpleVoiceListener:
     def listen_loop(self):
         """Main listening loop"""
         print("\n" + "="*50)
-        print("🎙️  SIMPLE VOICE LISTENER")
+        print("🎙️  MIRROR VOICE LISTENER")
         print("="*50)
         print(f"Device: {self.device}")
-        print("Say commands like:")
-        print("  • 'Play Surah Fatiha'")
-        print("  • 'Play Surah 36'")
-        print("  • 'Stop'")
+        print("Wake word: 'Mirror'")
+        print("")
+        print("Commands:")
+        print("  • 'Mirror Play Quran'")
+        print("  • 'Mirror Play Surah Fatiha'")
+        print("  • 'Mirror Play Surah 36'")
+        print("  • 'Mirror Stop'")
         print("="*50 + "\n")
-        print("Listening... (speak now)")
+        print("Listening... (say 'Mirror' to start)")
 
         while self.is_running:
             try:
