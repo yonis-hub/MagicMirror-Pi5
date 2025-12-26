@@ -1,0 +1,58 @@
+{
+  "name": "mmm-myscoreboard",
+  "version": "4.13.0",
+  "type": "commonjs",
+  "description": "A MagicMirror² module to display scores for your favorite teams from many major sports.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dathbe/MMM-MyScoreboard.git"
+  },
+  "keywords": [
+    "MagicMirror",
+    "Module",
+    "Sports",
+    "Scores",
+    "NBA",
+    "WNBA",
+    "NCAA",
+    "NCAAM",
+    "NCAAW",
+    "Basketball",
+    "MLB",
+    "Baseball",
+    "NFL",
+    "NCAAF",
+    "CFL",
+    "Football",
+    "NHL",
+    "Hockey",
+    "MLS",
+    "NWSL",
+    "Soccer",
+    "Lacrosse",
+    "Rugby"
+  ],
+  "author": "Jeff Clarke",
+  "contributors": [
+    {"name": "Jeff Clarke"},
+    {"name": "dathbe"},
+    {"name": "mikeyounge"},
+    {"name": "szech"},
+    {"name": "jvoss117-2"}
+  ],  
+  "scripts": {
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test": "node --run lint"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "moment-timezone": "^0.6.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@stylistic/eslint-plugin": "^5.6.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0"
+  }
+}

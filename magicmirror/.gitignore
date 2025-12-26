@@ -57,11 +57,17 @@ Temporary Items
 .directory
 .Trash-*
 
-# Ignore all modules except the default modules.
+# Ignore all modules except the default modules and custom modules.
 /modules/**
 !/modules/default
 !/modules/default/**
 !/modules/README.md**
+!/modules/MMM-MyPrayerTimes
+!/modules/MMM-MyPrayerTimes/**
+!/modules/MMM-QuranDisplay
+!/modules/MMM-QuranDisplay/**
+!/modules/MMM-MyScoreboard
+!/modules/MMM-MyScoreboard/**
 
 # Ignore changes to the custom css files.
 /css/custom.css

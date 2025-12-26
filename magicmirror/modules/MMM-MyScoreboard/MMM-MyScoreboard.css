@@ -1,0 +1,1162 @@
+.MMM-MyScoreboard {
+  min-width: 325px;
+  max-width: 400px;
+}
+
+.MMM-MyScoreboard .module-content {
+  overflow: hidden;
+}
+
+.MMM-MyScoreboard:has(.oneLine),
+.MMM-MyScoreboard:has(.oneLineWithLogos) {
+  min-width: 375px;
+}
+
+.MMM-MyScoreboard .wrapper {
+  margin-top: 10px;
+}
+
+.MMM-MyScoreboard .module-header {
+  margin-bottom: 0px;
+}
+
+.MMM-MyScoreboard .league-separator {
+  font-size: 15.5px;
+  line-height: 18px;
+  text-transform: uppercase;
+  margin-top: 10px;
+  border-bottom: solid 1px #222;
+  text-align: left;
+  padding: 0;
+}
+.MMM-MyScoreboard .league-separator > span {
+  color: #000;
+  font-weight: bold;
+  padding-left: 6px;
+  padding-right: 2px;
+  background-color: #FFF;
+  display: inline-block;
+  vertical-align: top;
+  position: relative;
+  white-space: nowrap;
+}
+
+.MMM-MyScoreboard .league-separator > span:after {
+  content: "";
+  width: 0;
+  height: 0;
+  display: inline-block;
+  vertical-align: top;
+  border-style: solid;
+  border-width: 18px 0 0 15px;
+  border-color: transparent transparent transparent #FFF;
+  margin-right: -15px;
+  position: relative;
+  right: -2px;
+}
+
+.MMM-MyScoreboard .box-score {
+  min-width: 300px;
+  height: 70px;
+  position: relative;
+  text-align: left;
+  border-bottom: solid 1px #222;
+}
+
+.MMM-MyScoreboard .box-score .logo {
+  position: absolute;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+
+  width: 60px;
+  height: 60px;
+  top: 5px;
+  
+  border: none;
+
+  -webkit-filter: grayscale(100%);
+  filter: grayscale(100%);
+}
+
+.MMM-MyScoreboard .box-score .logo img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.MMM-MyScoreboard .wrapper.colored .box-score .logo {
+  -webkit-filter: none;
+  filter: none;
+}
+
+
+.MMM-MyScoreboard .box-score .logo.visitor {
+  left: 0px;
+}
+
+.MMM-MyScoreboard .box-score .logo.home {
+  right: 0px;
+}
+
+.MMM-MyScoreboard .box-score.home-team-first .logo.visitor {
+  right: 0px;
+  left: auto;
+}
+
+.MMM-MyScoreboard .box-score.home-team-first .logo.home {
+  left: 0px;
+  right: auto;
+}
+
+
+.MMM-MyScoreboard .box-score .score {
+  position: absolute;
+  display: block;
+  width: 44px;
+  font-size: 32px;
+  line-height: 1;
+  top: 20px;
+  color: #FFF;
+  text-align: center;
+}
+
+.MMM-MyScoreboard .box-score .score.visitor {
+  left: 62px;
+}
+
+.MMM-MyScoreboard .box-score .score.home {
+  right: 62px;
+}
+
+.MMM-MyScoreboard .box-score.home-team-first .score.visitor {
+  right: 62px;
+  left: auto;
+}
+
+.MMM-MyScoreboard .box-score.home-team-first .score.home {
+  left: 62px;
+  right: auto;
+}
+
+.MMM-MyScoreboard .box-score .status {
+  position: absolute;
+  width: calc(100% - 200px);
+  left: 100px;
+  top: 0px;
+  height: 70px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+  line-height: 1;
+  font-weight: 300;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.MMM-MyScoreboard .box-score .status {
+  display: flex;
+}
+
+.MMM-MyScoreboard .box-score .status > span {
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.MMM-MyScoreboard .box-score .status sup {
+  font-size: 68%;
+  vertical-align: middle;
+  display: inline-block;
+  margin-bottom: 9px;
+}
+
+.MMM-MyScoreboard .box-score.in-progress .status {
+  color: #FFF;
+  font-weight: 400;
+}
+
+.MMM-MyScoreboard .box-score .logo .ranking {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 13px;
+  background-color: #FFF;
+  color: #000;
+  padding: 0 2px 0 3px;
+  height: 13px;
+  border-radius: 2px;
+  border-bottom: solid 1px #000;
+  border-left: solid 1px #000;
+}
+
+.MMM-MyScoreboard .box-score .team-name .ranking,
+.MMM-MyScoreboard .box-score .team-short-code .ranking {
+  font-size: 12px;
+  display: inline-block;
+  margin-right: 2px;
+  vertical-align: bottom;
+  margin-bottom: 4px;
+  bottom: 2px;
+  line-height: 13px;
+  padding: 0 2px;
+  height: 13px;
+  background-color: #FFF;
+  color: #000;
+  border-radius: 2px;
+  font-weight: bold;
+}
+
+.MMM-MyScoreboard .box-score .team-short-code .ranking {
+  margin-bottom: 7px;
+}
+
+.MMM-MyScoreboard .box-score.in-progress .team-name,
+.MMM-MyScoreboard .box-score.in-progress .team-short-code {
+  color: #EFEFEF;
+}
+
+.MMM-MyScoreboard .wrapper.colored .box-score .logo .ranking,
+.MMM-MyScoreboard .wrapper.colored .box-score .team-name .ranking,
+.MMM-MyScoreboard .wrapper.colored .box-score .team-short-code .ranking {
+  background-color: #C0FF00;
+}
+
+.MMM-MyScoreboard .wrapper.colored .box-score.in-progress .status {  
+  color: #f8dd70;
+}
+
+.MMM-MyScoreboard .box-score .status .game-clock {
+  margin-right: 12px;
+}
+
+
+/* Row shading */
+.MMM-MyScoreboard .wrapper.shade-rows .league-separator,
+.MMM-MyScoreboard .wrapper.shade-rows .box-score {
+  border-color: #282828;
+}
+
+.MMM-MyScoreboard .wrapper.shade-rows .box-score.odd {
+  background-color: #181818;
+}
+
+.MMM-MyScoreboard .wrapper.shade-rows.no-league-separators .box-score.odd {
+  background-color: initial;
+}
+
+.MMM-MyScoreboard .wrapper.shade-rows.no-league-separators .box-score:nth-child(odd) {
+  background-color: #181818;
+}
+
+
+
+
+
+/* Dim the status while an in-progress game is delayed */
+.MMM-MyScoreboard .box-score.in-progress.delay .status,
+.MMM-MyScoreboard .wrapper.colored .box-score.in-progress.delay .status {
+  color: #AAA;
+}
+
+/* Highlight the winners of finished games */
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h .score.visitor {
+  color: white;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h .team-short-code.home,
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h .team-name.home {
+  color: #7AE4FF;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h .team-short-code.visitor,
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h .team-name.visitor {
+  color: white;
+}
+
+.MMM-MyScoreboard .wrapper.highlight-winners.colored .box-score.winner-h .score.home {
+  color: #7AE4FF;
+}
+
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v .score.home {
+  color: white;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v .team-short-code.visitor,
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v .team-name.visitor {
+  color: #7AE4FF;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v .team-short-code.home,
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v .team-name.home {
+  color: white;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners.colored .box-score.final.winner-v .score.visitor {
+  color: #7AE4FF;
+}
+
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.tie .score.visitor,
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.tie .score.home {
+  color: #AAA;
+}
+
+
+/* 
+  ------------- View Modifiers -------------
+  The above styles default to the largeLogos
+  view style.  The following can be used to
+  modify the display
+*/
+
+
+/* mediumLogos */
+.MMM-MyScoreboard .box-score.mediumLogos {
+  height: 50px;
+}
+
+
+.MMM-MyScoreboard .box-score.mediumLogos .logo {
+  width: 40px;
+  height: 40px;
+  top: 5px;  
+}
+
+.MMM-MyScoreboard .box-score.mediumLogos .logo.home {
+  right: 0px;
+}
+.MMM-MyScoreboard .box-score.mediumLogos .logo.visitor {
+  left: 0px;
+}
+.MMM-MyScoreboard .box-score.mediumLogos.home-team-first .logo.home {
+  left: 0px;
+  right: auto;
+}
+.MMM-MyScoreboard .box-score.mediumLogos.home-team-first .logo.visitor {
+  right: 0px;
+  left: auto;
+}
+
+.MMM-MyScoreboard .box-score.mediumLogos .status {
+  height: 50px;
+  width: calc(100% - 160px);
+  left: 80px;  
+}
+
+.MMM-MyScoreboard .box-score.mediumLogos .score {
+  font-size: 26px;
+  top: 11px;
+}
+.MMM-MyScoreboard .box-score.mediumLogos .score.visitor {
+  left: 42px;
+}
+.MMM-MyScoreboard .box-score.mediumLogos .score.home {
+  right: 42px;
+}
+.MMM-MyScoreboard .box-score.mediumLogos.home-team-first .score.visitor {
+  right: 42px;
+  left: auto;
+}
+.MMM-MyScoreboard .box-score.mediumLogos.home-team-first .score.home {
+  left: 42px;
+  right: auto;
+}
+
+/* smallLogos */
+.MMM-MyScoreboard .box-score.smallLogos {
+  height: 30px;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo {
+  width: 40px;
+  height: 24px;
+  top: 3px;
+  /*overflow: visible;*/
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo .ranking {
+  top: 5px;
+  border: solid 1px #000;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo.home {
+  right: 0px;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .logo.home {
+  left: 0px;
+  right: auto;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo img {
+  max-width: 24px;
+  position: absolute;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo.home img {
+  right: 0px;
+}
+.MMM-MyScoreboard .box-score.smallLogos .logo.visitor img {
+  left: 0px;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .logo.home img {
+  left: 0px;
+  right: auto;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .logo.visitor img {
+  right: 0px;
+  left: auto;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo.home .ranking {
+  right: 20px;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .logo.home .ranking {
+  left: 20px;
+  right: auto;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo.visitor {
+  left: 0px;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .logo.visitor {
+  right: 0px;
+  left: auto;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .logo.visitor .ranking {
+  right: initial;
+  left: 20px;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .logo.visitor .ranking {
+  left: auto;
+  right: 20px;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .status {
+  height: 30px;
+  font-size: 16px;
+  line-height: 30px;
+  width: calc(100% - 124px);
+  left: 62px;
+  top: 0px;
+}
+
+.MMM-MyScoreboard .box-score.smallLogos .score {
+  font-size: 20px;
+  top: 0px;
+  height: 30px;
+  line-height: 30px;
+}
+.MMM-MyScoreboard .box-score.smallLogos .score.visitor {
+  left: 38px;
+}
+.MMM-MyScoreboard .box-score.smallLogos .score.home {
+  right: 38px;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .score.visitor {
+  right: 38px;
+  left: auto;
+}
+.MMM-MyScoreboard .box-score.smallLogos.home-team-first .score.home {
+  left: 38px;
+  right: auto;
+}
+
+
+
+
+/* oneLine / oneLineWithLogos */
+.MMM-MyScoreboard .box-score.oneLine,
+.MMM-MyScoreboard .box-score.oneLineWithLogos {
+  height: 30px;
+}
+
+.MMM-MyScoreboard .box-score.oneLine .team-short-code,
+.MMM-MyScoreboard .box-score.oneLine .status,
+.MMM-MyScoreboard .box-score.oneLine .score,
+.MMM-MyScoreboard .box-score.oneLine .vs-symbol,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .status,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .score,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .vs-symbol {
+  display: block;
+  position: absolute;
+  top: 0px;
+  font-size: 20px;
+  line-height: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  white-space:nowrap;
+  overflow: hidden;
+  text-align: left;
+}
+
+.MMM-MyScoreboard .box-score.oneLine .vs-symbol,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .vs-symbol {
+  left: 70px;
+  font-size: 16px;
+  line-height: 16px;
+  display: inline-block;
+  vertical-align: top;
+  top: 6px;
+  color: #AAA;
+}
+
+.MMM-MyScoreboard .box-score.oneLine .team-short-code,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code {
+  width: 57px;  
+  color: #AAA;
+}
+
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code {
+  width: 52px;
+}
+
+.MMM-MyScoreboard .box-score.in-progress.oneLine .team-short-code,
+.MMM-MyScoreboard .box-score.in-progress.oneLineWithLogos .team-short-code {  
+  color: #EFEFEF;
+}
+
+.MMM-MyScoreboard .box-score.oneLine .team-short-code.visitor,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code.visitor {
+  left: 0px;
+}
+.MMM-MyScoreboard .box-score.oneLine .team-short-code.home,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code.home {
+  left: 120px;
+}
+
+.MMM-MyScoreboard .box-score.oneLine.home-team-first .team-short-code.visitor,
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .team-short-code.visitor {
+  left: 120px;
+}
+.MMM-MyScoreboard .box-score.oneLine.home-team-first .team-short-code.home,
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .team-short-code.home {
+  left: 0px;
+}
+
+
+.MMM-MyScoreboard .box-score.oneLine .score,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .score {
+  width: 40px;
+  font-weight: bold;
+  color: #FFF;
+}
+.MMM-MyScoreboard .box-score.oneLine .score.visitor,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .score.visitor {
+  left: 62px;
+}
+.MMM-MyScoreboard .box-score.oneLine .score.home,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .score.home {
+  left: 182px;
+}
+
+.MMM-MyScoreboard .box-score.oneLine.home-team-first .score.visitor,
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .score.visitor {
+  left: 182px;
+}
+.MMM-MyScoreboard .box-score.oneLine.home-team-first .score.home,
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .score.home {
+  left: 62px;
+}
+
+
+.MMM-MyScoreboard .box-score.oneLine .status,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .status {
+  text-align: right;
+  left: initial;
+  right: 0px;
+  font-size: 16px;
+  width: calc(100% - 170px);
+}
+
+.MMM-MyScoreboard .box-score.oneLine .status sup,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .status sup {
+  margin-bottom: 6px;
+}
+
+
+.MMM-MyScoreboard .box-score.oneLine .status > span,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .status > span {
+  padding: 0 2px;
+}
+
+
+.MMM-MyScoreboard .box-score.oneLineWithLogos .logo {
+  top: 3px;
+  height: 24px;
+  width: 24px;
+  right: initial;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos .logo.visitor {
+  left: 0px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos .logo.home {
+  left: 120px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code.visitor {
+  left: 30px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos .team-short-code.home {
+  left: 150px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos .score.visitor {
+  left: 80px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos .score.home {
+  left: 202px;
+}
+
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .logo.visitor {
+  left: 120px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .logo.home {
+  left: 0px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .team-short-code.visitor {
+  left: 150px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .team-short-code.home {
+  left: 30px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .score.visitor {
+  left: 202px;
+}
+.MMM-MyScoreboard .box-score.oneLineWithLogos.home-team-first .score.home {
+  left: 80px;
+}
+
+
+.MMM-MyScoreboard .box-score.oneLineWithLogos .vs-symbol {
+  left: 85px;
+}
+
+
+/* stacked / stackedWithLogos */
+.MMM-MyScoreboard .box-score.stacked {
+  height: 60px;
+}
+
+.MMM-MyScoreboard .box-score.stacked.playoff {
+  height: 76px;
+}
+
+.MMM-MyScoreboard .box-score.stackedWithLogos {
+  height: 66px;
+}
+
+.MMM-MyScoreboard .box-score.stackedWithLogos.playoff {
+  height: 82px;
+}
+
+.MMM-MyScoreboard .box-score.stacked .team-name,
+.MMM-MyScoreboard .box-score.stacked .status,
+.MMM-MyScoreboard .box-score.stacked .score,
+.MMM-MyScoreboard .box-score.stacked .vs-symbol,
+.MMM-MyScoreboard .box-score.stackedWithLogos .team-name,
+.MMM-MyScoreboard .box-score.stackedWithLogos .status,
+.MMM-MyScoreboard .box-score.stackedWithLogos .score {
+  display: block;
+  position: absolute;
+  font-size: 20px;
+  line-height: 24px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  white-space:nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.MMM-MyScoreboard .box-score.stacked .team-name,
+.MMM-MyScoreboard .box-score.stackedWithLogos .team-name {
+  left: 0px;
+  width: 150px;
+  color: white;
+}
+.MMM-MyScoreboard .box-score.in-progress.stacked .team-name,
+.MMM-MyScoreboard .box-score.in-progress.stackedWithLogos .team-name {
+  color: #EFEFEF;
+}
+.MMM-MyScoreboard .box-score.stacked .team-name.visitor {
+  top: 6px;
+}
+.MMM-MyScoreboard .box-score.stacked .team-name.home {
+  top: 30px;
+}
+.MMM-MyScoreboard .box-score.stacked.home-team-first .team-name.visitor {
+  top: 30px;
+}
+.MMM-MyScoreboard .box-score.stacked.home-team-first .team-name.home {
+  top: 6px;
+}
+
+.MMM-MyScoreboard .box-score.stacked .score,
+.MMM-MyScoreboard .box-score.stackedWithLogos .score,
+.MMM-MyScoreboard .box-score.stacked.home-team-first .score,
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .score {
+  left: 140px;
+  width: 44px;
+  color: #AAA;
+  text-align: right;
+  color: #FFF;
+  font-weight: bold;
+}
+.MMM-MyScoreboard .box-score.stacked .score.visitor,
+.MMM-MyScoreboard .box-score.stackedWithLogos .score.visitor {
+  top:6px;
+}
+.MMM-MyScoreboard .box-score.stacked .score.home,
+.MMM-MyScoreboard .box-score.stackedWithLogos .score.home {
+  top: 30px;
+}
+.MMM-MyScoreboard .box-score.stacked.home-team-first .score.visitor,
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .score.visitor {
+  top:30px;
+  right: auto;
+}
+.MMM-MyScoreboard .box-score.stacked.home-team-first .score.home,
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .score.home {
+  top: 6px;
+}
+
+
+
+.MMM-MyScoreboard .box-score.stacked .status,
+.MMM-MyScoreboard .box-score.stackedWithLogos .status {
+  height: 60px;
+  left: initial;
+  right: 0px;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-content: center;
+  align-items: center;
+  width: calc(100% - 190px);
+}
+
+.MMM-MyScoreboard .box-score.stackedWithLogos .team-name {
+  left: 30px;
+  width: 130px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .team-name.visitor {
+  top: 8px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .team-name.home {
+  top: 34px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .team-name.visitor {
+  top: 34px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .team-name.home {
+  top: 8px;
+}
+
+.MMM-MyScoreboard .box-score.stackedWithLogos .logo,
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .logo {
+  height: 24px;
+  width: 24px;
+  left: 0px;
+  right: auto;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .logo.visitor {
+  top: 8px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .logo.home {
+  top: 36px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .logo.visitor {
+  top: 36px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .logo.home {
+  top: 8px;
+}
+
+.MMM-MyScoreboard .box-score.stackedWithLogos .score,
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .score {  
+  left: 146px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .score.visitor {
+  top: 8px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .score.home {
+  top: 34px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .score.visitor {
+  top: 34px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos.home-team-first .score.home {
+  top: 8px;
+}
+.MMM-MyScoreboard .box-score.stackedWithLogos .status {
+  height: 66px;
+  width: calc(100% - 200px);
+}
+
+
+/* -- Alternate display for when logo image is broken -- */
+
+/*
+  Images don't normally render :before and :after pseudoelements,
+  but in most modern browsers, they will render in the event
+  the image is broken.  We can use that to our advanatge here.
+  When the image is broken, we'll render a square that will cover
+  the broken image icon and display the team's short code, which
+  is written in as the attribute "data-abbr" in the image tag.
+*/
+
+.MMM-MyScoreboard .box-score .logo img:after {
+  content: attr(data-abbr);
+  display: block;
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  text-align: center;
+  background-color: #000;
+  color: #AAA;
+}
+
+.MMM-MyScoreboard .box-score.largeLogos .logo img:after {  
+  width: 60px;
+  height: 60px;
+  font-size: 20px;
+  line-height: 60px;
+}
+
+.MMM-MyScoreboard .box-score.mediumLogos .logo img:after {  
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  line-height: 40px;
+  letter-spacing: -1px;
+}
+
+
+.MMM-MyScoreboard .box-score.smallLogos .logo img:after,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .logo img:after,
+.MMM-MyScoreboard .box-score.stackedWithLogos .logo img:after {  
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  line-height: 24px;
+  letter-spacing: -1px;
+}
+
+/* 
+  Don't bother showing the short code for oneLineWithLogos and
+  stackedWithLogos view styles.  There is a label beside the logo
+  in these styles.
+*/
+.MMM-MyScoreboard .box-score.oneLineWithLogos .logo img:after,
+.MMM-MyScoreboard .box-score.stackedWithLogos .logo img:after {
+  content: " ";
+}
+
+/* Account for row shading */
+.MMM-MyScoreboard .wrapper.shade-rows .box-score.odd .logo img:after {
+  background-color: #181818;
+}
+
+.MMM-MyScoreboard .wrapper.shade-rows.no-league-separators .box-score.odd .logo img:after{
+  background-color: #000;
+}
+
+.MMM-MyScoreboard .wrapper.shade-rows.no-league-separators .box-score:nth-child(odd) .logo img:after {
+  background-color: #181818;
+}
+
+/* Account for in-progress game */
+.MMM-MyScoreboard .box-score.in-progress .logo img:after {
+  color: #EFEFEF;
+}
+
+/* Account for winner highlighting */
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h .logo.home img:after {
+  color: #EFEFEF;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-h logo.visitor img:after {
+  color: #777
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v .logo.visitor img:after {
+  color: #EFEFEF;
+}
+.MMM-MyScoreboard .wrapper.highlight-winners .box-score.final.winner-v logo.home img:after {
+  color: #777
+}
+
+
+
+
+
+/* ------------ Sport specific styles --------------- */
+
+/* NBA */
+.MMM-MyScoreboard .box-score.NBA.largeLogos .score {
+  top: 21px;
+  font-size: 26px;
+  letter-spacing: -2px;
+}
+.MMM-MyScoreboard .box-score.NBA.mediumLogos .score {
+  top: 10px;
+  font-size: 26px;
+  letter-spacing: -2px;
+}
+
+/* NCAAF */
+.MMM-MyScoreboard .box-score.NCAAF.stacked .team-name,
+.MMM-MyScoreboard .box-score.NCAAF.stackedWithLogos .team-name {
+  letter-spacing: -1px;
+}
+
+.MMM-MyScoreboard .box-score.NCAAF.oneLine .team-short-code,
+.MMM-MyScoreboard .box-score.NCAAF.oneLineWithLogos .team-short-code {
+  letter-spacing: -1px;
+}
+
+.MMM-MyScoreboard .box-score.NCAAF.oneLineWithLogos .score.visitor {
+  left: 80px;
+}
+.MMM-MyScoreboard .box-score.NCAAF.oneLineWithLogos .score.home {
+  left: 202px;
+}
+.MMM-MyScoreboard .box-score.NCAAF.oneLineWithLogos.home-team-first .score.visitor {
+  left: 202px;
+}
+.MMM-MyScoreboard .box-score.NCAAF.oneLineWithLogos.home-team-first .score.home {
+  left: 80px;
+}
+
+/* NCAAM */
+.MMM-MyScoreboard .box-score.NCAAM.oneLineWithLogos .score.visitor {
+  left: 85px;
+}
+.MMM-MyScoreboard .box-score.NCAAM.oneLineWithLogos .score.home {
+  left: 207px;
+}
+.MMM-MyScoreboard .box-score.NCAAM.oneLineWithLogos.home-team-first .score.visitor {
+  left: 207px;
+}
+.MMM-MyScoreboard .box-score.NCAAM.oneLineWithLogos.home-team-first .score.home {
+  left: 85px;
+}
+
+/* MLS */
+.MMM-MyScoreboard .box-score.MLS.delay .status {
+  color: #AAA;
+}
+
+
+/* Broadcast Logos */
+.MMM-MyScoreboard .broadcast {
+	font-size: 14px;
+  color: white;
+  width: fit-content;
+  display: flex;
+  justify-content: center;
+  padding: 3px 3px 3px 3px;
+  clear: both;
+  white-space: nowrap;
+  /* overflow: hidden; */
+  align-items: center;
+}
+
+/* .MMM-MyScoreboard .box-score.smallLogos .broadcast,
+.MMM-MyScoreboard .box-score.oneLine .broadcast,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .broadcast {
+  animation: unset;
+} */
+
+.MMM-MyScoreboard .box-score.stacked .broadcast,
+.MMM-MyScoreboard .box-score.stackedWithLogos .broadcast {
+  justify-content: right;
+  padding-right: 0;
+}
+
+.MMM-MyScoreboard .box-score.oneLine .status,
+.MMM-MyScoreboard .box-score.oneLineWithLogos .status {
+  display: flex;
+  justify-content: right;
+}
+
+.MMM-MyScoreboard .status {
+  overflow: hidden
+}
+
+.MMM-MyScoreboard .broadcastIcon {
+  height: 15px;
+  max-width: 80px;
+  margin: 0px 2px 0px 2px;
+}
+
+.MMM-MyScoreboard .broadcastIconDiv {
+  margin: 0;
+  padding: 0;
+  display: none;
+  animation-name: fade;
+  animation-duration: .5s;
+  white-space: nowrap;
+  align-items: center;
+}
+
+.MMM-MyScoreboard .broadcastIconDiv:first-of-type {
+    display: flex;
+}
+
+.MMM-MyScoreboard .outline {
+  -webkit-filter: drop-shadow(0px 0px 2px white)
+                  drop-shadow(-1px -1px 0px white)
+                  drop-shadow(1px -1px 0px white)
+                  drop-shadow(-1px 1px 0px white); 
+  filter: drop-shadow(1px 1px 0px white) 
+          drop-shadow(-1px -1px 0px white)
+          drop-shadow(1px -1px 0px white)
+          drop-shadow(-1px 1px 0px white);
+}
+
+.MMM-MyScoreboard .broadcastIconInvert {
+  filter: invert(100%);
+}
+
+.MMM-MyScoreboard .statusPart {
+  width: 100%;
+  text-align: center;
+}
+
+.MMM-MyScoreboard .oneLine .statusPart,
+.MMM-MyScoreboard .oneLineWithLogos .statusPart {
+  width: unset;
+}
+
+.MMM-MyScoreboard .stacked .statusPart,
+.MMM-MyScoreboard .stackedWithLogos .statusPart {
+  text-align: right;
+}
+
+.MMM-MyScoreboard .smallLogos .statusPart {
+  width: unset;
+}
+
+/* .MMM-MyScoreboard .moreBroadcasts {
+  padding-left: 2px;
+}
+
+.MMM-MyScoreboard .oneLine .moreBroadcasts,
+.MMM-MyScoreboard .oneLineWithLogos .moreBroadcasts {
+  padding-right: 5px;
+} */
+
+.MMM-MyScoreboard .oneLine .broadcast,
+.MMM-MyScoreboard .oneLineWithLogos .broadcast {
+  order: 1;
+}
+
+
+.MMM-MyScoreboard .oneLine .statusPart,
+.MMM-MyScoreboard .oneLineWithLogos .statusPart {
+  order: 2;
+}
+
+.MMM-MyScoreboard .broadcast .FanDuel {
+  color: #0078ff;
+  font-size: 11px;
+  line-height: 9px;
+}
+
+.MMM-MyScoreboard .broadcast .NBCSports {
+  color: #fccc12;
+  font-size: 11px;
+  line-height: 9px;
+}
+
+.MMM-MyScoreboard .broadcast .SpaceCityHome {
+  color: #edaa35;
+  font-size: 11px;
+  line-height: 9px;
+}
+
+.MMM-MyScoreboard .broadcast .MSG {
+  font-size: 14x;
+  line-height: 14px;
+}
+
+@keyframes fade {
+  from {opacity: .1} 
+  to {opacity: 1}
+}
+
+/* Scroll Animation */
+
+.MMM-MyScoreboard:has(.scroll) {
+  overflow: hidden;
+  display: inline-block;
+  white-space: nowrap;
+  /* width: 100%; */
+}
+
+.MMM-MyScoreboard .wrapper.scroll .scroll-container {
+  animation: scrollNoSeparator linear infinite;
+  /* animation-delay: .3s; */
+  will-change: transform;
+  animation-play-state: running !important;
+}
+
+.MMM-MyScoreboard:has(.league-separator) .wrapper.scroll .scroll-container {
+  animation: scrollSeparator linear infinite;
+}
+
+@keyframes scrollSeparator {
+  from { 
+    transform: translateY(10px);
+  }
+  to {
+    transform: translateY(-100%);
+  };
+}
+
+@keyframes scrollNoSeparator {
+  100% { transform: translateY(-100%); };
+}
+
+.MMM-MyScoreboard .playoffStatus {
+  display: none;
+}
+
+.MMM-MyScoreboard .stackedWithLogos .playoffStatus {
+  display: block;
+  position: absolute;
+  top: 62px;
+  margin: 0;
+  padding: 0;
+  white-space:nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.MMM-MyScoreboard .stacked .playoffStatus {
+  display: block;
+  position: absolute;
+  top: 56px;
+  margin: 0;
+  padding: 0;
+  white-space:nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* .MMM-MyScoreboard .largeLogos .playoffStatus {
+  text-align: center;
+  display: block;
+  position: absolute;
+  top: 66px;
+  margin: 0;
+  padding: 0;
+  white-space:nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+} */

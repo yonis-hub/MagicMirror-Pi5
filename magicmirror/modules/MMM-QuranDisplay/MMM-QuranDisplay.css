@@ -1,0 +1,73 @@
+/* MMM-QuranDisplay Styles */
+
+.mmm-quran-display {
+	text-align: center;
+	padding: 20px;
+	max-width: 800px;
+	margin: 0 auto;
+}
+
+.mmm-quran-display .waiting {
+	color: #888;
+	font-style: italic;
+	font-size: 1.2em;
+}
+
+.mmm-quran-display .surah-header {
+	margin-bottom: 20px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.mmm-quran-display .surah-arabic {
+	font-family: "Traditional Arabic", "Scheherazade New", "Amiri", serif;
+	font-size: 1.8em;
+	color: #90EE90;
+	margin-right: 15px;
+}
+
+.mmm-quran-display .surah-english {
+	font-size: 1.2em;
+	color: #aaa;
+}
+
+.mmm-quran-display .verse-arabic {
+	font-family: "Traditional Arabic", "Scheherazade New", "Amiri", serif;
+	direction: rtl;
+	line-height: 1.8;
+	margin-bottom: 20px;
+	color: #fff;
+	text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+.mmm-quran-display .verse-translation {
+	color: #ddd;
+	line-height: 1.6;
+	margin-bottom: 15px;
+	font-style: italic;
+	max-width: 700px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.mmm-quran-display .verse-info {
+	color: #888;
+	margin-top: 15px;
+}
+
+.mmm-quran-display .playing-indicator {
+	margin-top: 10px;
+	color: #90EE90;
+	animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.5; }
+}
+
+/* Transition animations */
+.mmm-quran-display .verse-arabic,
+.mmm-quran-display .verse-translation {
+	transition: opacity 0.5s ease-in-out;
+}
