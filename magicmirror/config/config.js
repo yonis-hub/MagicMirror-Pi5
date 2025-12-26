@@ -97,6 +97,7 @@ let config = {
 				location: "London, Ontario",
 				locationID: "6058560", // London, Ontario, Canada
 				apiKey: "83b14ba81eb9656f4afafb0637abf5e5",
+				updateInterval: 600000, // Update every 10 minutes
 				convertTemperature: true,
 				showWindDirection: true,
 				showWindDirectionAsArrow: true,
@@ -115,7 +116,8 @@ let config = {
 				type: "forecast",
 				location: "London, Ontario",
 				locationID: "6058560", // London, Ontario, Canada
-				apiKey: "83b14ba81eb9656f4afafb0637abf5e5"
+				apiKey: "83b14ba81eb9656f4afafb0637abf5e5",
+				updateInterval: 600000 // Update every 10 minutes
 			}
 		},
 		{
@@ -153,7 +155,9 @@ let config = {
 				broadcastNewsFeeds: true,
 				broadcastNewsUpdates: true,
 				showDescription: true,
-				lengthDescription: 150
+				lengthDescription: 150,
+				updateInterval: 300000, // Update every 5 minutes
+				reloadInterval: 300000 // Reload feeds every 5 minutes
 			}
 		},
 		{
@@ -207,9 +211,10 @@ let config = {
 			config: {
 				viewStyle: "oneLineWithLogos",
 				showPlayoffStatus: true,
-				rolloverHours: 0,
+				rolloverHours: 5,
 				sports: [{ league: "NBA" }],
-				maxHeight: 200
+				maxHeight: 200,
+				updateInterval: 300000 // Update every 5 minutes
 			}
 		}
 	]
