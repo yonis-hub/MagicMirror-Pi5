@@ -27,7 +27,7 @@ except ImportError:
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:1b"  # Small, fast model for Pi
+OLLAMA_MODEL = "qwen2:0.5b"  # Tiny, fast model for Pi (or tinyllama)
 
 # System prompt for Ollama
 SYSTEM_PROMPT = """You are a voice command parser for a Quran player. Parse the user's command and respond ONLY with valid JSON.
@@ -75,7 +75,7 @@ class OllamaVoiceListener:
         print("  Then run: ollama pull llama3.2:1b")
         return False
 
-    def record_audio(self, duration=4):
+    def record_audio(self, duration=2):
         """Record audio using arecord"""
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             temp_file = f.name
@@ -241,7 +241,7 @@ class OllamaVoiceListener:
 
         while self.is_running:
             try:
-                audio_file = self.record_audio(4)
+                audio_file = self.record_audio(2)
                 if not audio_file:
                     continue
 

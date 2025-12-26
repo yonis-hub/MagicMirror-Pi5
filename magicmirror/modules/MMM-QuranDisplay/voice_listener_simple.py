@@ -263,7 +263,7 @@ class SimpleVoiceListener:
         self.is_running = True
         self.script_dir = Path(__file__).parent
 
-    def record_audio(self, duration=4):
+    def record_audio(self, duration=2):
         """Record audio using arecord"""
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             temp_file = f.name
@@ -407,8 +407,8 @@ class SimpleVoiceListener:
 
         while self.is_running:
             try:
-                # Record 4 seconds of audio
-                audio_file = self.record_audio(4)
+                # Record 2 seconds of audio (faster response)
+                audio_file = self.record_audio(2)
                 if not audio_file:
                     continue
 
