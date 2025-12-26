@@ -220,7 +220,7 @@ class VoiceListener:
 
         # Calibrate for ambient noise with specific device
         try:
-            with sr.Microphone(device_index=device_index, sample_rate=16000) as source:
+            with sr.Microphone(device_index=device_index) as source:
                 print("🔇 Calibrating for ambient noise (2 seconds)...")
                 self.recognizer.adjust_for_ambient_noise(source, duration=2)
                 print("✓ Ready! Listening...\n")
@@ -229,7 +229,7 @@ class VoiceListener:
 
         while self.is_running:
             try:
-                with sr.Microphone(device_index=device_index, sample_rate=16000) as source:
+                with sr.Microphone(device_index=device_index) as source:
                     # Listen for audio
                     audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=5)
 
