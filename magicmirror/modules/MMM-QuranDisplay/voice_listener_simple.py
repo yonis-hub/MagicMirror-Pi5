@@ -263,7 +263,7 @@ class SimpleVoiceListener:
         self.is_running = True
         self.script_dir = Path(__file__).parent
 
-    def record_audio(self, duration=2):
+    def record_audio(self, duration=3):
         """Record audio using arecord"""
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             temp_file = f.name
@@ -336,31 +336,71 @@ class SimpleVoiceListener:
         text = text.lower().strip()
         print(f"  Heard: '{text}'")
 
-        # Check for wake word "mirror"
-        if "mirror" not in text:
+        # Fix common mishearings
+        text = text.replace("place", "play")
+        text = text.replace("plays", "play")
+        text = text.replace("player", "play")
+        text = text.replace("played", "play")
+        text = text.replace("suits of", "surah")
+        text = text.replace("surah of", "surah")
+        text = text.replace("surat", "surah")
+        text = text.replace("sutra", "surah")
+        text = text.replace("sora", "surah")
+        text = text.replace("fatah", "fatiha")
+        text = text.replace("fatihat", "fatiha")
+        text = text.replace("for to her", "fatiha")
+        text = text.replace("fat to her", "fatiha")
+        text = text.replace("yes seen", "yasin")
+        text = text.replace("yassin", "yasin")
+        text = text.replace("yacine", "yasin")
+        text = text.replace("rock man", "rahman")
+        text = text.replace("rockman", "rahman")
+        text = text.replace("malik", "mulk")
+        text = text.replace("coffee", "kahf")
+        text = text.replace("calf", "kahf")
+
+        # Check for wake word "mirror" or "mere" or "mira"
+        has_wake_word = any(w in text for w in ["mirror", "mere", "mira", "mira", "mirar"])
+        if not has_wake_word:
             return (None, None)
 
         # Stop commands: "Mirror Stop"
-        if any(word in text for word in ["stop", "pause", "quiet", "silence"]):
+        if any(word in text for word in ["stop", "pause", "quiet", "silence", "halt", "end"]):
             return ("stop", None)
 
         # Play commands: "Mirror Play Quran" or "Mirror Play Surah Fatiha"
-        if "play" in text or "recite" in text or "read" in text:
+        if "play" in text or "recite" in text or "read" in text or "start" in text:
             # Check for specific surah name
             for name, number in SURAH_NAMES.items():
                 if name in text:
                     return ("play", number)
 
-            # Try to find number
+            # Try to find number (including written numbers)
             words = text.split()
+            number_words = {
+                "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+                "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+                "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+                "thirty": 30, "thirty-six": 36, "thirtysix": 36,
+                "fifty": 50, "fifty-five": 55, "fiftyfive": 55,
+                "sixty": 60, "sixty-seven": 67, "sixtyseven": 67,
+                "hundred": 100,
+            }
             for word in words:
                 if word.isdigit():
                     num = int(word)
                     if 1 <= num <= 114:
                         return ("play", num)
+                if word in number_words:
+                    return ("play", number_words[word])
 
             # "Mirror Play Quran" without surah = play Surah 1 (Al-Fatiha)
-            if "quran" in text:
+            if "quran" in text or "koran" in text or "quron" in text:
+                return ("play", 1)
+
+            # Just "mirror play" = play Surah 1
+            if "play" in text:
                 return ("play", 1)
 
         return (None, None)
@@ -407,8 +447,8 @@ class SimpleVoiceListener:
 
         while self.is_running:
             try:
-                # Record 2 seconds of audio (faster response)
-                audio_file = self.record_audio(2)
+                # Record 3 seconds of audio for better accuracy
+                audio_file = self.record_audio(3)
                 if not audio_file:
                     continue
 
