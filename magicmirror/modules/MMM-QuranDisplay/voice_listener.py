@@ -111,18 +111,25 @@ class VoiceListener:
         """Find and select USB microphone"""
         print("🎤 Searching for microphones...")
 
-        for i, name in enumerate(sr.Microphone.list_microphone_names()):
+        mic_names = sr.Microphone.list_microphone_names()
+        for i, name in enumerate(mic_names):
             print(f"  [{i}] {name}")
 
-        # Try to find USB mic
-        for i, name in enumerate(sr.Microphone.list_microphone_names()):
-            if "usb" in name.lower() or "mic" in name.lower():
-                print(f"✓ Selected: {name}")
-                return sr.Microphone(device_index=i)
+        # Try to find USB mic by common names
+        usb_keywords = ["usb", "mic", "me6", "pnp", "audio"]
+        for i, name in enumerate(mic_names):
+            name_lower = name.lower()
+            if any(kw in name_lower for kw in usb_keywords) and "hdmi" not in name_lower:
+                print(f"✓ Selected: {name} (index {i})")
+                # Use mono (1 channel) and 16kHz sample rate for compatibility
+                return i
 
-        # Fall back to default
-        print("✓ Using default microphone")
-        return sr.Microphone()
+        # Fall back to last device (usually USB)
+        if len(mic_names) > 0:
+            print(f"✓ Using device index {len(mic_names)-1}")
+            return len(mic_names) - 1
+
+        return None
 
     def parse_command(self, text):
         """Parse voice command and return action"""
@@ -195,7 +202,11 @@ class VoiceListener:
 
     def listen_loop(self):
         """Main listening loop"""
-        self.microphone = self.find_microphone()
+        device_index = self.find_microphone()
+
+        if device_index is None:
+            print("❌ No microphone found!")
+            return
 
         print("\n" + "="*50)
         print("🎙️  VOICE LISTENER ACTIVE")
@@ -207,15 +218,18 @@ class VoiceListener:
         print("  • 'Stop'")
         print("="*50 + "\n")
 
-        # Calibrate for ambient noise
-        with self.microphone as source:
-            print("🔇 Calibrating for ambient noise (2 seconds)...")
-            self.recognizer.adjust_for_ambient_noise(source, duration=2)
-            print("✓ Ready! Listening...\n")
+        # Calibrate for ambient noise with specific device
+        try:
+            with sr.Microphone(device_index=device_index, sample_rate=16000) as source:
+                print("🔇 Calibrating for ambient noise (2 seconds)...")
+                self.recognizer.adjust_for_ambient_noise(source, duration=2)
+                print("✓ Ready! Listening...\n")
+        except Exception as e:
+            print(f"⚠ Calibration error (continuing anyway): {e}")
 
         while self.is_running:
             try:
-                with self.microphone as source:
+                with sr.Microphone(device_index=device_index, sample_rate=16000) as source:
                     # Listen for audio
                     audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=5)
 
