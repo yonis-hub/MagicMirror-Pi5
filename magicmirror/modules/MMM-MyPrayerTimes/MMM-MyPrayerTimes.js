@@ -49,8 +49,10 @@ Module.register("MMM-MyPrayerTimes", {
 
   start: function () {
     Log.info(`Starting module: ${this.name}`);
+    const now = new Date();
+    const dateStr = `${now.getDate().toString().padStart(2, "0")}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getFullYear()}`;
     this.url =
-      `https://api.aladhan.com/v1/timings/${new Date()}` +
+      `https://api.aladhan.com/v1/timings/${dateStr}` +
       `?latitude=${this.config.mptLat}` +
       `&longitude=${this.config.mptLon}` +
       `&method=${this.config.mptMethod}` +
