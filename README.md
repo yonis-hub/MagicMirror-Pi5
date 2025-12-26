@@ -120,26 +120,61 @@ Key settings in `magicmirror/config/config.js`:
 
 ---
 
-## 🔜 Future Enhancements: "Verse Chainer"
+## 🎙️ Verse Chainer - Voice-Controlled Quran Recitation
 
-**Next session goal:** Voice-controlled Quran recitation with verse-by-verse synchronization.
+Synchronized verse-by-verse Quran playback with audio and display.
 
-### Components Needed
-- [ ] **Ollama** - Local AI for voice command interpretation
-- [ ] **MMM-GoogleAssistant** - Voice control module
-- [ ] **MMM-QuranDisplay** - New minimalist verse display module
-- [ ] **quran_chainer.py** - Python script for verse-by-verse playback
+### Components
+- [x] **MMM-QuranDisplay** - Minimalist verse display module
+- [x] **quran_chainer.py** - Python script for verse-by-verse playback
+- [ ] **Ollama** - Local AI for voice command interpretation (optional)
 - [ ] **mpv** - Audio player for recitation
 
-### Architecture
-1. Voice command: "Play Surah Fatiha"
-2. Ollama interprets → Surah number (1)
-3. Python fetches from Al Quran Cloud API
-4. Loop: Display verse → Play audio → Wait → Next verse
+### Pi Setup Commands
 
-### API Endpoints
-- **Quran Data:** `http://api.alquran.cloud/v1/surah/{surah}/editions/ar.alafasy,en.asad`
-- **Audio CDN:** Included in API response (`ayahs[].audio`)
+```bash
+# 1. Install mpv audio player
+sudo apt install mpv -y
+
+# 2. Install Python requests library
+pip3 install requests
+
+# 3. (Optional) Install Ollama for voice command AI
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2:1b  # Lightweight model for Pi
+
+# 4. Pull latest changes
+cd ~/MagicMirror-Pi5 && git pull
+cd magicmirror && npm run server
+```
+
+### Usage
+
+```bash
+# Play Surah Al-Fatiha
+cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
+python3 quran_chainer.py --surah 1
+
+# Play Surah Yasin from verse 10
+python3 quran_chainer.py --surah yasin --start-verse 10
+
+# Play Surah Rahman
+python3 quran_chainer.py --surah rahman
+```
+
+### Supported Surahs (by name)
+`fatiha`, `baqara`, `imran`, `kahf`, `yasin`, `rahman`, `mulk`, `ikhlas`, `nas`, and all 114 surahs
+
+### Architecture
+```
+Terminal Command → quran_chainer.py → API Fetch → Display Update + mpv Audio
+     ↓                                                ↓
+Voice (future) → Ollama → Parse Surah           MMM-QuranDisplay
+```
+
+### API Used
+- **Al Quran Cloud:** `http://api.alquran.cloud/v1/surah/{surah}/ar.alafasy`
+- **Reciter:** Mishary Rashid Al-Afasy
 
 ---
 
@@ -187,8 +222,13 @@ cd magicmirror && npm run server
 - ✅ NBA Scoreboard working
 - ✅ All modules operational
 
+**December 26, 2025:**
+- ✅ Created MMM-QuranDisplay module (minimalist verse display)
+- ✅ Created quran_chainer.py (verse-by-verse playback with audio)
+- ✅ Updated config.js with new module
+- ✅ Documented Pi setup steps for mpv and Ollama
+
 **Next Session:**
-- Implement "Verse Chainer" for voice-controlled Quran recitation
-- Install Ollama on Pi
-- Create MMM-QuranDisplay module
-- Set up Google Assistant integration
+- Deploy to Pi and test audio playback
+- (Optional) Set up Ollama for voice command parsing
+- (Optional) Integrate Google Assistant for "Play Surah X" commands

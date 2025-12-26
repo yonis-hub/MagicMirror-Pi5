@@ -121,89 +121,20 @@ let config = {
 			}
 		},
 		{
-			module: "newsfeed",
-			position: "bottom_right",
-			header: "News Feed",
+			module: "MMM-QuranDisplay",
+			position: "middle_center",
 			config: {
-				feeds: [
-					// Technology News
-					{
-						title: "TechCrunch",
-						url: "https://techcrunch.com/feed/"
-					},
-					// World News
-					{
-						title: "BBC World",
-						url: "https://feeds.bbci.co.uk/news/world/rss.xml"
-					}
-					// Add more news sources by uncommenting below
-
-					// Business News
-					// ,{
-					// 	title: "Financial Times",
-					// 	url: "https://www.ft.com/rss/home"
-					// }
-
-					// Science News
-					// ,{
-					// 	title: "National Geographic",
-					// 	url: "https://feeds.nationalgeographic.com/ng/News/News_Main"
-					// }
-				],
-				showSourceTitle: true,
-				showPublishDate: true,
-				broadcastNewsFeeds: true,
-				broadcastNewsUpdates: true,
-				showDescription: true,
-				lengthDescription: 150,
-				updateInterval: 300000, // Update every 5 minutes
-				reloadInterval: 300000 // Reload feeds every 5 minutes
-			}
-		},
-		{
-			module: "MMM-QuranEmbed",
-			position: "top_center",
-			config: {
-				height: "600px",
-				width: "100%",
-				showControls: true,
-				useAPI: true,
-				clientId: "ef8785ea-8976-4fe3-9009-fbfa64fe544b",
-				clientSecret: "4O-HX00pK6hgnEI9JlndwFMI.q"
-			}
-		},
-		{
-			module: "MMM-WebSpeechTTS",
-			position: "middle_center", // Make it more visible in the center
-			config: {
-				hidden: false, // Set to false to see the text that should be spoken
-				text: "TTS Ready - Press G for greeting, T for time", // Custom placeholder text
-				speechLang: "en-US",
-				speechVoice: "", // Will auto-select first available voice
-				speechRate: 1,
-				speechPitch: 1,
-				speechVolume: 1,
-				translationLang: "",
-				producers: {
-					greeting: {
-						enabled: true,
-						delay: 2000 // Reduced delay to hear it sooner
-					},
-					keyboard: {
-						enabled: true,
-						shortcuts: {
-							greeting: "g",
-							stop: "s",
-							time: "t"
-						}
-					},
-					publicTransport: {
-						enabled: false,
-						shortcut: "d"
-					}
+				showArabic: true,
+				showTranslation: true,
+				showVerseNumber: true,
+				showSurahName: true,
+				animationSpeed: 500,
+				fontSize: {
+					arabic: "2.5em",
+					translation: "1.2em",
+					info: "0.9em"
 				}
-			},
-			scripts: ["modules/MMM-WebSpeechTTS/custom.js"] // Add our custom test script
+			}
 		},
 		{
 			module: "MMM-MyScoreboard",
