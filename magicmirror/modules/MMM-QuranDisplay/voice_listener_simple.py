@@ -359,16 +359,16 @@ class SimpleVoiceListener:
         text = text.replace("coffee", "kahf")
         text = text.replace("calf", "kahf")
 
-        # Check for wake word "mirror" or "mere" or "mira"
-        has_wake_word = any(w in text for w in ["mirror", "mere", "mira", "mira", "mirar"])
+        # Check for wake word "mo" (short, easy to say)
+        has_wake_word = any(w in text.split() for w in ["mo", "moe", "mow", "more"])
         if not has_wake_word:
             return (None, None)
 
-        # Stop commands: "Mirror Stop"
+        # Stop commands: "Mo Stop"
         if any(word in text for word in ["stop", "pause", "quiet", "silence", "halt", "end"]):
             return ("stop", None)
 
-        # Play commands: "Mirror Play Quran" or "Mirror Play Surah Fatiha"
+        # Play commands: "Mo Play Quran" or "Mo Play Surah Fatiha"
         if "play" in text or "recite" in text or "read" in text or "start" in text:
             # Check for specific surah name
             for name, number in SURAH_NAMES.items():
@@ -432,18 +432,18 @@ class SimpleVoiceListener:
     def listen_loop(self):
         """Main listening loop"""
         print("\n" + "="*50)
-        print("🎙️  MIRROR VOICE LISTENER")
+        print("🎙️  MO VOICE LISTENER")
         print("="*50)
         print(f"Device: {self.device}")
-        print("Wake word: 'Mirror'")
+        print("Wake word: 'Mo'")
         print("")
         print("Commands:")
-        print("  • 'Mirror Play Quran'")
-        print("  • 'Mirror Play Surah Fatiha'")
-        print("  • 'Mirror Play Surah 36'")
-        print("  • 'Mirror Stop'")
+        print("  • 'Mo Play Quran'")
+        print("  • 'Mo Play Surah Fatiha'")
+        print("  • 'Mo Play Surah 36'")
+        print("  • 'Mo Stop'")
         print("="*50 + "\n")
-        print("Listening... (say 'Mirror' to start)")
+        print("Listening... (say 'Mo' to start)")
 
         while self.is_running:
             try:
