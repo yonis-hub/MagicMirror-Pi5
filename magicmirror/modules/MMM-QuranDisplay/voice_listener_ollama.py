@@ -301,6 +301,26 @@ COMMON_REPLACEMENTS = {
 
 WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo."}
 
+
+def normalize_surah(value):
+    """Convert Ollama JSON surah field into an integer 1-114."""
+    if value is None:
+        return None
+
+    if isinstance(value, int):
+        return value if 1 <= value <= 114 else None
+
+    text = str(value).lower().strip()
+
+    if text.isdigit():
+        num = int(text)
+        return num if 1 <= num <= 114 else None
+
+    # Remove common words like "surah" prefix
+    text = text.replace("surah", "").strip()
+
+    return SURAH_NAMES.get(text)
+
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "tinyllama"  # Fastest model for Pi (~1.1B params, ~637MB)
@@ -418,7 +438,7 @@ class OllamaVoiceListener:
                     "stream": False,
                     "options": {"temperature": 0.1}
                 },
-                timeout=30
+                timeout=45
             )
 
             if response.status_code == 200:
@@ -430,14 +450,16 @@ class OllamaVoiceListener:
                         json_str = result[result.find("{"):result.rfind("}")+1]
                         parsed = json.loads(json_str)
                         action = parsed.get("action", "none")
-                        surah = parsed.get("surah")
+                        surah = normalize_surah(parsed.get("surah"))
 
                         if action == "play" and surah:
-                            return ("play", int(surah))
+                            return ("play", surah)
                         elif action == "stop":
                             return ("stop", None)
                 except json.JSONDecodeError:
                     pass
+        except requests.exceptions.Timeout:
+            print("  Ollama timed out, falling back to local parser...")
         except Exception as e:
             print(f"  Ollama error: {e}")
 
