@@ -86,7 +86,7 @@ let config = {
 		},
 		{
 			module: "compliments",
-			position: "lower_third"
+			position: "bottom_bar"
 		},
 		{
 			module: "weather",
