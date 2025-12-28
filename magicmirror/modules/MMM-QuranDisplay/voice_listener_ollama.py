@@ -470,7 +470,7 @@ class OllamaVoiceListener:
             self.device = "default"
             return self.record_audio(duration)
 
-    def is_silent(self, audio_file, threshold=1000):
+    def is_silent(self, audio_file, threshold=100):  # Reduced threshold
         """Check if the audio file is silent by checking maximum amplitude"""
         try:
             import wave
@@ -523,7 +523,9 @@ class OllamaVoiceListener:
                 language="en",
                 vad_filter=True
             )
+            segments = list(segments)  # Convert to list to be able to print
             text = " ".join(segment.text for segment in segments)
+            print(f"  Whisper segments: {segments}")
             return text.strip()
         except Exception as e:
             print(f"Whisper error: {e}")
