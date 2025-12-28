@@ -353,7 +353,7 @@ IMPORTANT: Respond with ONLY the JSON object, nothing else."""
 
 
 class OllamaVoiceListener:
-    def __init__(self, device="plughw:1,0", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
+    def __init__(self, device="plughw:2,0", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
         self.device = device
         self.mirror_url = mirror_url
         self.ollama_url = ollama_url
@@ -615,7 +615,7 @@ def signal_handler(sig, frame):
 def main():
     signal.signal(signal.SIGINT, signal_handler)
 
-    device = "plughw:1,0"  # Default to USB mic (usually card 1), use plughw for format conversion
+    device = "plughw:2,0"  # Updated to card 2 based on 'arecord -l' output
     mirror_url = "http://localhost:8080"
 
     for i, arg in enumerate(sys.argv):
