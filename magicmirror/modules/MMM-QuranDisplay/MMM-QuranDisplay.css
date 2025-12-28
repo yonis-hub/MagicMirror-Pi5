@@ -66,6 +66,21 @@
 	50% { opacity: 0.5; }
 }
 
+.listening-indicator {
+	position: absolute;
+	bottom: 10px;
+	right: 10px;
+	font-size: 1.2em;
+	color: #4fc3f7;
+	animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+	0% { opacity: 1; }
+	50% { opacity: 0.5; }
+	100% { opacity: 1; }
+}
+
 /* Transition animations */
 .mmm-quran-display .verse-arabic,
 .mmm-quran-display .verse-translation {

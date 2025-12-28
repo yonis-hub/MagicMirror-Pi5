@@ -28,6 +28,7 @@ Module.register("MMM-QuranDisplay", {
 		this.currentVerse = null;
 		this.isPlaying = false;
 		this.surahInfo = null;
+		this.isListening = false;
 
 		this.sendSocketNotification("MODULE_READY", {
 			config: this.config
@@ -89,6 +90,14 @@ Module.register("MMM-QuranDisplay", {
 			wrapper.appendChild(playingDiv);
 		}
 
+		// Listening indicator
+		if (this.isListening) {
+			const listeningDiv = document.createElement("div");
+			listeningDiv.className = "listening-indicator";
+			listeningDiv.innerHTML = "🎤 Listening...";
+			wrapper.appendChild(listeningDiv);
+		}
+
 		return wrapper;
 	},
 
@@ -112,6 +121,9 @@ Module.register("MMM-QuranDisplay", {
 			this.surahInfo = null;
 			this.isPlaying = false;
 			this.updateDom(this.config.animationSpeed);
+		} else if (notification === "LISTENING_STATUS") {
+			this.isListening = payload.isListening;
+			this.updateDom(200);
 		}
 	},
 

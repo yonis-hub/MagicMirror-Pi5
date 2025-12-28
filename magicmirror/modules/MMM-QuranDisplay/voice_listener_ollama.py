@@ -21,9 +21,13 @@ from pathlib import Path
 
 try:
     import requests
+    import speech_recognition as sr
+    from faster_whisper import WhisperModel
 except ImportError:
-    subprocess.run([sys.executable, "-m", "pip", "install", "requests", "--break-system-packages"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "requests", "SpeechRecognition", "faster-whisper", "--break-system-packages"])
     import requests
+    import speech_recognition as sr
+    from faster_whisper import WhisperModel
 
 # Complete Surah name mappings (all 114 surahs)
 SURAH_NAMES = {
@@ -273,6 +277,9 @@ NUMBER_WORDS = {
 }
 
 COMMON_REPLACEMENTS = {
+    # --- VOICE TRAINING / PRONUNCIATION FIXES ---
+    # Add your specific misheard words here.
+    # Format: "what google hears": "what you actually said"
     "place": "play",
     "plays": "play",
     "player": "play",
@@ -323,7 +330,7 @@ def normalize_surah(value):
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "tinyllama"  # Fastest model for Pi (~1.1B params, ~637MB)
+OLLAMA_MODEL = "llama3.2:1b"  # Better instruction following than tinyllama
 
 # System prompt for Ollama
 SYSTEM_PROMPT = """You are a voice command parser for a Quran player named Mo. Parse the user's command and respond ONLY with valid JSON.
@@ -346,7 +353,7 @@ IMPORTANT: Respond with ONLY the JSON object, nothing else."""
 
 
 class OllamaVoiceListener:
-    def __init__(self, device="hw:2,0", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
+    def __init__(self, device="plughw:1,0", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
         self.device = device
         self.mirror_url = mirror_url
         self.ollama_url = ollama_url
@@ -354,6 +361,10 @@ class OllamaVoiceListener:
         self.is_running = True
         self.script_dir = Path(__file__).parent
         self.ollama_available = False
+
+        # Initialize Whisper (loads model into RAM once)
+        print("⏳ Loading Whisper model (tiny.en)...")
+        self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
 
     def check_ollama(self):
         """Check if Ollama is running"""
@@ -371,7 +382,16 @@ class OllamaVoiceListener:
         print("  Then run: ollama pull llama3.2:1b")
         return False
 
-    def record_audio(self, duration=3):
+    def normalize_speech(self, text):
+        """Apply phonetic corrections to handle specific voice/pronunciation issues"""
+        if not text:
+            return ""
+        text = text.lower().strip()
+        for src, dst in COMMON_REPLACEMENTS.items():
+            text = text.replace(src, dst)
+        return text
+
+    def record_audio(self, duration=5):
         """Record audio using arecord"""
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             temp_file = f.name
@@ -379,10 +399,13 @@ class OllamaVoiceListener:
         try:
             cmd = [
                 "arecord", "-D", self.device,
-                "-f", "S16_LE", "-c", "1", "-r", "48000",
+                "-f", "S16_LE", "-c", "1", "-r", "16000",
                 "-d", str(duration), "-q", temp_file
             ]
-            subprocess.run(cmd, capture_output=True, timeout=duration+2)
+            result = subprocess.run(cmd, capture_output=True, timeout=duration+2)
+            if result.returncode != 0:
+                print(f"⚠ Recording failed (code {result.returncode}). Check device: {self.device}")
+                return None
             return temp_file
         except Exception as e:
             print(f"Recording error: {e}")
@@ -391,28 +414,21 @@ class OllamaVoiceListener:
             return None
 
     def transcribe_google(self, audio_file):
-        """Transcribe audio using Google Web Speech API"""
+        """Transcribe audio using SpeechRecognition library"""
+        recognizer = sr.Recognizer()
         try:
-            with open(audio_file, "rb") as f:
-                audio_data = f.read()
+            with sr.AudioFile(audio_file) as source:
+                # Adjust for ambient noise if necessary, but usually fine with file
+                audio = recognizer.record(source)
 
-            url = "http://www.google.com/speech-api/v2/recognize"
-            params = {"client": "chromium", "lang": "en-US", "key": "AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw"}
-            headers = {"Content-Type": "audio/l16; rate=48000;"}
-            pcm_data = audio_data[44:]  # Skip WAV header
-
-            response = requests.post(url, params=params, headers=headers, data=pcm_data, timeout=10)
-
-            for line in response.text.strip().split("\n"):
-                if line:
-                    try:
-                        result = json.loads(line)
-                        if "result" in result and result["result"]:
-                            alternatives = result["result"][0].get("alternative", [])
-                            if alternatives:
-                                return alternatives[0].get("transcript", "")
-                    except json.JSONDecodeError:
-                        pass
+            # Use the free Google Speech API
+            text = recognizer.recognize_google(audio)
+            return text
+        except sr.UnknownValueError:
+            # Speech was unintelligible
+            return ""
+        except sr.RequestError as e:
+            print(f"Google Speech API error: {e}")
             return ""
         except Exception as e:
             print(f"Transcription error: {e}")
@@ -470,11 +486,6 @@ class OllamaVoiceListener:
         if not text:
             return (None, None)
 
-        text = text.lower().strip()
-
-        for src, dst in COMMON_REPLACEMENTS.items():
-            text = text.replace(src, dst)
-
         words = text.split()
 
         if not any(word in WAKE_WORDS for word in words):
@@ -526,12 +537,21 @@ class OllamaVoiceListener:
             self.current_process = None
             subprocess.run(["pkill", "-f", "mpv"], capture_output=True)
 
+    def send_listening_status(self, listening):
+        """Send listening status to MagicMirror"""
+        try:
+            url = f"{self.mirror_url}/api/quran/listening"
+            requests.post(url, json={"isListening": listening}, timeout=1)
+        except Exception as e:
+            print(f"⚠ Could not send listening status: {e}")
+
     def listen_loop(self):
         """Main listening loop"""
         print("\n" + "="*50)
         print("🤖  MO OLLAMA VOICE LISTENER")
         print("="*50)
         print(f"Device: {self.device}")
+        print("  (Run 'arecord -l' to verify device index if not hearing audio)")
         print(f"Model: {OLLAMA_MODEL}")
         print("Wake word: 'Mo'")
         print("")
@@ -540,6 +560,7 @@ class OllamaVoiceListener:
         print("  • 'Mo, play Surah Yasin'")
         print("  • 'Mo, recite Al-Rahman'")
         print("  • 'Mo, stop'")
+        print("  (Watch 'Raw Input' logs to add pronunciation fixes to COMMON_REPLACEMENTS)")
         print("="*50 + "\n")
 
         self.check_ollama()
@@ -547,19 +568,25 @@ class OllamaVoiceListener:
 
         while self.is_running:
             try:
+                self.send_listening_status(True)
                 audio_file = self.record_audio(3)
                 if not audio_file:
                     continue
 
-                text = self.transcribe_google(audio_file)
+                text = self.transcribe_whisper(audio_file)
 
                 if text:
-                    print(f"  Heard: '{text}'")
+                    print(f"  Raw Input: '{text}'")
+
+                    # Apply voice corrections (The "Training" layer)
+                    text_fixed = self.normalize_speech(text)
+                    if text_fixed != text.lower():
+                        print(f"  Processed: '{text_fixed}'")
 
                     if self.ollama_available:
-                        action, value = self.parse_with_ollama(text)
+                        action, value = self.parse_with_ollama(text_fixed)
                     else:
-                        action, value = self.parse_fallback(text)
+                        action, value = self.parse_fallback(text_fixed)
 
                     if action == "play" and value:
                         self.play_surah(value)
@@ -573,6 +600,8 @@ class OllamaVoiceListener:
             except Exception as e:
                 print(f"Error: {e}")
                 time.sleep(1)
+            finally:
+                self.send_listening_status(False)
 
         print("\n👋 Voice listener stopped")
         self.stop_playback()
@@ -586,7 +615,7 @@ def signal_handler(sig, frame):
 def main():
     signal.signal(signal.SIGINT, signal_handler)
 
-    device = "hw:2,0"
+    device = "plughw:1,0"  # Default to USB mic (usually card 1), use plughw for format conversion
     mirror_url = "http://localhost:8080"
 
     for i, arg in enumerate(sys.argv):
