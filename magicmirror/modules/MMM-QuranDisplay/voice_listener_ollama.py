@@ -382,6 +382,15 @@ class OllamaVoiceListener:
         self.script_dir = Path(__file__).parent
         self.ollama_available = False
 
+        # Print audio device information
+        print(f"🔊 Using audio device: {device}")
+        print("Available PulseAudio sources:")
+        try:
+            sources = subprocess.check_output(["pactl", "list", "sources", "short"], text=True)
+            print(sources)
+        except Exception as e:
+            print(f"  Error listing sources: {e}")
+
         # Initialize Whisper (loads model into RAM once)
         print("⏳ Loading Whisper model (tiny.en)...")
         self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
@@ -413,25 +422,52 @@ class OllamaVoiceListener:
 
     def record_audio(self, duration=5):
         """Record audio using arecord"""
+        # Increase timeout buffer to 10 seconds
+        timeout = duration + 7  # Additional buffer for device initialization
+        print(f"  Recording audio for {duration} seconds using device '{self.device}'...")
+
+        # Verify device exists
+        try:
+            check_cmd = ["arecord", "-D", self.device, "-l"]
+            result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=2)
+            if "no such card" in result.stderr.lower():
+                print(f"❌ Device {self.device} not found!")
+                return None
+        except Exception as e:
+            print(f"Device check error: {e}")
+
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             temp_file = f.name
 
-        try:
-            cmd = [
-                "arecord", "-D", self.device,
-                "-f", "S16_LE", "-c", "1", "-r", "16000",
-                "-d", str(duration), "-q", temp_file
-            ]
-            result = subprocess.run(cmd, capture_output=True, timeout=duration+2)
-            if result.returncode != 0:
-                print(f"⚠ Recording failed (code {result.returncode}). Check device: {self.device}")
+        # Try recording with retries
+        for attempt in range(3):
+            try:
+                cmd = [
+                    "arecord", "-D", self.device,
+                    "-f", "S16_LE", "-c", "1", "-r", "16000",
+                    "-d", str(duration), "-q", temp_file
+                ]
+                print(f"  Attempt {attempt+1}: Running command: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+                if result.returncode != 0:
+                    print(f"⚠ Recording failed (code {result.returncode}). Check device: {self.device}")
+                    return None
+                print("  Recording completed successfully")
+                return temp_file
+            except subprocess.TimeoutExpired:
+                print(f"⚠ Timeout on attempt {attempt+1}, retrying...")
+                continue
+            except Exception as e:
+                print(f"Recording error: {e}")
+                if os.path.exists(temp_file):
+                    os.unlink(temp_file)
                 return None
-            return temp_file
-        except Exception as e:
-            print(f"Recording error: {e}")
-            if os.path.exists(temp_file):
-                os.unlink(temp_file)
-            return None
+
+        # Fallback to default device
+        if not temp_file:
+            print("⚠ Falling back to default device")
+            self.device = "default"
+            return self.record_audio(duration)
 
     def transcribe_google(self, audio_file):
         """Transcribe audio using SpeechRecognition library"""
