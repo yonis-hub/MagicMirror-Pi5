@@ -18,6 +18,7 @@ import time
 import tempfile
 import json
 from pathlib import Path
+import requests
 
 try:
     import requests
@@ -28,6 +29,16 @@ except ImportError:
     import requests
     import speech_recognition as sr
     from faster_whisper import WhisperModel
+
+def check_server_ready():
+    for _ in range(10):
+        try:
+            response = requests.get("http://localhost:8080/status", timeout=2)
+            if response.status_code == 200:
+                return True
+        except requests.ConnectionError:
+            time.sleep(1)
+    return False
 
 # Complete Surah name mappings (all 114 surahs)
 SURAH_NAMES = {
@@ -308,7 +319,6 @@ COMMON_REPLACEMENTS = {
 
 WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo."}
 
-
 def normalize_surah(value):
     """Convert Ollama JSON surah field into an integer 1-114."""
     if value is None:
@@ -327,6 +337,16 @@ def normalize_surah(value):
     text = text.replace("surah", "").strip()
 
     return SURAH_NAMES.get(text)
+
+def check_server_ready():
+    for _ in range(10):
+        try:
+            response = requests.get("http://localhost:8080/status", timeout=2)
+            if response.status_code == 200:
+                return True
+        except requests.ConnectionError:
+            time.sleep(1)
+    return False
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -353,7 +373,7 @@ IMPORTANT: Respond with ONLY the JSON object, nothing else."""
 
 
 class OllamaVoiceListener:
-    def __init__(self, device="plughw:2,0", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
+    def __init__(self, device="pulse", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
         self.device = device
         self.mirror_url = mirror_url
         self.ollama_url = ollama_url
@@ -581,6 +601,11 @@ class OllamaVoiceListener:
         print("  (Watch 'Raw Input' logs to add pronunciation fixes to COMMON_REPLACEMENTS)")
         print("="*50 + "\n")
 
+        if not check_server_ready():
+            print("❌ MagicMirror server not running! Please start server first")
+            print("Run in separate terminal: cd ~/MagicMirror-Pi5/magicmirror && npm run server")
+            sys.exit(1)
+
         self.check_ollama()
         print("\nListening... (say 'Mo' to start)")
 
@@ -595,22 +620,22 @@ class OllamaVoiceListener:
 
                 if text:
                     print(f"  Raw Input: '{text}'")
-
-                    # Apply voice corrections (The "Training" layer)
                     text_fixed = self.normalize_speech(text)
-                    if text_fixed != text.lower():
-                        print(f"  Processed: '{text_fixed}'")
+                    print(f"  Processing: '{text_fixed}'")
+                    print(f"  Wake words detected: {any(word in WAKE_WORDS for word in text_fixed.split())}")
 
                     if self.ollama_available:
                         action, value = self.parse_with_ollama(text_fixed)
                     else:
                         action, value = self.parse_fallback(text_fixed)
 
+                    print(f"  Parse Result: action={action}, value={value}")
+
                     if action == "play" and value:
                         self.play_surah(value)
                     elif action == "stop":
                         self.stop_playback()
-                    elif any(word in WAKE_WORDS for word in text.lower().split()):
+                    elif any(word in WAKE_WORDS for word in text_fixed.split()):
                         print("  (Command not understood)")
 
             except KeyboardInterrupt:
@@ -633,7 +658,7 @@ def signal_handler(sig, frame):
 def main():
     signal.signal(signal.SIGINT, signal_handler)
 
-    device = "plughw:2,0"  # Updated to card 2 based on 'arecord -l' output
+    device = "pulse"  # Use PulseAudio instead of direct ALSA
     mirror_url = "http://localhost:8080"
 
     for i, arg in enumerate(sys.argv):
