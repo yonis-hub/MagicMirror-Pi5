@@ -386,7 +386,7 @@ class OllamaVoiceListener:
         print(f"🔊 Using audio device: {device}")
         print("Available PulseAudio sources:")
         try:
-            sources = subprocess.check_output(["pactl", "list", "sources", "short"], text=True)
+            sources = subprocess.check_output(["pactl", "list", "sources", "short"], text=True, errors='ignore')
             print(sources)
         except Exception as e:
             print(f"  Error listing sources: {e}")
@@ -451,6 +451,7 @@ class OllamaVoiceListener:
                 result = subprocess.run(cmd, capture_output=True, timeout=timeout)
                 if result.returncode != 0:
                     print(f"⚠ Recording failed (code {result.returncode}). Check device: {self.device}")
+                    print(f"  stderr: {result.stderr.decode('utf-8', errors='replace')}")
                     return None
                 print("  Recording completed successfully")
                 return temp_file
