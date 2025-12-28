@@ -470,6 +470,26 @@ class OllamaVoiceListener:
             self.device = "default"
             return self.record_audio(duration)
 
+    def is_silent(self, audio_file, threshold=1000):
+        """Check if the audio file is silent by checking maximum amplitude"""
+        try:
+            import wave
+            import struct
+            with wave.open(audio_file, 'rb') as wf:
+                nframes = wf.getnframes()
+                data = wf.readframes(nframes)
+                # Convert to integers
+                if wf.getsampwidth() == 2:
+                    fmt = f"{nframes * wf.getnchannels()}h"
+                    samples = struct.unpack(fmt, data)
+                    max_amp = max(abs(s) for s in samples)
+                    return max_amp < threshold
+                else:
+                    # Unsupported format
+                    return False
+        except:
+            return False
+
     def transcribe_google(self, audio_file):
         """Transcribe audio using SpeechRecognition library"""
         recognizer = sr.Recognizer()
@@ -651,6 +671,13 @@ class OllamaVoiceListener:
                 self.send_listening_status(True)
                 audio_file = self.record_audio(3)
                 if not audio_file:
+                    continue
+
+                # Check if the audio is silent
+                if self.is_silent(audio_file):
+                    print("  Recording is silent, skipping...")
+                    if os.path.exists(audio_file):
+                        os.unlink(audio_file)
                     continue
 
                 text = self.transcribe_whisper(audio_file)
