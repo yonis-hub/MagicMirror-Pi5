@@ -155,6 +155,22 @@ If you see "Command timed out" errors:
    ./start_listener.sh --device default
    ```
 
+### Microphone Volume Too Low
+If your recordings are silent:
+1. Boost the microphone volume:
+   ```bash
+   pactl set-source-volume @DEFAULT_SOURCE@ 150%
+   ```
+2. If that doesn't work, try setting the volume for your specific device:
+   ```bash
+   pactl list sources short
+   pactl set-source-volume <source_index> 150%
+   ```
+3. Check the volume levels with:
+   ```bash
+   alsamixer
+   ```
+
 ### Change MagicMirror Port
 Edit `~/MagicMirror-Pi5/magicmirror/config/config.js` and change the `port` value:
 ```js
