@@ -33,7 +33,7 @@ except ImportError:
 def check_server_ready():
     for _ in range(10):
         try:
-            response = requests.get("http://localhost:8080/status", timeout=2)
+            response = requests.get("http://localhost:8080", timeout=2)
             if response.status_code == 200:
                 return True
         except requests.ConnectionError:
@@ -341,7 +341,7 @@ def normalize_surah(value):
 def check_server_ready():
     for _ in range(10):
         try:
-            response = requests.get("http://localhost:8080/status", timeout=2)
+            response = requests.get("http://localhost:8080", timeout=2)
             if response.status_code == 200:
                 return True
         except requests.ConnectionError:
