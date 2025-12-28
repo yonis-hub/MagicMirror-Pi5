@@ -437,6 +437,24 @@ class OllamaVoiceListener:
             if os.path.exists(audio_file):
                 os.unlink(audio_file)
 
+    def transcribe_whisper(self, audio_file):
+        """Transcribe audio using Faster-Whisper"""
+        try:
+            segments, info = self.whisper.transcribe(
+                audio_file,
+                beam_size=5,
+                language="en",
+                vad_filter=True
+            )
+            text = " ".join(segment.text for segment in segments)
+            return text.strip()
+        except Exception as e:
+            print(f"Whisper error: {e}")
+            return ""
+        finally:
+            if os.path.exists(audio_file):
+                os.unlink(audio_file)
+
     def parse_with_ollama(self, text):
         """Use Ollama to parse command"""
         if not text or not self.ollama_available:
