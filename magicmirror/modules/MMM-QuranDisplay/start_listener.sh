@@ -5,4 +5,4 @@ command -v ollama >/dev/null 2>&1 || { echo >&2 "Ollama required but not install
 
 cd "$(dirname "$0")"
 source venv/bin/activate
-python voice_listener_ollama.py "$@"
+python voice_listener_ollama.py
