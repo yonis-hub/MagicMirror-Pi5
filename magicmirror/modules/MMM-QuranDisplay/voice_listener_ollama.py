@@ -19,6 +19,7 @@ import tempfile
 import json
 from pathlib import Path
 import requests
+import sounddevice as sd
 
 try:
     import requests
@@ -352,7 +353,7 @@ def check_server_ready():
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:1b"  # Better instruction following than tinyllama
+OLLAMA_MODEL = "llama3.2:1b-Q4_K_M"  # Quantized model for efficiency
 
 # System prompt for Ollama
 SYSTEM_PROMPT = """You are a voice command parser for a Quran player named Mo. Parse the user's command and respond ONLY with valid JSON.
@@ -395,7 +396,10 @@ class OllamaVoiceListener:
 
         # Initialize Whisper (loads model into RAM once)
         print("⏳ Loading Whisper model (tiny.en)...")
-        self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+        try:
+            self.whisper = WhisperModel("tiny.en", device="opencl", compute_type="int8")
+        except:
+            self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
 
     def check_ollama(self):
         """Check if Ollama is running"""
@@ -422,8 +426,11 @@ class OllamaVoiceListener:
             text = text.replace(src, dst)
         return text
 
-    def record_audio(self, duration=5):
+    def record_audio(self, duration=5):  # Default duration changed to 5 seconds
         """Record audio using arecord"""
+        # Play start beep
+        self.beep()
+
         # Increase timeout buffer to 10 seconds
         timeout = duration + 7  # Additional buffer for device initialization
         print(f"  Recording audio for {duration} seconds using device '{self.device}'...")
@@ -456,6 +463,8 @@ class OllamaVoiceListener:
                     print(f"  stderr: {result.stderr.decode('utf-8', errors='replace')}")
                     return None
                 print("  Recording completed successfully")
+                # Play end beep
+                self.beep(660, 0.1)  # Different pitch for end
                 return temp_file
             except subprocess.TimeoutExpired:
                 print(f"⚠ Timeout on attempt {attempt+1}, retrying...")
@@ -613,6 +622,12 @@ class OllamaVoiceListener:
 
         return (None, None)
 
+    def confirm_command(self, text):
+        """Confirm command with user"""
+        # Implement command confirmation logic here
+        # For now, just return True
+        return True
+
     def play_surah(self, surah_number):
         """Start playing a surah"""
         print(f"▶ Playing Surah {surah_number}...")
@@ -644,6 +659,44 @@ class OllamaVoiceListener:
         except Exception as e:
             print(f"⚠ Could not send listening status: {e}")
 
+    def beep(self, freq=440, duration=0.2):
+        """Generate a beep sound"""
+        try:
+            import numpy as np
+            fs = 44100
+            t = np.linspace(0, duration, int(fs * duration), endpoint=False)
+            beep_sound = np.sin(2 * np.pi * freq * t)
+            sd.play(beep_sound, fs)
+            sd.wait()
+        except Exception as e:
+            print(f"Beep error: {e}")
+
+    def play_confirmation(self):
+        """Play a confirmation sound"""
+        self.beep(880, 0.3)  # Higher pitch for confirmation
+
+    def play_error(self):
+        """Play an error sound"""
+        self.beep(220, 0.5)  # Lower pitch for error
+
+    def check_memory(self):
+        """Check memory usage and clear cache if high"""
+        try:
+            import psutil
+            mem = psutil.virtual_memory()
+            if mem.percent > 80:  # If memory usage is over 80%
+                print("⚠ High memory usage! Clearing cache...")
+                self.whisper = None
+                import gc
+                gc.collect()
+                # Reinitialize Whisper
+                try:
+                    self.whisper = WhisperModel("tiny.en", device="opencl", compute_type="int8")
+                except:
+                    self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+        except Exception as e:
+            print(f"Memory check error: {e}")
+
     def listen_loop(self):
         """Main listening loop"""
         print("\n" + "="*50)
@@ -673,7 +726,7 @@ class OllamaVoiceListener:
         while self.is_running:
             try:
                 self.send_listening_status(True)
-                audio_file = self.record_audio(3)
+                audio_file = self.record_audio(10)  # Extended recording time
                 if not audio_file:
                     continue
 
@@ -692,20 +745,31 @@ class OllamaVoiceListener:
                     print(f"  Processing: '{text_fixed}'")
                     print(f"  Wake words detected: {any(word in WAKE_WORDS for word in text_fixed.split())}")
 
-                    if self.ollama_available:
-                        action, value = self.parse_with_ollama(text_fixed)
+                    if self.confirm_command(text_fixed):
+                        print("  Command confirmed.")
+                        # Proceed with command processing
+                        if self.ollama_available:
+                            action, value = self.parse_with_ollama(text_fixed)
+                        else:
+                            action, value = self.parse_fallback(text_fixed)
+
+                        print(f"  Parse Result: action={action}, value={value}")
+
+                        if action == "play" and value:
+                            self.play_confirmation()
+                            self.play_surah(value)
+                        elif action == "stop":
+                            self.play_confirmation()
+                            self.stop_playback()
+                        elif any(word in WAKE_WORDS for word in text_fixed.split()):
+                            self.play_error()
+                            print("  (Command not understood)")
                     else:
-                        action, value = self.parse_fallback(text_fixed)
+                        print("  Command rejected. Please try again.")
+                        self.play_error()
+                        continue
 
-                    print(f"  Parse Result: action={action}, value={value}")
-
-                    if action == "play" and value:
-                        self.play_surah(value)
-                    elif action == "stop":
-                        self.stop_playback()
-                    elif any(word in WAKE_WORDS for word in text_fixed.split()):
-                        print("  (Command not understood)")
-
+                self.check_memory()  # Check memory usage after each command
             except KeyboardInterrupt:
                 break
             except Exception as e:
