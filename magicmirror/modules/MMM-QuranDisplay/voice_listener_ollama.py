@@ -321,7 +321,7 @@ COMMON_REPLACEMENTS = {
     "show": "mo",
 }
 
-WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo."}
+WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo.", "mohammed", "mohammad", "mohamed", "mohd", "mohamad", "mohd."}
 
 def normalize_surah(value):
     """Convert Ollama JSON surah field into an integer 1-114."""
@@ -568,12 +568,12 @@ class OllamaVoiceListener:
             )
 
             if response.status_code == 200:
-                result = response.json().get("response", "").strip()
+                response_text = response.json().get("response", "").strip()
                 # Extract JSON from response
                 try:
                     # Try to find JSON in response
-                    if "{" in result and "}" in result:
-                        json_str = result[result.find("{"):result.rfind("}")+1]
+                    if "{" in response_text and "}" in response_text:
+                        json_str = response_text[response_text.find("{"):response_text.rfind("}")+1]
                         parsed = json.loads(json_str)
                         action = parsed.get("action", "none")
                         surah = normalize_surah(parsed.get("surah"))
@@ -584,6 +584,31 @@ class OllamaVoiceListener:
                             return ("stop", None)
                 except json.JSONDecodeError:
                     pass
+                # If the response contains "play", assume action is play and extract the surah name/number
+                if "play" in response_text.lower():
+                    action = "play"
+                    words = response_text.lower().split()
+                    # Find the index of "play"
+                    try:
+                        idx = words.index("play")
+                    except ValueError:
+                        return action, None
+                    # Skip over "play" and any immediate stop words
+                    idx += 1
+                    # Skip words like "surah", "number", etc.
+                    stop_words = {"surah", "number", "no", "al", "the"}
+                    while idx < len(words) and words[idx] in stop_words:
+                        idx += 1
+                    if idx < len(words):
+                        value = words[idx]
+                    else:
+                        value = None
+                elif "stop" in response_text.lower():
+                    action = "stop"
+                    value = None
+                else:
+                    return ("none", None)
+                return action, value
         except requests.exceptions.Timeout:
             print("  Ollama timed out, falling back to local parser...")
         except Exception as e:
