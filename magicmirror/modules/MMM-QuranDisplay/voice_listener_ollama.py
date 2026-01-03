@@ -315,6 +315,8 @@ COMMON_REPLACEMENTS = {
     "mirror": "mo",
     "mira": "mo",
     "mirae": "mo",
+    "so": "mo",
+    "show": "mo",
 }
 
 WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo."}
