@@ -38,6 +38,13 @@ source venv/bin/activate
 pip install numpy
 ```
 
+## Install MPV
+
+MPV is required for audio playback. Install it system-wide:
+```bash
+sudo apt install mpv
+```
+
 4. To run the voice listener, ensure the virtual environment is active and run:
 ```bash
 python voice_listener_ollama.py

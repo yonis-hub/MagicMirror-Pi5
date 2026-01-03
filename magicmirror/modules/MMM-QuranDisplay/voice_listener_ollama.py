@@ -672,7 +672,12 @@ class OllamaVoiceListener:
         self.stop_playback()
 
         print(f"▶ Playing Surah {surah_number}...")
-        self.player = MPV()
+        self.player = MPV(
+            audio_device='pulse',
+            input_default_bindings=True,
+            input_vo_keyboard=True,
+            osc=True
+        )
         # ... rest of the method ...
 
     def pause_playback(self):
