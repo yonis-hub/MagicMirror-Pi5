@@ -232,3 +232,11 @@ cd magicmirror && npm run server
 - Deploy to Pi and test audio playback
 - (Optional) Set up Ollama for voice command parsing
 - (Optional) Integrate Google Assistant for "Play Surah X" commands
+
+---
+
+## Recent Updates
+
+- **Voice Assistant Optimization**: Enhanced for Raspberry Pi 5 with GPU acceleration, quantized models, and resource monitoring.
+- **Audio Playback**: Added script to download Quran audio files from Islamic Network CDN.
+- **Documentation**: Updated setup instructions and troubleshooting in AUDIO_SETUP.md.
