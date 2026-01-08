@@ -334,6 +334,17 @@ COMMON_REPLACEMENTS = {
 
 WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo.", "mohammed", "mohammad", "mohamed", "mohd", "mohamad", "mohd."}
 
+def tokenize_words(text):
+    """Split text into lowercase words without punctuation."""
+    if not text:
+        return []
+    tokens = []
+    for word in text.split():
+        cleaned = word.strip(".,!?\"':;()[]{}")
+        if cleaned:
+            tokens.append(cleaned.lower())
+    return tokens
+
 def normalize_surah(value):
     """Convert Ollama JSON surah field into an integer 1-114."""
     if value is None:
@@ -578,6 +589,8 @@ class OllamaVoiceListener:
 
             if response.status_code == 200:
                 response_text = response.json().get("response", "").strip()
+                if response_text:
+                    print(f"  Ollama raw response: {response_text}")
                 # Extract JSON from response
                 try:
                     # Try to find JSON in response
@@ -589,6 +602,11 @@ class OllamaVoiceListener:
 
                         if action == "play" and surah:
                             return ("play", surah)
+                        elif action == "search":
+                            # Ask Ollama to find a specific verse for this topic
+                            print(f"  🔍 Asking AI for a verse about: {parsed.get('topic')}")
+                            verse_ref = self.get_verse_from_topic(parsed.get('topic'))
+                            return ("play_verse", verse_ref) # Returns tuple (surah, verse)
                         elif action == "stop":
                             return ("stop", None)
                 except json.JSONDecodeError:
@@ -623,14 +641,17 @@ class OllamaVoiceListener:
         except Exception as e:
             print(f"  Ollama error: {e}")
 
-        return self.parse_fallback(text)
+        action, value = self.parse_fallback(text)
+        if action:
+            print("  Using fallback parser result (Ollama returned none).")
+        return action, value
 
     def parse_fallback(self, text):
         """Fallback parser when Ollama unavailable"""
         if not text:
             return (None, None)
 
-        words = text.split()
+        words = tokenize_words(text)
 
         if not any(word in WAKE_WORDS for word in words):
             return (None, None)
