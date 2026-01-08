@@ -297,6 +297,17 @@ COMMON_REPLACEMENTS = {
     "plays": "play",
     "player": "play",
     "played": "play",
+    "play it": "play",
+    "play item": "play",
+    "mode": "mo",
+    "more": "mo",
+    "moe": "mo",
+    "sir": "surah",
+    "sarah": "surah",
+    "circle": "surah",
+    "two": "2",
+    "too": "2",
+    "to": "2",
     "suits of": "surah",
     "surah of": "surah",
     "surat": "surah",
@@ -357,21 +368,19 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:1b-Q4_K_M"  # Quantized model for efficiency
 
 # System prompt for Ollama
-SYSTEM_PROMPT = """You are a voice command parser for a Quran player named Mo. Parse the user's command and respond ONLY with valid JSON.
+SYSTEM_PROMPT = """You are a voice command parser for a Quran player named Mo.
+Parse the user's command and respond ONLY with valid JSON.
 
 Valid commands:
-1. Play a surah: {"action": "play", "surah": <number 1-114>}
-2. Stop playback: {"action": "stop"}
-3. Not a valid command: {"action": "none"}
+1. Play a specific surah: {"action": "play", "surah": <number 1-114>}
+2. Play a verse about a topic: {"action": "search", "topic": "<the topic>"}
+3. Stop playback: {"action": "stop"}
+4. Not a valid command: {"action": "none"}
 
-Surah number reference (common ones):
-- Al-Fatiha: 1, Al-Baqarah: 2, Ali Imran: 3, An-Nisa: 4, Al-Maidah: 5
-- Yasin: 36, Ar-Rahman: 55, Al-Mulk: 67, Al-Kahf: 18
-- Al-Ikhlas: 112, Al-Falaq: 113, An-Nas: 114
-
-If user says "play quran" without specifying, use surah 1.
-If user mentions a surah name, convert it to the number.
-- If the command doesn't include the wake word "Mo" (case-insensitive), return {"action": "none"}.
+Examples:
+- "Play Surah Yasin" -> {"action": "play", "surah": 36}
+- "Recite a verse about patience" -> {"action": "search", "topic": "patience"}
+- "Give me a quote about hope" -> {"action": "search", "topic": "hope"}
 
 IMPORTANT: Respond with ONLY the JSON object, nothing else."""
 
