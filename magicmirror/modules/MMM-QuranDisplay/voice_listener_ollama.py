@@ -430,8 +430,8 @@ class OllamaVoiceListener:
 
     def record_audio(self, duration=5):  # Default duration changed to 5 seconds
         """Record audio using arecord"""
-        # Play start beep
-        self.beep()
+        # Play start beep (high pitch)
+        self.beep(880, 0.3)
 
         # Increase timeout buffer to 10 seconds
         timeout = duration + 7  # Additional buffer for device initialization
@@ -465,8 +465,8 @@ class OllamaVoiceListener:
                     print(f"  stderr: {result.stderr.decode('utf-8', errors='replace')}")
                     return None
                 print("  Recording completed successfully")
-                # Play end beep
-                self.beep(660, 0.1)  # Different pitch for end
+                # Play end beep (low pitch)
+                self.beep(440, 0.3)
                 return temp_file
             except subprocess.TimeoutExpired:
                 print(f"⚠ Timeout on attempt {attempt+1}, retrying...")
@@ -794,54 +794,71 @@ class OllamaVoiceListener:
                     print(f"  Raw Input: '{text}'")
                     text_fixed = self.normalize_speech(text)
                     print(f"  Processing: '{text_fixed}'")
-                    print(f"  Wake words detected: {any(word in WAKE_WORDS for word in text_fixed.split())}")
+                    wake_detected = any(word in text_fixed for word in WAKE_WORDS)
+                    print(f"  Wake words detected: {wake_detected}")
 
-                    if any(word in WAKE_WORDS for word in text_fixed.split()):
+                    if wake_detected:
                         print("  Wake word detected! Pausing playback...")
                         self.pause_playback()
-                        print("  Recording command...")
-                        audio_file = self.record_audio(5)  # Record for 5 seconds for the command
+                        command_text = ""
 
-                        if not audio_file:
-                            continue
+                        if any(keyword in text_fixed for keyword in ["play", "stop", "search"]):
+                            print("  Using full command from initial detection")
+                            command_text = text_fixed
+                        else:
+                            print("  Recording command...")
+                            time.sleep(1)  # Small pause so we don't trim beginning
+                            audio_file = self.record_audio(7)
 
-                        # Check if the audio is silent
-                        if self.is_silent(audio_file):
-                            print("  Recording is silent, skipping...")
-                            if os.path.exists(audio_file):
-                                os.unlink(audio_file)
-                            continue
-
-                        text = self.transcribe_whisper(audio_file)
-
-                        if text:
-                            print(f"  Raw Input: '{text}'")
-                            text_fixed = self.normalize_speech(text)
-                            print(f"  Processing: '{text_fixed}'")
-
-                            if self.confirm_command(text_fixed):
-                                print("  Command confirmed.")
-                                # Proceed with command processing
-                                if self.ollama_available:
-                                    action, value = self.parse_with_ollama(text_fixed)
-                                else:
-                                    action, value = self.parse_fallback(text_fixed)
-
-                                print(f"  Parse Result: action={action}, value={value}")
-
-                                if action == "play" and value:
-                                    self.play_confirmation()
-                                    self.play_surah(value)
-                                elif action == "stop":
-                                    self.play_confirmation()
-                                    self.stop_playback()
-                                elif any(word in WAKE_WORDS for word in text_fixed.split()):
-                                    self.play_error()
-                                    print("  (Command not understood)")
-                            else:
-                                print("  Command rejected. Please try again.")
-                                self.play_error()
+                            if not audio_file:
                                 continue
+
+                            if self.is_silent(audio_file):
+                                print("  Recording is silent, skipping...")
+                                if os.path.exists(audio_file):
+                                    os.unlink(audio_file)
+                                continue
+
+                            text = self.transcribe_whisper(audio_file)
+                            if text:
+                                print(f"  Raw Input: '{text}'")
+                                command_text = self.normalize_speech(text)
+                                print(f"  Processing: '{command_text}'")
+
+                        if not command_text:
+                            continue
+
+                        if self.confirm_command(command_text):
+                            print("  Command confirmed.")
+                            # Proceed with command processing
+                            if self.ollama_available:
+                                action, value = self.parse_with_ollama(command_text)
+                            else:
+                                action, value = self.parse_fallback(command_text)
+
+                            print(f"  Parse Result: action={action}, value={value}")
+
+                            if action == "play" and value:
+                                self.play_confirmation()
+                                # Run chainer for full surah
+                                subprocess.Popen(["python3", "quran_chainer.py", "--surah", str(value)])
+
+                            elif action == "play_verse" and value:
+                                self.play_confirmation()
+                                surah, verse = value
+                                print(f"  ▶ Playing Surah {surah}, Verse {verse}")
+                                # Run chainer starting from specific verse
+                                subprocess.Popen(["python3", "quran_chainer.py", "--surah", str(surah), "--start-verse", str(verse)])
+                            elif action == "stop":
+                                self.play_confirmation()
+                                self.stop_playback()
+                            elif wake_detected:
+                                self.play_error()
+                                print("  (Command not understood)")
+                        else:
+                            print("  Command rejected. Please try again.")
+                            self.play_error()
+                            continue
 
                     self.check_memory()  # Check memory usage after each command
             except KeyboardInterrupt:
