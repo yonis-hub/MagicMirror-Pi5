@@ -364,6 +364,28 @@ def normalize_surah(value):
 
     return SURAH_NAMES.get(text)
 
+def extract_surah_number(text):
+    """Extract a surah number from free-form text."""
+    if not text:
+        return None
+
+    lower_text = text.lower()
+
+    for name, number in SURAH_NAMES.items():
+        if name in lower_text:
+            return number
+
+    tokens = tokenize_words(lower_text)
+    for token in tokens:
+        if token.isdigit():
+            num = int(token)
+            if 1 <= num <= 114:
+                return num
+        if token in NUMBER_WORDS:
+            return NUMBER_WORDS[token]
+
+    return None
+
 def check_server_ready():
     for _ in range(10):
         try:
