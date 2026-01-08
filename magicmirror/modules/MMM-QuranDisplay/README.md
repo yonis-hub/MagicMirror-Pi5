@@ -17,7 +17,7 @@ cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
 # No npm dependencies needed for the module itself
 
 # Install Python dependencies
-pip3 install requests
+pip3 install requests python-mpv
 
 # Install mpv for audio playback
 sudo apt install mpv
@@ -66,6 +66,47 @@ python3 quran_chainer.py --surah rahman --mirror-url http://192.168.1.100:8080
 ### Supported Surah Names:
 fatiha, baqara, imran, nisa, maida, kahf, yasin, rahman, mulk, nas, etc.
 
+## Data Acquisition (Harvester)
+
+The module now uses the Quran.com API (v4) to download audio and text data. The data is stored locally for offline playback.
+
+### Running the Harvester
+
+```bash
+cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
+
+# Install required Python packages
+pip3 install requests
+
+# Run the harvester script to download specific surahs
+python3 quran_harvester.py
+```
+
+By default, the script downloads Surahs 1, 36, 112, 113, 114. To download all surahs, modify the script to loop from 1 to 114.
+
+### Data Structure
+
+The data is stored in `/home/pi/quran_data` (or the path you set in the script) with the following structure:
+
+```
+/home/pi/quran_data/
+    ├── 001/              # Surah Al-Fatiha
+    │   ├── 001.mp3       # Audio for Verse 1
+    │   ├── 001.json      # Verse data (text and timestamps)
+    │   ├── 002.mp3
+    │   └── ...
+    ├── 036/              # Surah Yasin
+    └── ...
+```
+
+## Synchronization Engine
+
+The playback system uses the locally stored data for precise synchronization:
+
+1. **Python Control**: Uses `python-mpv` to manage audio playback
+2. **Real-time Monitoring**: Checks playback position every 100ms
+3. **Word Highlighting**: Sends highlight commands to MagicMirror via WebSockets
+
 ## API Endpoints
 
 The module exposes these endpoints for external control:
@@ -86,6 +127,6 @@ Voice Command → Ollama (interpret) → quran_chainer.py → MMM-QuranDisplay
 
 ## Dependencies
 
-- **Python 3** with `requests` library
+- **Python 3** with `requests` and `python-mpv` libraries
 - **mpv** - audio player
 - **Ollama** (optional) - for voice command interpretation
