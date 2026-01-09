@@ -176,6 +176,45 @@ Voice (future) → Ollama → Parse Surah           MMM-QuranDisplay
 - **Al Quran Cloud:** `http://api.alquran.cloud/v1/surah/{surah}/ar.alafasy`
 - **Reciter:** Mishary Rashid Al-Afasy
 
+### Autostart (MagicMirror + Voice Listener with `venv`)
+
+Use this when you want the Pi to boot straight into the MagicMirror server and the Quran voice listener (inside its Python virtual environment):
+
+```bash
+# 1. Create combined startup script (Pi)
+cat > ~/start_mirror_with_venv.sh << 'EOF'
+#!/bin/bash
+
+# Start MagicMirror server
+cd ~/MagicMirror-Pi5/magicmirror
+npm run server &
+
+# Start voice listener (activate venv first)
+cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
+source venv/bin/activate
+python3 voice_listener_ollama.py
+EOF
+
+# 2. Make it executable
+chmod +x ~/start_mirror_with_venv.sh
+
+# 3. Add to desktop autostart
+mkdir -p ~/.config/autostart
+cat > ~/.config/autostart/magicmirror.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=MagicMirror with Voice Listener (VENV)
+Exec=/bin/bash -c "~/start_mirror_with_venv.sh"
+X-GNOME-Autostart-enabled=true
+EOF
+
+# 4. (Optional) Test immediately without rebooting
+~/start_mirror_with_venv.sh &
+```
+
+**Disable later:** `rm ~/.config/autostart/magicmirror.desktop`  
+**Modify startup logic:** `nano ~/start_mirror_with_venv.sh`
+
 ---
 
 ## 🛠️ Development (Windows)
