@@ -199,7 +199,7 @@ sudo fuser -k 8080/tcp
 cd magicmirror && npm run server
 ```
 
----
+--- l
 
 ## 📝 Troubleshooting
 

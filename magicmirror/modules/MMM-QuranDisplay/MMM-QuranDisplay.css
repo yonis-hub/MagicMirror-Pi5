@@ -75,6 +75,28 @@
 	animation: pulse 1s infinite;
 }
 
+.recording-indicator {
+	position: absolute;
+	bottom: 10px;
+	right: 160px;
+	font-size: 1.1em;
+	color: #ff5252;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+}
+
+.recording-dot {
+	width: 10px;
+	height: 10px;
+	background-color: #ff1744;
+	border-radius: 50%;
+	box-shadow: 0 0 8px rgba(255, 23, 68, 0.9);
+	animation: pulse 0.8s infinite;
+	display: inline-block;
+}
+
 @keyframes pulse {
 	0% { opacity: 1; }
 	50% { opacity: 0.5; }

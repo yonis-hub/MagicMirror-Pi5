@@ -17,6 +17,7 @@ import signal
 import time
 import tempfile
 import json
+import re
 from pathlib import Path
 import requests
 import sounddevice as sd
@@ -328,11 +329,24 @@ COMMON_REPLACEMENTS = {
     "mirror": "mo",
     "mira": "mo",
     "mirae": "mo",
+    "move": "mo",
     "so": "mo",
     "show": "mo",
+    "s2p": "stop",
 }
 
+PHRASE_REPLACEMENTS = {k: v for k, v in COMMON_REPLACEMENTS.items() if " " in k}
+WORD_REPLACEMENTS = {k: v for k, v in COMMON_REPLACEMENTS.items() if " " not in k}
+WORD_REPLACEMENT_PATTERN = re.compile(
+    r"\b(" + "|".join(map(re.escape, WORD_REPLACEMENTS.keys())) + r")\b"
+) if WORD_REPLACEMENTS else None
+
 WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo.", "mohammed", "mohammad", "mohamed", "mohd", "mohamad", "mohd."}
+
+STOP_KEYWORDS = {"stop", "pause", "quiet", "silence", "halt", "end", "cancel"}
+PLAY_KEYWORDS = {"play", "recite", "read", "start", "resume", "continue"}
+SEARCH_KEYWORDS = {"search", "find", "look"}
+COMMAND_KEYWORDS = STOP_KEYWORDS | PLAY_KEYWORDS | SEARCH_KEYWORDS
 
 def tokenize_words(text):
     """Split text into lowercase words without punctuation."""
@@ -419,7 +433,7 @@ IMPORTANT: Respond with ONLY the JSON object, nothing else."""
 
 
 class OllamaVoiceListener:
-    def __init__(self, device="pulse", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL):
+    def __init__(self, device="pulse", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL, enable_beeps=False):
         self.device = device
         self.mirror_url = mirror_url
         self.ollama_url = ollama_url
@@ -428,6 +442,7 @@ class OllamaVoiceListener:
         self.is_running = True
         self.script_dir = Path(__file__).parent
         self.ollama_available = False
+        self.enable_beeps = enable_beeps
 
         # Print audio device information
         print(f"🔊 Using audio device: {device}")
@@ -466,64 +481,71 @@ class OllamaVoiceListener:
         if not text:
             return ""
         text = text.lower().strip()
-        for src, dst in COMMON_REPLACEMENTS.items():
+
+        # Apply phrase replacements first (multi-word expressions)
+        for src, dst in PHRASE_REPLACEMENTS.items():
             text = text.replace(src, dst)
+
+        # Apply word-level replacements with word boundaries to avoid partial hits
+        if WORD_REPLACEMENT_PATTERN:
+            def replace_word(match):
+                word = match.group(0)
+                return WORD_REPLACEMENTS.get(word, word)
+
+            text = WORD_REPLACEMENT_PATTERN.sub(replace_word, text)
+
         return text
 
     def record_audio(self, duration=5):  # Default duration changed to 5 seconds
         """Record audio using arecord"""
-        # Play start beep (high pitch)
-        self.beep(880, 0.3)
-
-        # Increase timeout buffer to 10 seconds
         timeout = duration + 7  # Additional buffer for device initialization
         print(f"  Recording audio for {duration} seconds using device '{self.device}'...")
+        temp_file = None
+        self.send_recording_status(True)
 
-        # Verify device exists
         try:
-            check_cmd = ["arecord", "-D", self.device, "-l"]
-            result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=2)
-            if "no such card" in result.stderr.lower():
-                print(f"❌ Device {self.device} not found!")
-                return None
-        except Exception as e:
-            print(f"Device check error: {e}")
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            temp_file = f.name
-
-        # Try recording with retries
-        for attempt in range(3):
+            # Verify device exists
             try:
-                cmd = [
-                    "arecord", "-D", self.device,
-                    "-f", "S16_LE", "-c", "1", "-r", "16000",
-                    "-d", str(duration), "-q", temp_file
-                ]
-                print(f"  Attempt {attempt+1}: Running command: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, timeout=timeout)
-                if result.returncode != 0:
-                    print(f"⚠ Recording failed (code {result.returncode}). Check device: {self.device}")
-                    print(f"  stderr: {result.stderr.decode('utf-8', errors='replace')}")
+                check_cmd = ["arecord", "-D", self.device, "-l"]
+                result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=2)
+                if "no such card" in result.stderr.lower():
+                    print(f"❌ Device {self.device} not found!")
                     return None
-                print("  Recording completed successfully")
-                # Play end beep (low pitch)
-                self.beep(440, 0.3)
-                return temp_file
-            except subprocess.TimeoutExpired:
-                print(f"⚠ Timeout on attempt {attempt+1}, retrying...")
-                continue
             except Exception as e:
-                print(f"Recording error: {e}")
-                if os.path.exists(temp_file):
-                    os.unlink(temp_file)
+                print(f"Device check error: {e}")
                 return None
 
-        # Fallback to default device
-        if not temp_file:
-            print("⚠ Falling back to default device")
-            self.device = "default"
-            return self.record_audio(duration)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                temp_file = f.name
+
+            # Try recording with retries
+            for attempt in range(3):
+                try:
+                    cmd = [
+                        "arecord", "-D", self.device,
+                        "-f", "S16_LE", "-c", "1", "-r", "16000",
+                        "-d", str(duration), "-q", temp_file
+                    ]
+                    print(f"  Attempt {attempt+1}: Running command: {' '.join(cmd)}")
+                    result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+                    if result.returncode != 0:
+                        stderr_text = result.stderr.decode('utf-8', errors='replace')
+                        print(f"⚠ Recording failed (code {result.returncode}). Check device: {self.device}")
+                        print(f"  stderr: {stderr_text}")
+                        return None
+                    print("  Recording completed successfully")
+                    return temp_file
+                except subprocess.TimeoutExpired:
+                    print(f"⚠ Timeout on attempt {attempt+1}, retrying...")
+                except Exception as e:
+                    print(f"Recording error: {e}")
+                    break
+
+            return None
+        finally:
+            if temp_file and not os.path.exists(temp_file):
+                temp_file = None
+            self.send_recording_status(False)
 
     def is_silent(self, audio_file, threshold=100):  # Reduced threshold
         """Check if the audio file is silent by checking maximum amplitude"""
@@ -678,10 +700,10 @@ class OllamaVoiceListener:
         if not any(word in WAKE_WORDS for word in words):
             return (None, None)
 
-        if any(w in text for w in ["stop", "pause", "quiet", "silence", "halt", "end"]):
+        if any(keyword in text for keyword in STOP_KEYWORDS):
             return ("stop", None)
 
-        if any(kw in text for kw in ["play", "recite", "read", "start"]):
+        if any(keyword in text for keyword in PLAY_KEYWORDS):
             for name, number in SURAH_NAMES.items():
                 if name in text:
                     return ("play", number)
@@ -752,18 +774,28 @@ class OllamaVoiceListener:
             url = f"{self.mirror_url}/api/quran/listening"
             requests.post(url, json={"isListening": listening}, timeout=1)
         except Exception as e:
-            print(f"⚠ Could not send listening status: {e}")
+            print(f" Could not send listening status: {e}")
+
+    def send_recording_status(self, recording):
+        """Send recording status to MagicMirror"""
+        try:
+            url = f"{self.mirror_url}/api/quran/recording"
+            requests.post(url, json={"isRecording": recording}, timeout=1)
+        except Exception as e:
+            print(f" Could not send recording status: {e}")
 
     def send_playback_status(self, playing):
         """Send playback status to MagicMirror"""
         try:
             url = f"{self.mirror_url}/api/quran/playing"
-            requests.post(url, json={"isPlaying": playing}, timeout=1)
+            requests.post(url, json={"isPlaying": playing}, timeout=3)
         except Exception as e:
-            print(f"⚠ Could not send playback status: {e}")
+            print(f" Could not send playback status: {e}")
 
     def beep(self, freq=440, duration=0.2):
         """Generate a beep sound"""
+        if not self.enable_beeps:
+            return
         try:
             import numpy as np
             fs = 44100
@@ -854,7 +886,7 @@ class OllamaVoiceListener:
                         self.pause_playback()
                         command_text = ""
 
-                        if any(keyword in text_fixed for keyword in ["play", "stop", "search"]):
+                        if any(keyword in text_fixed for keyword in COMMAND_KEYWORDS):
                             print("  Using full command from initial detection")
                             command_text = text_fixed
                         else:
@@ -935,14 +967,17 @@ def main():
 
     device = "pulse"  # Use PulseAudio instead of direct ALSA
     mirror_url = "http://localhost:8080"
+    enable_beeps = False
 
     for i, arg in enumerate(sys.argv):
         if arg == "--device" and i + 1 < len(sys.argv):
             device = sys.argv[i + 1]
         if arg == "--mirror-url" and i + 1 < len(sys.argv):
             mirror_url = sys.argv[i + 1]
+        if arg == "--enable-beeps":
+            enable_beeps = True
 
-    listener = OllamaVoiceListener(device=device, mirror_url=mirror_url)
+    listener = OllamaVoiceListener(device=device, mirror_url=mirror_url, enable_beeps=enable_beeps)
     listener.listen_loop()
 
 
