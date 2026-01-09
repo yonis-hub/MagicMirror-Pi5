@@ -66,24 +66,31 @@
 	50% { opacity: 0.5; }
 }
 
-.listening-indicator {
+.status-indicators {
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
-	font-size: 1.2em;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
+}
+
+.listening-indicator,
+.recording-indicator {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 1.05em;
+}
+
+.listening-indicator {
 	color: #4fc3f7;
 	animation: pulse 1s infinite;
 }
 
 .recording-indicator {
-	position: absolute;
-	bottom: 10px;
-	right: 160px;
-	font-size: 1.1em;
 	color: #ff5252;
-	display: flex;
-	align-items: center;
-	gap: 6px;
 	font-weight: 600;
 }
 
@@ -95,6 +102,31 @@
 	box-shadow: 0 0 8px rgba(255, 23, 68, 0.9);
 	animation: pulse 0.8s infinite;
 	display: inline-block;
+}
+
+.mic-icon {
+	width: 8px;
+	height: 18px;
+	border: 2px solid #4fc3f7;
+	border-radius: 4px;
+	position: relative;
+	display: inline-block;
+}
+
+.mic-icon::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	bottom: -6px;
+	width: 12px;
+	height: 8px;
+	border-bottom: 2px solid #4fc3f7;
+	border-radius: 0 0 10px 10px;
+}
+
+.status-text {
+	letter-spacing: 0.5px;
 }
 
 @keyframes pulse {

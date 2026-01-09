@@ -91,20 +91,25 @@ Module.register("MMM-QuranDisplay", {
 			wrapper.appendChild(playingDiv);
 		}
 
-		// Listening indicator
-		if (this.isListening) {
-			const listeningDiv = document.createElement("div");
-			listeningDiv.className = "listening-indicator";
-			listeningDiv.innerHTML = "🎤 Listening...";
-			wrapper.appendChild(listeningDiv);
-		}
+		if (this.isRecording || this.isListening) {
+			const statusContainer = document.createElement("div");
+			statusContainer.className = "status-indicators";
 
-		// Recording indicator
-		if (this.isRecording) {
-			const recordingDiv = document.createElement("div");
-			recordingDiv.className = "recording-indicator";
-			recordingDiv.innerHTML = `<span class="recording-dot"></span> Recording`;
-			wrapper.appendChild(recordingDiv);
+			if (this.isRecording) {
+				const recordingDiv = document.createElement("div");
+				recordingDiv.className = "recording-indicator";
+				recordingDiv.innerHTML = `<span class="recording-dot" aria-hidden="true"></span><span class="status-text">Recording</span>`;
+				statusContainer.appendChild(recordingDiv);
+			}
+
+			if (this.isListening) {
+				const listeningDiv = document.createElement("div");
+				listeningDiv.className = "listening-indicator";
+				listeningDiv.innerHTML = `<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening...</span>`;
+				statusContainer.appendChild(listeningDiv);
+			}
+
+			wrapper.appendChild(statusContainer);
 		}
 
 		return wrapper;
