@@ -8,7 +8,7 @@
 Module.register("MMM-QuranDisplay", {
 	defaults: {
 		showArabic: true,
-		showTranslation: true,
+		showTranslation: false, //hide english translation
 		showVerseNumber: true,
 		showSurahName: true,
 		animationSpeed: 500,

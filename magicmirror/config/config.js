@@ -125,7 +125,7 @@ let config = {
 			position: "middle_center",
 			config: {
 				showArabic: true,
-				showTranslation: true,
+				showTranslation: false,
 				showVerseNumber: true,
 				showSurahName: true,
 				animationSpeed: 500,

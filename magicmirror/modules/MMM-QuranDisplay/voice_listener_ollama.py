@@ -303,6 +303,8 @@ COMMON_REPLACEMENTS = {
     "play it": "play",
     "play item": "play",
     "mode": "mo",
+    "no": "mo",
+    "no.": "mo",
     "more": "mo",
     "moe": "mo",
     "sir": "surah",
@@ -356,20 +358,47 @@ EMBEDDING_META_PATH = EMBEDDING_DIR / "verse_metadata.json"
 
 MOOD_TO_SURAH = {
     "calm": 55,
+    "calming": 55,
     "soothing": 55,
+    "peace": 36,
+    "peaceful": 36,
     "focus": 36,
     "motivated": 94,
     "inspiration": 19,
-    "sleep": 67
+    "hopeful": 19,
+    "sleep": 67,
+    "relax": 55,
+    "relaxing": 55
 }
 
 TOPIC_SYNONYMS = {
     "mercy": "mercy",
+    "compassion": "mercy",
+    "kindness": "mercy",
     "forgiveness": "forgiveness",
+    "forgive": "forgiveness",
+    "repent": "forgiveness",
     "patience": "patience",
+    "patient": "patience",
+    "persevere": "patience",
     "gratitude": "gratitude",
+    "thankful": "gratitude",
+    "thanks": "gratitude",
     "hope": "hope",
-    "protection": "protection"
+    "hopeful": "hope",
+    "optimism": "hope",
+    "protection": "protection",
+    "protect": "protection",
+    "shield": "protection",
+    "guidance": "guidance",
+    "guide": "guidance",
+    "light": "guidance",
+    "calm": "calm",
+    "peace": "peace",
+    "peaceful": "peace",
+    "trust": "trust",
+    "fear": "fear",
+    "anxiety": "fear"
 }
 
 TOPIC_TO_VERSE = {
@@ -378,7 +407,14 @@ TOPIC_TO_VERSE = {
     "patience": (2, 153),
     "gratitude": (14, 7),
     "hope": (65, 2),
-    "protection": (18, 10)
+    "hopeful": (65, 2),
+    "protection": (18, 10),
+    "guidance": (1, 6),
+    "calm": (55, 1),
+    "peace": (36, 58),
+    "trust": (3, 173),
+    "fear": (2, 286),
+    "anxiety": (13, 28)
 }
 
 SPECIAL_VERSES = {
@@ -523,6 +559,7 @@ Guidelines:
 - Respect the latest context summary when resolving references like "same one" or "resume".
 - Use "play_verse" when the user asks for a specific verse or Ayah.
 - Use "search" only when you need Mo to find a verse by topic; include a descriptive topic string.
+- If the user asks for an emotion, quality, or theme (e.g., calming, mercy, forgiveness) without naming a surah, prefer {"action":"search","topic":"<theme>"}.
 - Never invent Surah numbers; use integers from 1-114.
 - Respond with JSON ONLY. No prose, no markdown.
 
@@ -610,6 +647,21 @@ class OllamaVoiceListener:
         topic = topic.lower().strip()
         return TOPIC_SYNONYMS.get(topic, topic)
 
+    def detect_topic_from_text(self, text):
+        if not text:
+            return None
+        lowered = text.lower()
+        # Check multi-word phrases first
+        phrases = sorted([k for k in TOPIC_SYNONYMS.keys() if " " in k], key=len, reverse=True)
+        for phrase in phrases:
+            if phrase in lowered:
+                return self.normalize_topic(phrase)
+        # Check single tokens
+        for token in tokenize_words(lowered):
+            if token in TOPIC_SYNONYMS:
+                return self.normalize_topic(token)
+        return None
+
     def apply_semantic_overrides(self, intent, slots, raw_text):
         if intent is None:
             intent = create_intent()
@@ -618,6 +670,12 @@ class OllamaVoiceListener:
         normalized_topic = self.normalize_topic(intent.get("topic"))
         if normalized_topic:
             intent["topic"] = normalized_topic
+        elif not intent.get("topic"):
+            detected_topic = self.detect_topic_from_text(text)
+            if detected_topic:
+                intent["topic"] = detected_topic
+                if intent.get("action") == "none":
+                    intent["action"] = "search"
 
         if not intent.get("surah") and intent.get("mood"):
             mood = intent["mood"].lower()
@@ -807,14 +865,16 @@ class OllamaVoiceListener:
 
         if action == "play" and value:
             self.play_confirmation()
-            subprocess.Popen(
+            self.stop_playback()
+            self.current_process = subprocess.Popen(
                 ["python3", "quran_chainer.py", "--surah", str(value)],
                 cwd=self.script_dir
             )
         elif action == "play_verse" and value:
             surah, verse = value
             self.play_confirmation()
-            subprocess.Popen(
+            self.stop_playback()
+            self.current_process = subprocess.Popen(
                 ["python3", "quran_chainer.py", "--surah", str(surah), "--start-verse", str(verse)],
                 cwd=self.script_dir
             )
@@ -1143,6 +1203,24 @@ class OllamaVoiceListener:
             self.player.terminate()
             self.player = None
             print("⏹ Playback stopped")
+        if self.current_process:
+            try:
+                if self.current_process.poll() is None:
+                    print("⏹ Stopping Quran chainer process...")
+                    self.current_process.terminate()
+                    try:
+                        self.current_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        print("  ⚠  Process still running, killing...")
+                        self.current_process.kill()
+            except Exception as e:
+                print(f"  ⚠  Error stopping chainer: {e}")
+            finally:
+                self.current_process = None
+        try:
+            requests.post(f"{self.mirror_url}/api/quran/clear", timeout=1)
+        except Exception:
+            pass
         self.send_playback_status(False)
 
     def send_listening_status(self, listening):
