@@ -47,7 +47,7 @@ sudo apt install mpv
 
 4. To run the voice listener, ensure the virtual environment is active and run:
 ```bash
-python voice_listener_ollama.py
+python voice_listener_ollama.py --parser-mode local --stt-model tiny --stt-language auto --wake-window-sec 2.5 --command-window-sec 3.5
 ```
 
 Note: Always activate the virtual environment before running the voice listener.

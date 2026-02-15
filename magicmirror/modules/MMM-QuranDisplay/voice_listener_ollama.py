@@ -10,6 +10,9 @@ Requirements:
 - Model pulled: ollama pull llama3.2:1b (or similar small model)
 """
 
+import argparse
+import difflib
+import math
 import subprocess
 import sys
 import os
@@ -23,27 +26,22 @@ from pathlib import Path
 import requests
 import numpy as np
 import sounddevice as sd
-from python_mpv_jsonipc import MPV
+try:
+    from python_mpv_jsonipc import MPV
+except ImportError:
+    MPV = None
 
 try:
-    import requests
     import speech_recognition as sr
+except ImportError:
+    sr = None
+
+try:
     from faster_whisper import WhisperModel
 except ImportError:
-    subprocess.run([sys.executable, "-m", "pip", "install", "requests", "SpeechRecognition", "faster-whisper", "--break-system-packages"])
-    import requests
-    import speech_recognition as sr
-    from faster_whisper import WhisperModel
-
-def check_server_ready():
-    for _ in range(10):
-        try:
-            response = requests.get("http://localhost:8080", timeout=2)
-            if response.status_code == 200:
-                return True
-        except requests.ConnectionError:
-            time.sleep(1)
-    return False
+    print("ERROR: Missing required Python package 'faster-whisper'.")
+    print("Install with: pip install faster-whisper")
+    sys.exit(1)
 
 # Complete Surah name mappings (all 114 surahs)
 SURAH_NAMES = {
@@ -303,16 +301,11 @@ COMMON_REPLACEMENTS = {
     "play it": "play",
     "play item": "play",
     "mode": "mo",
-    "no": "mo",
-    "no.": "mo",
     "more": "mo",
     "moe": "mo",
     "sir": "surah",
     "sarah": "surah",
     "circle": "surah",
-    "two": "2",
-    "too": "2",
-    "to": "2",
     "suits of": "surah",
     "surah of": "surah",
     "surat": "surah",
@@ -334,8 +327,6 @@ COMMON_REPLACEMENTS = {
     "mira": "mo",
     "mirae": "mo",
     "move": "mo",
-    "so": "mo",
-    "show": "mo",
     "s2p": "stop",
 }
 
@@ -345,7 +336,7 @@ WORD_REPLACEMENT_PATTERN = re.compile(
     r"\b(" + "|".join(map(re.escape, WORD_REPLACEMENTS.keys())) + r")\b"
 ) if WORD_REPLACEMENTS else None
 
-WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mo.", "mohammed", "mohammad", "mohamed", "mohd", "mohamad", "mohd."}
+WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mohammed", "mohammad", "mohamed", "mohd", "mohamad"}
 
 STOP_KEYWORDS = {"stop", "pause", "quiet", "silence", "halt", "end", "cancel"}
 PLAY_KEYWORDS = {"play", "recite", "read", "start", "resume", "continue"}
@@ -426,6 +417,12 @@ SPECIAL_VERSES = {
 MAX_HISTORY = 5
 FOLLOWUP_WINDOW_SECONDS = 10
 DEFAULT_CONFIDENCE = 0.65
+DEFAULT_PARSER_MODE = "local"
+DEFAULT_STT_MODEL = "tiny"
+DEFAULT_STT_LANGUAGE = "auto"
+DEFAULT_WAKE_WINDOW_SEC = 2.5
+DEFAULT_COMMAND_WINDOW_SEC = 3.5
+FUZZY_SURAH_THRESHOLD = 0.82
 
 def clamp_confidence(value, default=DEFAULT_CONFIDENCE):
     try:
@@ -483,6 +480,14 @@ def tokenize_words(text):
             tokens.append(cleaned.lower())
     return tokens
 
+def contains_any_token(text, keywords):
+    if not text:
+        return False
+    return bool(set(tokenize_words(text)).intersection(keywords))
+
+def has_wake_word(text):
+    return contains_any_token(text, WAKE_WORDS)
+
 def normalize_surah(value):
     """Convert Ollama JSON surah field into an integer 1-114."""
     if value is None:
@@ -502,18 +507,52 @@ def normalize_surah(value):
 
     return SURAH_NAMES.get(text)
 
+SURAH_ALIASES_SORTED = sorted(SURAH_NAMES.items(), key=lambda item: len(item[0]), reverse=True)
+SURAH_ALIAS_LIST = [alias for alias, _ in SURAH_ALIASES_SORTED]
+
+def _contains_phrase(text, phrase):
+    pattern = r"(?<!\w)" + re.escape(phrase) + r"(?!\w)"
+    return re.search(pattern, text) is not None
+
+def _fuzzy_surah_lookup(tokens, threshold=FUZZY_SURAH_THRESHOLD):
+    if not tokens:
+        return None
+
+    candidates = []
+    max_ngram = min(3, len(tokens))
+    for ngram_size in range(1, max_ngram + 1):
+        for idx in range(len(tokens) - ngram_size + 1):
+            phrase = " ".join(tokens[idx:idx + ngram_size]).strip()
+            if phrase and phrase != "surah":
+                candidates.append(phrase)
+
+    for candidate in candidates:
+        matches = difflib.get_close_matches(candidate, SURAH_ALIAS_LIST, n=1, cutoff=threshold)
+        if matches:
+            return SURAH_NAMES[matches[0]]
+    return None
+
 def extract_surah_number(text):
     """Extract a surah number from free-form text."""
     if not text:
         return None
 
-    lower_text = text.lower()
+    lowered = re.sub(r"\s+", " ", text.lower().strip())
 
-    for name, number in SURAH_NAMES.items():
-        if name in lower_text:
+    # 1) Exact alias phrase match (deterministic, highest confidence).
+    for alias, number in SURAH_ALIASES_SORTED:
+        if _contains_phrase(lowered, alias):
             return number
 
-    tokens = tokenize_words(lower_text)
+    # 2) Explicit numeric reference like "surah 55".
+    numeric_surah_match = re.search(r"\bsurah\s+(\d{1,3})\b", lowered)
+    if numeric_surah_match:
+        number = int(numeric_surah_match.group(1))
+        if 1 <= number <= 114:
+            return number
+
+    # 3) Number words / numeric tokens in utterance.
+    tokens = tokenize_words(lowered)
     for token in tokens:
         if token.isdigit():
             num = int(token)
@@ -522,7 +561,8 @@ def extract_surah_number(text):
         if token in NUMBER_WORDS:
             return NUMBER_WORDS[token]
 
-    return None
+    # 4) Fuzzy match for misheard aliases (threshold fixed for determinism).
+    return _fuzzy_surah_lookup(tokens)
 
 def check_server_ready():
     for _ in range(10):
@@ -576,7 +616,19 @@ Output: {"action":"stop","surah":null,"topic":null,"mood":null,"verse_start":nul
 
 
 class OllamaVoiceListener:
-    def __init__(self, device="pulse", mirror_url="http://localhost:8080", ollama_url=OLLAMA_URL, enable_beeps=False, enable_voice=False):
+    def __init__(
+        self,
+        device="pulse",
+        mirror_url="http://localhost:8080",
+        ollama_url=OLLAMA_URL,
+        enable_beeps=False,
+        enable_voice=False,
+        parser_mode=DEFAULT_PARSER_MODE,
+        stt_model=DEFAULT_STT_MODEL,
+        stt_language=DEFAULT_STT_LANGUAGE,
+        wake_window_sec=DEFAULT_WAKE_WINDOW_SEC,
+        command_window_sec=DEFAULT_COMMAND_WINDOW_SEC
+    ):
         self.device = device
         self.mirror_url = mirror_url
         self.ollama_url = ollama_url
@@ -597,6 +649,17 @@ class OllamaVoiceListener:
         self.embedding_index = []
         self.embedding_vectors = None
         self.embeddings_loaded = False
+        self.parser_mode = parser_mode if parser_mode in {"local", "hybrid", "ollama"} else DEFAULT_PARSER_MODE
+        self.stt_model = stt_model or DEFAULT_STT_MODEL
+        self.stt_language = None if (not stt_language or stt_language == "auto") else stt_language
+        self.stt_language_label = stt_language if stt_language else DEFAULT_STT_LANGUAGE
+        self.wake_window_sec = max(1.0, float(wake_window_sec))
+        self.command_window_sec = max(1.0, float(command_window_sec))
+        self.timing_history = deque(maxlen=100)
+        self.stt_prompt = (
+            "Voice command for Quran recitation. "
+            "Keywords: mo play recite stop pause surah fatiha yasin rahman mulk baqarah ikhlas nas."
+        )
 
         # Print audio device information
         print(f"🔊 Using audio device: {device}")
@@ -608,11 +671,14 @@ class OllamaVoiceListener:
             print(f"  Error listing sources: {e}")
 
         # Initialize Whisper (loads model into RAM once)
-        print("⏳ Loading Whisper model (tiny.en)...")
+        print(f"⏳ Loading Whisper model ({self.stt_model})...")
         try:
-            self.whisper = WhisperModel("tiny.en", device="opencl", compute_type="int8")
-        except:
-            self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+            self.whisper = WhisperModel(self.stt_model, device="opencl", compute_type="int8")
+        except Exception:
+            self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
+
+        if sr is None:
+            print("⚠ 'SpeechRecognition' is not installed; Google fallback transcription is disabled.")
 
     def within_followup_window(self):
         return time.time() < self.followup_deadline
@@ -705,7 +771,7 @@ class OllamaVoiceListener:
                 intent["action"] = "play_verse"
                 intent["verse_start"] = verse
 
-        if not intent.get("surah") and any(word in text for word in ["same", "again", "continue", "resume"]) and self.last_surah:
+        if not intent.get("surah") and contains_any_token(text, {"same", "again", "continue", "resume"}) and self.last_surah:
             intent["surah"] = self.last_surah
 
         if slots.get("ranges"):
@@ -836,12 +902,30 @@ class OllamaVoiceListener:
             print(f"TTS error: {e}")
             self.enable_voice = False
 
-    def process_command(self, command_text):
-        slots = extract_slots(command_text)
+    def _parse_command(self, command_text):
+        local_result = self.parse_fallback(command_text, require_wake=False)
+        local_action = local_result[0] if local_result and len(local_result) == 3 else None
+
+        if self.parser_mode == "local":
+            return local_result
+
+        if self.parser_mode == "hybrid":
+            if local_action and local_action != "none":
+                return local_result
+            if self.ollama_available:
+                return self.parse_with_ollama(command_text, require_wake=False)
+            return local_result
+
+        # parser_mode == "ollama"
         if self.ollama_available:
-            result = self.parse_with_ollama(command_text, require_wake=False)
-        else:
-            result = self.parse_fallback(command_text, require_wake=False)
+            return self.parse_with_ollama(command_text, require_wake=False)
+        return local_result
+
+    def process_command(self, command_text):
+        parse_started_at = time.perf_counter()
+        slots = extract_slots(command_text)
+        result = self._parse_command(command_text)
+        parse_ms = (time.perf_counter() - parse_started_at) * 1000
 
         if not result or len(result) != 3:
             action, value, intent = ("none", None, create_intent())
@@ -854,6 +938,7 @@ class OllamaVoiceListener:
             action, value = resolved_action, resolved_value
 
         confidence = intent.get("confidence", DEFAULT_CONFIDENCE)
+        print(f"  Parser mode={self.parser_mode}, action={action}, confidence={confidence:.2f}, parse_ms={parse_ms:.1f}")
         if action == "none" or (confidence < 0.4 and action != "stop"):
             self.play_error()
             print("  (Command not understood)")
@@ -923,8 +1008,12 @@ class OllamaVoiceListener:
 
     def record_audio(self, duration=5):  # Default duration changed to 5 seconds
         """Record audio using arecord"""
-        timeout = duration + 7  # Additional buffer for device initialization
-        print(f"  Recording audio for {duration} seconds using device '{self.device}'...")
+        capture_seconds = max(1, int(math.ceil(duration)))
+        timeout = capture_seconds + 7  # Additional buffer for device initialization
+        print(
+            f"  Recording audio for {duration:.1f}s using device '{self.device}' "
+            f"(arecord capture: {capture_seconds}s)..."
+        )
         temp_file = None
         self.send_recording_status(True)
 
@@ -949,7 +1038,7 @@ class OllamaVoiceListener:
                     cmd = [
                         "arecord", "-D", self.device,
                         "-f", "S16_LE", "-c", "1", "-r", "16000",
-                        "-d", str(duration), "-q", temp_file
+                        "-d", str(capture_seconds), "-q", temp_file
                     ]
                     print(f"  Attempt {attempt+1}: Running command: {' '.join(cmd)}")
                     result = subprocess.run(cmd, capture_output=True, timeout=timeout)
@@ -994,6 +1083,11 @@ class OllamaVoiceListener:
 
     def transcribe_google(self, audio_file):
         """Transcribe audio using SpeechRecognition library"""
+        if sr is None:
+            print("Google transcription unavailable: install SpeechRecognition to enable it.")
+            if os.path.exists(audio_file):
+                os.unlink(audio_file)
+            return ""
         recognizer = sr.Recognizer()
         try:
             with sr.AudioFile(audio_file) as source:
@@ -1019,15 +1113,21 @@ class OllamaVoiceListener:
     def transcribe_whisper(self, audio_file):
         """Transcribe audio using Faster-Whisper"""
         try:
+            language = self.stt_language if self.stt_language else None
             segments, info = self.whisper.transcribe(
                 audio_file,
-                beam_size=5,
-                language="en",
-                vad_filter=True
+                beam_size=4,
+                language=language,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 250},
+                initial_prompt=self.stt_prompt,
+                condition_on_previous_text=False
             )
-            segments = list(segments)  # Convert to list to be able to print
+            segments = list(segments)
             text = " ".join(segment.text for segment in segments)
-            print(f"  Whisper segments: {segments}")
+            language_detected = getattr(info, "language", "unknown")
+            language_prob = getattr(info, "language_probability", 0.0)
+            print(f"  Whisper language={language_detected} prob={language_prob:.2f}")
             return text.strip()
         except Exception as e:
             print(f"Whisper error: {e}")
@@ -1043,9 +1143,14 @@ class OllamaVoiceListener:
 
         try:
             context = self.get_context_summary()
+            domain_hint = (
+                "Command vocabulary includes: mo, play, recite, stop, surah, verse. "
+                "Common surah names: fatiha, baqarah, yasin, rahman, kahf, mulk, ikhlas, nas."
+            )
             prompt = (
                 "Conversation context:\n"
                 f"{context}\n\n"
+                f"Domain hint: {domain_hint}\n\n"
                 f"User said: \"{text}\"\n\n"
                 "Provide intent JSON:"
             )
@@ -1127,36 +1232,29 @@ class OllamaVoiceListener:
             return (None, None, create_intent())
 
         words = tokenize_words(text)
-
-        wake_present = any(word in WAKE_WORDS for word in words)
+        wake_present = bool(set(words).intersection(WAKE_WORDS))
 
         if require_wake and not wake_present:
             return (None, None, create_intent())
 
-        if wake_present and any(keyword in text for keyword in STOP_KEYWORDS):
-            return ("stop", None, create_intent(action="stop", confidence=0.7))
+        if contains_any_token(text, STOP_KEYWORDS):
+            confidence = 0.7 if wake_present else 0.6
+            return ("stop", None, create_intent(action="stop", confidence=confidence))
 
-        if any(keyword in text for keyword in STOP_KEYWORDS):
-            return ("stop", None, create_intent(action="stop", confidence=0.6))
+        if contains_any_token(text, PLAY_KEYWORDS):
+            surah_number = extract_surah_number(text)
+            if surah_number:
+                return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.7))
 
-        if any(keyword in text for keyword in PLAY_KEYWORDS):
-            for name, number in SURAH_NAMES.items():
-                if name in text:
-                    return ("play", number, create_intent(action="play", surah=number, confidence=0.55))
+            if any(token in {"quran", "koran", "quron"} for token in words):
+                return ("play", 1, create_intent(action="play", surah=1, confidence=0.5))
 
-            for word in words:
-                if word.isdigit():
-                    num = int(word)
-                    if 1 <= num <= 114:
-                        return ("play", num, create_intent(action="play", surah=num, confidence=0.5))
-                if word in NUMBER_WORDS:
-                    mapped = NUMBER_WORDS[word]
-                    return ("play", mapped, create_intent(action="play", surah=mapped, confidence=0.5))
+            return ("play", 1, create_intent(action="play", surah=1, confidence=0.45))
 
-            if any(k in text for k in ["quran", "koran", "quron"]):
-                return ("play", 1, create_intent(action="play", surah=1, confidence=0.4))
-
-            return ("play", 1, create_intent(action="play", surah=1, confidence=0.4))
+        if contains_any_token(text, SEARCH_KEYWORDS):
+            topic = self.detect_topic_from_text(text)
+            if topic:
+                return ("search", topic, create_intent(action="search", topic=topic, confidence=0.6))
 
         return (None, None, create_intent())
 
@@ -1168,6 +1266,10 @@ class OllamaVoiceListener:
 
     def play_surah(self, surah_name_or_number):
         """Play a specific Surah by name or number"""
+        if MPV is None:
+            print("python_mpv_jsonipc is not installed; use command mode playback instead.")
+            return
+
         # Convert to surah number
         if isinstance(surah_name_or_number, int):
             surah_number = surah_name_or_number
@@ -1242,7 +1344,7 @@ class OllamaVoiceListener:
     def send_playback_status(self, playing):
         """Send playback status to MagicMirror"""
         try:
-            url = f"{self.mirror_url}/api/quran/playing"
+            url = f"{self.mirror_url}/api/quran/status"
             requests.post(url, json={"isPlaying": playing}, timeout=3)
         except Exception as e:
             print(f" Could not send playback status: {e}")
@@ -1281,9 +1383,9 @@ class OllamaVoiceListener:
                 gc.collect()
                 # Reinitialize Whisper
                 try:
-                    self.whisper = WhisperModel("tiny.en", device="opencl", compute_type="int8")
-                except:
-                    self.whisper = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+                    self.whisper = WhisperModel(self.stt_model, device="opencl", compute_type="int8")
+                except Exception:
+                    self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
         except Exception as e:
             print(f"Memory check error: {e}")
 
@@ -1295,6 +1397,11 @@ class OllamaVoiceListener:
         print(f"Device: {self.device}")
         print("  (Run 'arecord -l' to verify device index if not hearing audio)")
         print(f"Model: {OLLAMA_MODEL}")
+        print(f"Parser mode: {self.parser_mode}")
+        print(f"STT model: {self.stt_model}")
+        print(f"STT language: {self.stt_language_label}")
+        print(f"Wake window: {self.wake_window_sec:.1f}s")
+        print(f"Command window: {self.command_window_sec:.1f}s")
         print("Wake word: 'Mo'")
         print("")
         print("Commands (natural language):")
@@ -1310,13 +1417,21 @@ class OllamaVoiceListener:
             print("Run in separate terminal: cd ~/MagicMirror-Pi5/magicmirror && npm run server")
             sys.exit(1)
 
-        self.check_ollama()
+        if self.parser_mode == "local":
+            self.ollama_available = False
+            print("Local parser mode active; skipping Ollama check.")
+        else:
+            self.check_ollama()
+            if self.parser_mode == "ollama" and not self.ollama_available:
+                print("⚠ Parser mode is 'ollama' but Ollama is unavailable; listener will fall back to local parser.")
         print("\nListening... (say 'Mo' to start)")
 
         while self.is_running:
             try:
                 self.send_listening_status(True)
-                audio_file = self.record_audio(10)  # Extended recording time
+                wake_record_started_at = time.perf_counter()
+                audio_file = self.record_audio(self.wake_window_sec)
+                wake_record_ms = (time.perf_counter() - wake_record_started_at) * 1000
                 if not audio_file:
                     continue
 
@@ -1327,14 +1442,17 @@ class OllamaVoiceListener:
                         os.unlink(audio_file)
                     continue
 
+                wake_stt_started_at = time.perf_counter()
                 text = self.transcribe_whisper(audio_file)
+                wake_stt_ms = (time.perf_counter() - wake_stt_started_at) * 1000
 
                 if text:
                     print(f"  Raw Input: '{text}'")
                     text_fixed = self.normalize_speech(text)
                     print(f"  Processing: '{text_fixed}'")
-                    wake_detected = any(word in text_fixed for word in WAKE_WORDS)
+                    wake_detected = has_wake_word(text_fixed)
                     followup_active = self.within_followup_window()
+                    command_hint_present = contains_any_token(text_fixed, COMMAND_KEYWORDS)
                     print(f"  Wake words detected: {wake_detected} (follow-up active: {followup_active})")
 
                     should_handle = False
@@ -1342,25 +1460,28 @@ class OllamaVoiceListener:
 
                     if wake_detected:
                         should_handle = True
-                        print("  Wake word detected! Pausing playback...")
-                        self.pause_playback()
-                    elif followup_active and any(keyword in text_fixed for keyword in COMMAND_KEYWORDS):
+                        print("  Wake word detected! Stopping active playback before command capture...")
+                        self.stop_playback()
+                    elif followup_active and command_hint_present:
                         should_handle = True
                         immediate_text = text_fixed
                         print("  Follow-up window active; accepting command without wake word.")
-                        self.pause_playback()
+                        self.stop_playback()
 
                     if should_handle:
                         command_text = immediate_text or ""
+                        command_record_ms = 0.0
+                        command_stt_ms = 0.0
 
                         if not immediate_text:
-                            if any(keyword in text_fixed for keyword in COMMAND_KEYWORDS):
+                            if command_hint_present:
                                 print("  Using full command from initial detection")
                                 command_text = text_fixed
                             else:
                                 print("  Recording command...")
-                                time.sleep(1)  # Small pause so we don't trim beginning
-                                audio_file = self.record_audio(7)
+                                command_record_started_at = time.perf_counter()
+                                audio_file = self.record_audio(self.command_window_sec)
+                                command_record_ms = (time.perf_counter() - command_record_started_at) * 1000
 
                                 if not audio_file:
                                     continue
@@ -1371,7 +1492,9 @@ class OllamaVoiceListener:
                                         os.unlink(audio_file)
                                     continue
 
+                                command_stt_started_at = time.perf_counter()
                                 text = self.transcribe_whisper(audio_file)
+                                command_stt_ms = (time.perf_counter() - command_stt_started_at) * 1000
                                 if text:
                                     print(f"  Raw Input: '{text}'")
                                     command_text = self.normalize_speech(text)
@@ -1380,9 +1503,25 @@ class OllamaVoiceListener:
                         if not command_text:
                             continue
 
+                        print(
+                            "  Timing ms: "
+                            f"wake_record={wake_record_ms:.1f}, wake_stt={wake_stt_ms:.1f}, "
+                            f"command_record={command_record_ms:.1f}, command_stt={command_stt_ms:.1f}"
+                        )
+
                         if self.confirm_command(command_text):
                             print("  Command confirmed.")
+                            command_processing_started_at = time.perf_counter()
                             self.process_command(command_text)
+                            command_processing_ms = (time.perf_counter() - command_processing_started_at) * 1000
+                            self.timing_history.append({
+                                "wake_record_ms": wake_record_ms,
+                                "wake_stt_ms": wake_stt_ms,
+                                "command_record_ms": command_record_ms,
+                                "command_stt_ms": command_stt_ms,
+                                "command_processing_ms": command_processing_ms
+                            })
+                            print(f"  Timing ms: process_command={command_processing_ms:.1f}")
                         else:
                             print("  Command rejected. Please try again.")
                             self.play_error()
@@ -1409,19 +1548,53 @@ def signal_handler(sig, frame):
 def main():
     signal.signal(signal.SIGINT, signal_handler)
 
-    device = "pulse"  # Use PulseAudio instead of direct ALSA
-    mirror_url = "http://localhost:8080"
-    enable_beeps = False
+    parser = argparse.ArgumentParser(description="Mo Quran voice listener")
+    parser.add_argument("--device", default="pulse", help="ALSA/Pulse input device")
+    parser.add_argument("--mirror-url", default="http://localhost:8080", help="MagicMirror base URL")
+    parser.add_argument("--enable-beeps", action="store_true", help="Enable confirmation beeps")
+    parser.add_argument("--enable-voice", action="store_true", help="Enable TTS acknowledgements")
+    parser.add_argument(
+        "--parser-mode",
+        choices=["local", "hybrid", "ollama"],
+        default=DEFAULT_PARSER_MODE,
+        help="Command parser mode"
+    )
+    parser.add_argument(
+        "--stt-model",
+        default=DEFAULT_STT_MODEL,
+        help="Faster-Whisper model name (e.g. tiny, base)"
+    )
+    parser.add_argument(
+        "--stt-language",
+        default=DEFAULT_STT_LANGUAGE,
+        help="STT language code or 'auto'"
+    )
+    parser.add_argument(
+        "--wake-window-sec",
+        type=float,
+        default=DEFAULT_WAKE_WINDOW_SEC,
+        help="Wake capture window length in seconds"
+    )
+    parser.add_argument(
+        "--command-window-sec",
+        type=float,
+        default=DEFAULT_COMMAND_WINDOW_SEC,
+        help="Follow-up command capture window length in seconds"
+    )
 
-    for i, arg in enumerate(sys.argv):
-        if arg == "--device" and i + 1 < len(sys.argv):
-            device = sys.argv[i + 1]
-        if arg == "--mirror-url" and i + 1 < len(sys.argv):
-            mirror_url = sys.argv[i + 1]
-        if arg == "--enable-beeps":
-            enable_beeps = True
+    args = parser.parse_args()
 
-    listener = OllamaVoiceListener(device=device, mirror_url=mirror_url, enable_beeps=enable_beeps)
+    listener = OllamaVoiceListener(
+        device=args.device,
+        mirror_url=args.mirror_url,
+        enable_beeps=args.enable_beeps,
+        enable_voice=args.enable_voice,
+        parser_mode=args.parser_mode,
+        stt_model=args.stt_model,
+        stt_language=args.stt_language,
+        wake_window_sec=args.wake_window_sec,
+        command_window_sec=args.command_window_sec
+    )
     listener.listen_loop()
 
 

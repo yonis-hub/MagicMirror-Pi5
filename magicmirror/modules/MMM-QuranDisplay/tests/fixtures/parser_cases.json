@@ -1,0 +1,58 @@
+[
+  {
+    "name": "play_yasin",
+    "input": "mo play surah yasin",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 36
+  },
+  {
+    "name": "play_rahman",
+    "input": "mo play surah rahman",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 55
+  },
+  {
+    "name": "stop_with_wake",
+    "input": "mo stop",
+    "require_wake": true,
+    "expected_action": "stop",
+    "expected_surah": null
+  },
+  {
+    "name": "play_mulk_no_wake_required",
+    "input": "play surah mulk",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 67
+  },
+  {
+    "name": "show_should_not_trigger",
+    "input": "show me weather today",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "misheard_yes_seen",
+    "input": "mo play sir yes seen",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 36
+  },
+  {
+    "name": "misheard_rock_man",
+    "input": "mo play surah rock man",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 55
+  },
+  {
+    "name": "numeric_surah",
+    "input": "mo play surah 55",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 55
+  }
+]
