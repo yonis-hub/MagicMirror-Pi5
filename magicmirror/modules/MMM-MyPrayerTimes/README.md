@@ -51,6 +51,11 @@ Add the module to your modules array in your config.js.
 	  showMidnight: true,			// Display Midnight, false if you want to hide
 	  showImsak: true,			// Display Imsak, false if you want to hide
 	  show24Clock: true,			// Default display 24hour clock -> false is 12hour (AM/PM) clock
+	  playAdhan: true,			// Play adhan audio at selected prayer times
+	  adhanTriggerWindowMinutes: 1,		// Trigger window to avoid missing adhan due timer drift
+	  autoPlayAdhkar: true,			// Autoplay adhkar once in each daily window
+	  adhkarManifestFile: "adhkar_manifest.json",	// Track list in module folder
+	  adhkarVolume: 0.85,			// Adhkar playback volume (0.0 - 1.0)
 	  }
 },
 ```
@@ -120,6 +125,30 @@ Here is the documentation of options for the modules configuration:
     </tr>
 </tbody>
 </table>
+
+## Adhkar autoplay
+
+The module now supports automatic morning/evening adhkar playback.
+
+- Morning window: `Fajr` to `Sunrise`
+- Evening window: `Asr` to `Sunset`
+- Each window plays once per local day
+- Current track title is broadcast through `ADHKAR_STATUS` for other modules (for example `MMM-QuranDisplay`)
+
+Default track metadata is loaded from `adhkar_manifest.json` in this folder. You can override tracks using:
+
+- `morningAdhkarTracks` in module config
+- `eveningAdhkarTracks` in module config
+
+Each track supports:
+
+```json
+{
+  "url": "https://example.com/track.mp3",
+  "title": "Track Title",
+  "titleArabic": ""
+}
+```
 
 ## Language support
 The MMM-MyPrayerTimes module support different languages. 

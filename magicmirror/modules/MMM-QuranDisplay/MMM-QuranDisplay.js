@@ -11,7 +11,8 @@ Module.register("MMM-QuranDisplay", {
 		showSurahName: true,
 		showBismillah: true,
 		hideBismillahForSurah9: true,
-		bismillahText: "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
+		bismillahText: "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064e\u0651\u0647\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0652\u0645\u064e\u0646\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0650\u064a\u0645\u0650",
+		showAdhkarNowPlaying: true,
 		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
 		animationSpeed: 500,
 		fontSize: {
@@ -31,6 +32,14 @@ Module.register("MMM-QuranDisplay", {
 		this.isListening = false;
 		this.isRecording = false;
 		this.isProcessing = false;
+		this.adhkarStatus = {
+			isPlaying: false,
+			period: null,
+			index: 0,
+			total: 0,
+			title: "",
+			titleArabic: ""
+		};
 
 		this.sendSocketNotification("MODULE_READY", {
 			config: this.config
@@ -92,21 +101,74 @@ Module.register("MMM-QuranDisplay", {
 		wrapper.appendChild(statusContainer);
 	},
 
+	getAdhkarPeriodLabel: function () {
+		if (!this.adhkarStatus || !this.adhkarStatus.period) {
+			return "Adhkar";
+		}
+		const value = String(this.adhkarStatus.period).toLowerCase();
+		if (value === "morning") {
+			return "Morning Adhkar";
+		}
+		if (value === "evening") {
+			return "Evening Adhkar";
+		}
+		return "Adhkar";
+	},
+
+	renderAdhkarNowPlaying: function (wrapper) {
+		if (!this.config.showAdhkarNowPlaying || !this.adhkarStatus?.isPlaying) {
+			return false;
+		}
+
+		const adhkarDiv = document.createElement("div");
+		adhkarDiv.className = "adhkar-now-playing";
+
+		const periodDiv = document.createElement("div");
+		periodDiv.className = "adhkar-period";
+		periodDiv.textContent = this.getAdhkarPeriodLabel();
+		adhkarDiv.appendChild(periodDiv);
+
+		const titleDiv = document.createElement("div");
+		titleDiv.className = "adhkar-title";
+		titleDiv.textContent = this.adhkarStatus.title || "Adhkar";
+		adhkarDiv.appendChild(titleDiv);
+
+		if (this.adhkarStatus.titleArabic) {
+			const titleArabicDiv = document.createElement("div");
+			titleArabicDiv.className = "adhkar-title-arabic";
+			titleArabicDiv.textContent = this.adhkarStatus.titleArabic;
+			adhkarDiv.appendChild(titleArabicDiv);
+		}
+
+		if (this.adhkarStatus.total > 0) {
+			const trackDiv = document.createElement("div");
+			trackDiv.className = "adhkar-track-number";
+			trackDiv.textContent = `${this.adhkarStatus.index} / ${this.adhkarStatus.total}`;
+			adhkarDiv.appendChild(trackDiv);
+		}
+
+		wrapper.appendChild(adhkarDiv);
+		return true;
+	},
+
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-quran-display";
+		const hasAdhkarNowPlaying = this.renderAdhkarNowPlaying(wrapper);
 
 		if (!this.currentVerse) {
-			const waitingDiv = document.createElement("div");
-			waitingDiv.className = "waiting";
-			if (this.isProcessing) {
-				waitingDiv.textContent = "Processing request...";
-			} else if (this.isRecording) {
-				waitingDiv.textContent = "Listening to your request...";
-			} else {
-				waitingDiv.textContent = 'Say "Mo, play Surah Fatiha"';
+			if (!hasAdhkarNowPlaying) {
+				const waitingDiv = document.createElement("div");
+				waitingDiv.className = "waiting";
+				if (this.isProcessing) {
+					waitingDiv.textContent = "Processing request...";
+				} else if (this.isRecording) {
+					waitingDiv.textContent = "Listening to your request...";
+				} else {
+					waitingDiv.textContent = 'Say "Mo, play Surah Fatiha"';
+				}
+				wrapper.appendChild(waitingDiv);
 			}
-			wrapper.appendChild(waitingDiv);
 			this.renderStatusIndicators(wrapper);
 			return wrapper;
 		}
@@ -151,7 +213,6 @@ Module.register("MMM-QuranDisplay", {
 		}
 
 		this.renderStatusIndicators(wrapper);
-
 		return wrapper;
 	},
 
@@ -187,11 +248,25 @@ Module.register("MMM-QuranDisplay", {
 		}
 	},
 
-	notificationReceived: function (notification, payload, sender) {
-		if (notification === "QURAN_PLAY_SURAH") {
+	notificationReceived: function (notification, payload) {
+		if (notification === "ADHKAR_STATUS") {
+			this.adhkarStatus = {
+				isPlaying: Boolean(payload && payload.isPlaying),
+				period: payload && payload.period ? payload.period : null,
+				index: payload && payload.index ? payload.index : 0,
+				total: payload && payload.total ? payload.total : 0,
+				title: payload && payload.title ? payload.title : "",
+				titleArabic: payload && payload.titleArabic ? payload.titleArabic : ""
+			};
+			this.updateDom(200);
+		} else if (notification === "QURAN_PLAY_SURAH") {
+			const safePayload = payload && typeof payload === "object" ? payload : {};
+			if (!safePayload.surah) {
+				return;
+			}
 			this.sendSocketNotification("PLAY_SURAH", {
-				surah: payload.surah,
-				startVerse: payload.startVerse || 1
+				surah: safePayload.surah,
+				startVerse: safePayload.startVerse || 1
 			});
 		} else if (notification === "QURAN_STOP") {
 			this.sendSocketNotification("STOP_PLAYBACK", {});

@@ -47,7 +47,8 @@ pip3 install sentence-transformers psutil
     showSurahName: true,
     showBismillah: true,
     hideBismillahForSurah9: true,
-    bismillahText: "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
+    bismillahText: "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
+    showAdhkarNowPlaying: true, // show currently playing adhkar title block
     ayahLabelFormat: "compact", // "ayah" or "compact"
     animationSpeed: 500,
     fontSize: {
@@ -76,6 +77,10 @@ Voice listener:
 
 - `quran_harvester.py`: downloads/repairs complete Quran JSON + MP3 into `quran_data`.
 - `generate_embeddings.py`: builds local verse embeddings for topic search.
+
+## Adhkar Status Integration
+
+If `MMM-MyPrayerTimes` publishes `ADHKAR_STATUS`, this module shows the active adhkar period, title, and track number while adhkar audio is playing.
 
 ## Always-On Deploy
 
