@@ -22,6 +22,15 @@
   border-bottom: 1px solid rgb(255 255 255 / 16%);
 }
 
+.mmm-quran-display .bismillah-line {
+  font-family: "Traditional Arabic", "Scheherazade New", Amiri, serif;
+  font-size: 1.55em;
+  line-height: 1.25;
+  color: #f4e29f;
+  margin-bottom: 7px;
+  letter-spacing: 0.2px;
+}
+
 .mmm-quran-display .surah-arabic {
   font-family: "Traditional Arabic", "Scheherazade New", Amiri, serif;
   font-size: 1.9em;

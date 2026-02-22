@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Quran Verse Chainer for MagicMirror
-Fetches verses from Al Quran Cloud API, plays audio via mpv,
+Plays verses using local quran_data first, falls back to API when needed,
 and sends display updates to MMM-QuranDisplay module.
 
 Usage:
@@ -17,6 +17,7 @@ import time
 import requests
 import signal
 import threading
+from pathlib import Path
 
 # Surah name mapping for voice command parsing
 SURAH_NAMES = {
@@ -45,6 +46,9 @@ SURAH_NAMES = {
     "masad": 111, "ikhlas": 112, "falaq": 113, "nas": 114
 }
 
+SURAH_INDEX_FILENAME = "surah_index.json"
+
+
 class QuranChainer:
     def __init__(self, mirror_url="http://localhost:8080"):
         self.mirror_url = mirror_url
@@ -52,6 +56,20 @@ class QuranChainer:
         self.is_stopped = False
         self.current_process = None
         self.stdin_thread = None
+        self.surah_info_cache = {}
+        self.repo_root = self._find_repo_root()
+        data_override = os.environ.get("QURAN_DATA_DIR")
+        self.quran_data_dir = Path(data_override).expanduser().resolve() if data_override else self.repo_root / "quran_data"
+        metadata_api_raw = os.environ.get("QURAN_ALLOW_METADATA_API", "0")
+        self.allow_metadata_api = str(metadata_api_raw).strip().lower() in {"1", "true", "yes", "on"}
+        self.surah_index = self._load_surah_index()
+        print(f"Using Quran data directory: {self.quran_data_dir}")
+        if self.surah_index:
+            print(f"Loaded local surah metadata index ({len(self.surah_index)} entries)")
+        elif self.allow_metadata_api:
+            print("Local surah metadata index not found; API metadata fallback enabled")
+        else:
+            print("Local surah metadata index not found; using generic surah labels")
 
         # Handle signals for graceful shutdown
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -61,6 +79,16 @@ class QuranChainer:
         if not sys.stdin.isatty():
             self.stdin_thread = threading.Thread(target=self._stdin_listener, daemon=True)
             self.stdin_thread.start()
+
+    def _find_repo_root(self):
+        script_dir = Path(__file__).resolve().parent
+        for parent in [script_dir] + list(script_dir.parents):
+            if (parent / "quran_data").exists():
+                return parent
+        parents = Path(__file__).resolve().parents
+        if len(parents) > 3:
+            return parents[3]
+        return script_dir
 
     def _stdin_listener(self):
         """Listen for control commands from parent process stdin."""
@@ -90,6 +118,38 @@ class QuranChainer:
         except Exception as e:
             print(f"Control listener error: {e}")
 
+    def _load_surah_index(self):
+        index_path = self.quran_data_dir / SURAH_INDEX_FILENAME
+        if not index_path.exists():
+            return {}
+
+        try:
+            payload = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+        rows = payload if isinstance(payload, list) else payload.values() if isinstance(payload, dict) else []
+        parsed = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                number = int(row.get("number"))
+            except (TypeError, ValueError):
+                continue
+            if not 1 <= number <= 114:
+                continue
+
+            parsed[number] = {
+                "number": number,
+                "arabicName": row.get("arabicName") or row.get("name") or "",
+                "englishName": row.get("englishName") or f"Surah {number}",
+                "englishNameTranslation": row.get("englishNameTranslation") or "",
+                "totalVerses": row.get("totalVerses") or row.get("numberOfAyahs") or 0,
+                "revelationType": row.get("revelationType") or ""
+            }
+        return parsed
+
     def _signal_handler(self, signum, frame):
         print("\nReceived stop signal, cleaning up...")
         self.is_stopped = True
@@ -105,13 +165,13 @@ class QuranChainer:
             url = f"{self.mirror_url}/api/quran/{endpoint}"
             response = requests.post(url, json=data, timeout=5)
             if response.status_code == 200:
-                print(f"  ✓ Sent to {endpoint}")
+                print(f"  sent to {endpoint}")
                 return True
             else:
-                print(f"  ✗ Mirror returned {response.status_code}: {response.text}")
+                print(f"  mirror returned {response.status_code}: {response.text}")
                 return False
         except requests.exceptions.RequestException as e:
-            print(f"  ✗ Error sending to mirror: {e}")
+            print(f"  error sending to mirror: {e}")
             return False
 
     def _update_verse_display(self, arabic, translation, surah, verse, surah_info, is_playing=True):
@@ -134,11 +194,96 @@ class QuranChainer:
         """Clear the verse display"""
         return self._send_to_mirror("clear", {})
 
-    def fetch_surah(self, surah_number):
-        """Fetch surah data from Al Quran Cloud API"""
-        print(f"Fetching Surah {surah_number}...")
+    def _get_surah_info(self, surah_number, total_verses):
+        if surah_number in self.surah_info_cache:
+            cached = self.surah_info_cache[surah_number].copy()
+            if not cached.get("totalVerses"):
+                cached["totalVerses"] = total_verses
+            return cached
 
-        # Fetch Arabic text with Al-Afasy recitation
+        surah_info = {
+            "number": surah_number,
+            "arabicName": "",
+            "englishName": f"Surah {surah_number}",
+            "englishNameTranslation": "",
+            "totalVerses": total_verses,
+            "revelationType": ""
+        }
+
+        local_info = self.surah_index.get(surah_number)
+        if local_info:
+            surah_info.update(local_info)
+            if not surah_info.get("totalVerses"):
+                surah_info["totalVerses"] = total_verses
+            self.surah_info_cache[surah_number] = surah_info.copy()
+            return surah_info
+
+        if not self.allow_metadata_api:
+            self.surah_info_cache[surah_number] = surah_info.copy()
+            return surah_info
+
+        try:
+            info_url = f"https://api.alquran.cloud/v1/surah/{surah_number}"
+            response = requests.get(info_url, timeout=6)
+            if response.status_code == 200:
+                payload = response.json().get("data", {})
+                surah_info.update({
+                    "number": payload.get("number", surah_number),
+                    "arabicName": payload.get("name", surah_info["arabicName"]),
+                    "englishName": payload.get("englishName", surah_info["englishName"]),
+                    "englishNameTranslation": payload.get("englishNameTranslation", ""),
+                    "totalVerses": payload.get("numberOfAyahs", total_verses),
+                    "revelationType": payload.get("revelationType", "")
+                })
+        except requests.exceptions.RequestException:
+            pass
+
+        self.surah_info_cache[surah_number] = surah_info.copy()
+        return surah_info
+
+    def _load_local_surah(self, surah_number):
+        surah_dir = self.quran_data_dir / f"{surah_number:03}"
+        if not surah_dir.exists():
+            return None
+
+        verses = []
+        for json_path in sorted(surah_dir.glob("*.json")):
+            try:
+                payload = json.loads(json_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+
+            verse_key = str(payload.get("verse_key", ""))
+            try:
+                verse_num = int(verse_key.split(":")[-1]) if ":" in verse_key else int(json_path.stem)
+            except ValueError:
+                continue
+
+            ayah_number = payload.get("ayah_number")
+            if isinstance(ayah_number, str) and ayah_number.isdigit():
+                ayah_number = int(ayah_number)
+
+            audio_path = surah_dir / f"{verse_num:03}.mp3"
+            local_audio = str(audio_path.resolve()) if audio_path.exists() else None
+
+            verses.append({
+                "number": verse_num,
+                "ayah_number": ayah_number,
+                "arabic": payload.get("text_uthmani") or payload.get("text") or "",
+                "translation": payload.get("translation_en") or payload.get("translation") or "",
+                "audio": local_audio or payload.get("audio_url")
+            })
+
+        if not verses:
+            return None
+
+        verses.sort(key=lambda verse: verse["number"])
+        surah_info = self._get_surah_info(surah_number, len(verses))
+        print(f"Loaded Surah {surah_number} from local quran_data ({len(verses)} verses)")
+        return {"surah_info": surah_info, "verses": verses}
+
+    def _fetch_surah_from_api(self, surah_number):
+        print(f"Fetching Surah {surah_number} from API...")
         arabic_url = f"https://api.alquran.cloud/v1/surah/{surah_number}/ar.alafasy"
         english_url = f"https://api.alquran.cloud/v1/surah/{surah_number}/en.asad"
 
@@ -153,9 +298,8 @@ class QuranChainer:
             arabic_data = arabic_response.json()["data"]
             english_data = english_response.json()["data"]
 
-            # Combine data
             verses = []
-            for i, (ar_ayah, en_ayah) in enumerate(zip(arabic_data["ayahs"], english_data["ayahs"])):
+            for ar_ayah, en_ayah in zip(arabic_data["ayahs"], english_data["ayahs"]):
                 verses.append({
                     "number": ar_ayah["numberInSurah"],
                     "ayah_number": ar_ayah["number"],
@@ -173,14 +317,19 @@ class QuranChainer:
                 "revelationType": arabic_data["revelationType"]
             }
 
-            return {
-                "surah_info": surah_info,
-                "verses": verses
-            }
+            self.surah_info_cache[surah_number] = surah_info.copy()
+            return {"surah_info": surah_info, "verses": verses}
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching surah: {e}")
             return None
+
+    def fetch_surah(self, surah_number):
+        """Load surah from local quran_data first, then fall back to API."""
+        local_data = self._load_local_surah(surah_number)
+        if local_data:
+            return local_data
+        return self._fetch_surah_from_api(surah_number)
 
     def play_audio(self, audio_url):
         """Play audio using mpv and wait for completion"""
@@ -264,10 +413,12 @@ class QuranChainer:
             # Play audio
             if verse.get("audio"):
                 self.play_audio(verse["audio"])
-            else:
+            elif verse.get("ayah_number"):
                 # Fallback requires global ayah index, not numberInSurah.
                 audio_url = f"https://cdn.islamic.network/quran/audio/128/ar.alafasy/{verse['ayah_number']}.mp3"
                 self.play_audio(audio_url)
+            else:
+                print(f"  No audio source for verse {verse_num}; skipping playback for this verse.")
 
             # Brief pause between verses
             if not self.is_stopped:

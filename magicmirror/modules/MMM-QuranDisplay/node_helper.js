@@ -14,13 +14,13 @@ module.exports = NodeHelper.create({
 		console.log(`Starting node helper for: ${this.name}`);
 		this.pythonProcess = null;
 		this.config = {};
+		this.debugLogs = process.env.QURAN_DEBUG_LOGS === "1";
 
 		// Enable JSON body parsing for our endpoints
 		this.expressApp.use("/api/quran", express.json());
 
 		// API endpoint for receiving verse updates from Python script
 		this.expressApp.post("/api/quran/verse", (req, res) => {
-			console.log("MMM-QuranDisplay: Received verse update", req.body);
 			const { arabic, translation, surah, verse, surahInfo, isPlaying } = req.body || {};
 
 			this.sendSocketNotification("VERSE_UPDATE", {
@@ -32,7 +32,6 @@ module.exports = NodeHelper.create({
 				isPlaying
 			});
 
-			console.log("MMM-QuranDisplay: Sent VERSE_UPDATE socket notification");
 			res.status(200).json({ status: "success" });
 		});
 
@@ -71,12 +70,16 @@ module.exports = NodeHelper.create({
 		});
 	},
 
-	socketNotificationReceived: function (notification, payload) {
-		console.log("MMM-QuranDisplay received:", notification);
+	logDebug: function (...parts) {
+		if (this.debugLogs) {
+			console.log(...parts);
+		}
+	},
 
+	socketNotificationReceived: function (notification, payload) {
 		if (notification === "MODULE_READY") {
 			this.config = payload.config || {};
-			console.log("MMM-QuranDisplay: Module ready");
+			this.logDebug("MMM-QuranDisplay: Module ready");
 		} else if (notification === "PLAY_SURAH") {
 			this.startPythonChainer(payload.surah, payload.startVerse);
 		} else if (notification === "STOP_PLAYBACK") {
@@ -104,7 +107,7 @@ module.exports = NodeHelper.create({
 		this.pythonProcess = spawn("python3", [scriptPath, "--surah", String(surah), "--start-verse", String(startVerse || 1), "--mirror-url", "http://localhost:8080"]);
 
 		this.pythonProcess.stdout.on("data", (data) => {
-			console.log(`quran_chainer: ${data}`);
+			this.logDebug(`quran_chainer: ${data}`);
 		});
 
 		this.pythonProcess.stderr.on("data", (data) => {

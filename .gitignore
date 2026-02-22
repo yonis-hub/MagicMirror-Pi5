@@ -33,3 +33,8 @@ __pycache__/
 # Temporary files
 *.tmp
 *.temp
+
+# Local diagnostics/artifacts
+mic_test.wav
+voice_listener.log
+magicmirror/modules/MMM-QuranDisplay/logs/

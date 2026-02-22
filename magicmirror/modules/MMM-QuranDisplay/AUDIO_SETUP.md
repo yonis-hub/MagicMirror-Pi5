@@ -11,12 +11,12 @@ source venv/bin/activate
 
 2. Install required Python packages:
 ```bash
-pip install sounddevice soundfile SpeechRecognition pyaudio psutil
+pip install requests faster-whisper numpy sounddevice psutil
 ```
 
-3. Test the microphone and speakers:
+3. Verify the microphone device is visible:
 ```bash
-python pi_mic_test.py
+arecord -l
 ```
 
 ## Important Note
@@ -29,25 +29,18 @@ npm run server
 
 Keep this server process running in a separate terminal.
 
-## Installing Additional Packages
-
-If you need to install additional Python packages (like `numpy` for numerical computations), do so inside the virtual environment:
-```bash
-cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
-source venv/bin/activate
-pip install numpy
-```
-
 ## Install MPV
 
-MPV is required for audio playback. Install it system-wide:
+`mpv` is required for audio playback. Install it system-wide:
 ```bash
 sudo apt install mpv
 ```
 
-4. To run the voice listener, ensure the virtual environment is active and run:
+4. To run the voice listener manually, ensure the virtual environment is active and run:
 ```bash
-python voice_listener_ollama.py --parser-mode local --stt-model tiny --stt-language auto --wake-window-sec 2.5 --command-window-sec 3.5
+./start_listener.sh
 ```
 
-Note: Always activate the virtual environment before running the voice listener.
+Note: `start_listener.sh` applies tuned defaults if no arguments are provided.
+
+For always-on boot setup, use the systemd templates in `deploy/systemd` at repo root.

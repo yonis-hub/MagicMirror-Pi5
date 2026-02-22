@@ -1,127 +1,73 @@
-# MagicMirror Voice Listener Autostart Guide
+# MagicMirror + Voice Autostart Guide (Pi 5)
 
-## System Setup
-1. Install PulseAudio:
-```bash
-sudo apt install pulseaudio
-```
+This setup keeps the mirror UI visible and keeps voice control running all day with automatic restart.
 
-2. Add user to audio group:
-```bash
-sudo usermod -aG audio $USER
-```
+## Recommended architecture
 
-3. Reboot system:
-```bash
-sudo reboot
-```
+- `MagicMirror UI`: start from desktop autostart (needs active display session).
+- `Quran voice listener`: run as `systemd` service (`Restart=always`).
+- `Ollama`: run as `systemd` service with low-memory limits.
 
-## Enable Autostart
+## 1) Desktop autostart for MagicMirror UI
+
 ```bash
-# Create autostart directory
 mkdir -p ~/.config/autostart
 
-# Create startup script
 cat > ~/start_mirror.sh << 'EOF'
 #!/bin/bash
-
-# Start MagicMirror
 cd ~/MagicMirror-Pi5/magicmirror
-npm run start &
-
-# Start voice listener
-cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
-python3 voice_listener_ollama.py --parser-mode local --stt-model tiny --stt-language auto --wake-window-sec 2.5 --command-window-sec 3.5
+npm run start
 EOF
 
-# Make script executable
 chmod +x ~/start_mirror.sh
 
-# Create desktop entry
 cat > ~/.config/autostart/magicmirror.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=MagicMirror with Voice Listener
-Exec=/bin/bash -c "~/start_mirror.sh"
+Name=MagicMirror
+Exec=/bin/bash -lc "~/start_mirror.sh"
 X-GNOME-Autostart-enabled=true
 EOF
 ```
 
-## Disable Autostart
+## 2) Install always-on Quran voice service
+
+The repo includes production-ready templates in `deploy/systemd`.
+
 ```bash
-# Remove autostart entry
-rm ~/.config/autostart/magicmirror.desktop
-
-# (Optional) Remove startup script
-rm ~/start_mirror.sh
-```
-
-## Manual Start Commands
-```bash
-# Start MagicMirror
-cd ~/MagicMirror-Pi5/magicmirror
-npm run start
-
-# Start voice listener
-cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
-python3 voice_listener_ollama.py --parser-mode local --stt-model tiny --stt-language auto --wake-window-sec 2.5 --command-window-sec 3.5
-```
-
-## Service Configuration
-1. Create systemd service file:
-```bash
-sudo nano /etc/systemd/system/mo-voice-listener.service
-```
-
-2. Add configuration:
-```
-[Unit]
-Description=Mo Voice Listener for MagicMirror
-After=network.target magicmirror.service
-
-[Service]
-User=pi
-WorkingDirectory=/home/pi/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
-Environment="LISTENER_SCRIPT=voice_listener_ollama.py"
-ExecStart=/home/pi/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh --parser-mode local --stt-model tiny --stt-language auto --wake-window-sec 2.5 --command-window-sec 3.5
-Restart=always
-RestartSec=10
-Environment="DISPLAY=:0"
-Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
-
-[Install]
-WantedBy=multi-user.target
-```
-
-3. Enable service:
-```bash
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/quran-voice@.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable mo-voice-listener.service
-sudo systemctl start mo-voice-listener.service
+sudo systemctl enable --now quran-voice@hyonis.service
 ```
 
-## Process Management
+Replace `hyonis` with your actual Pi username.
+
+## 3) Apply Ollama low-memory override
+
 ```bash
-# Find running processes
-pgrep -f "electron"          # MagicMirror
-pgrep -f "voice_listener"    # Voice Listener
-
-# Stop processes
-pkill -f "electron"
-pkill -f "voice_listener_ollama.py"
+sudo mkdir -p /etc/systemd/system/ollama.service.d
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/ollama.service.d/override.conf /etc/systemd/system/ollama.service.d/
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
 ```
 
-## Verification
+## 4) Verify
+
 ```bash
-# Check autostart file existence
-ls ~/.config/autostart
-
-# Check script contents
-cat ~/start_mirror.sh
-
-# Check service status
-systemctl status mo-voice-listener.service
-
-# Check logs
-journalctl -u mo-voice-listener.service -f
+systemctl status quran-voice@hyonis --no-pager
+systemctl status ollama --no-pager
+journalctl -u quran-voice@hyonis -n 100 --no-pager
 ```
+
+## 5) Disable (if needed)
+
+```bash
+sudo systemctl disable --now quran-voice@hyonis
+rm -f ~/.config/autostart/magicmirror.desktop
+```
+
+## Notes
+
+- Local Quran playback uses `quran_data` first.
+- Keep `quran_data/surah_index.json` in place for fast offline surah metadata.
+- `start_listener.sh` now applies tuned defaults when no args are passed.

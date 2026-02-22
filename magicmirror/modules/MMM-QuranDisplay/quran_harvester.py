@@ -8,6 +8,7 @@ Downloads complete verse JSON data and audio files into:
 Default behavior:
 - Surah range: 1..114
 - Writes JSON for each verse
+- Writes surah metadata index: <repo>/quran_data/surah_index.json
 - Downloads missing/invalid MP3 files
 """
 
@@ -26,6 +27,7 @@ ARABIC_QURAN_URL = "https://api.alquran.cloud/v1/quran/quran-uthmani"
 ENGLISH_QURAN_URL = "https://api.alquran.cloud/v1/quran/en.asad"
 AUDIO_BASE_URL = "https://cdn.islamic.network/quran/audio/128/ar.alafasy"
 TOTAL_SURAHS = 114
+SURAH_INDEX_FILENAME = "surah_index.json"
 
 
 def find_repo_root() -> Path:
@@ -152,6 +154,26 @@ def build_manifest(
     return manifest
 
 
+def write_surah_index(arabic_surahs: List[Dict], output_dir: Path) -> None:
+    index_payload: List[Dict] = []
+    for surah in arabic_surahs:
+        index_payload.append(
+            {
+                "number": int(surah["number"]),
+                "arabicName": clean_text(surah.get("name", "")),
+                "englishName": clean_text(surah.get("englishName", "")),
+                "englishNameTranslation": clean_text(surah.get("englishNameTranslation", "")),
+                "numberOfAyahs": int(surah.get("numberOfAyahs", 0) or 0),
+                "revelationType": clean_text(surah.get("revelationType", "")),
+            }
+        )
+    index_payload.sort(key=lambda entry: entry["number"])
+    (output_dir / SURAH_INDEX_FILENAME).write_text(
+        json.dumps(index_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Harvest Quran JSON/audio into quran_data.")
     parser.add_argument("--start-surah", type=int, default=1, help="First surah to download (1-114).")
@@ -186,6 +208,7 @@ def main() -> int:
 
     arabic_data = fetch_api_payload(ARABIC_QURAN_URL)
     english_data = fetch_api_payload(ENGLISH_QURAN_URL)
+    write_surah_index(arabic_data["surahs"], output_dir)
     manifest = build_manifest(
         arabic_surahs=arabic_data["surahs"],
         english_surahs=english_data["surahs"],

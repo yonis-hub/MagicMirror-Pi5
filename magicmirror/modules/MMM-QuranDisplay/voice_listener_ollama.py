@@ -26,15 +26,6 @@ from pathlib import Path
 import requests
 import numpy as np
 import sounddevice as sd
-try:
-    from python_mpv_jsonipc import MPV
-except ImportError:
-    MPV = None
-
-try:
-    import speech_recognition as sr
-except ImportError:
-    sr = None
 
 try:
     from faster_whisper import WhisperModel
@@ -42,6 +33,11 @@ except ImportError:
     print("ERROR: Missing required Python package 'faster-whisper'.")
     print("Install with: pip install faster-whisper")
     sys.exit(1)
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 # Complete Surah name mappings (all 114 surahs)
 SURAH_NAMES = {
@@ -424,6 +420,7 @@ DEFAULT_STT_MODEL = "tiny"
 DEFAULT_STT_LANGUAGE = "auto"
 DEFAULT_WAKE_WINDOW_SEC = 2.5
 DEFAULT_COMMAND_WINDOW_SEC = 3.5
+DEFAULT_MEMORY_CHECK_INTERVAL_SEC = 60
 FUZZY_SURAH_THRESHOLD = 0.82
 
 def clamp_confidence(value, default=DEFAULT_CONFIDENCE):
@@ -663,7 +660,6 @@ class OllamaVoiceListener:
         self.mirror_url = mirror_url
         self.ollama_url = ollama_url
         self.current_process = None
-        self.player = None
         self.is_running = True
         self.script_dir = Path(__file__).parent
         self.ollama_available = False
@@ -692,6 +688,7 @@ class OllamaVoiceListener:
         self._last_listening_status = None
         self._last_recording_status = None
         self._last_processing_status = None
+        self._last_memory_check = 0.0
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
@@ -714,9 +711,6 @@ class OllamaVoiceListener:
             self.whisper = WhisperModel(self.stt_model, device="opencl", compute_type="int8")
         except Exception:
             self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
-
-        if sr is None:
-            print("⚠ 'SpeechRecognition' is not installed; Google fallback transcription is disabled.")
 
     def within_followup_window(self):
         return time.time() < self.followup_deadline
@@ -1181,35 +1175,6 @@ class OllamaVoiceListener:
         except:
             return False
 
-    def transcribe_google(self, audio_file):
-        """Transcribe audio using SpeechRecognition library"""
-        if sr is None:
-            print("Google transcription unavailable: install SpeechRecognition to enable it.")
-            if os.path.exists(audio_file):
-                os.unlink(audio_file)
-            return ""
-        recognizer = sr.Recognizer()
-        try:
-            with sr.AudioFile(audio_file) as source:
-                # Adjust for ambient noise if necessary, but usually fine with file
-                audio = recognizer.record(source)
-
-            # Use the free Google Speech API
-            text = recognizer.recognize_google(audio)
-            return text
-        except sr.UnknownValueError:
-            # Speech was unintelligible
-            return ""
-        except sr.RequestError as e:
-            print(f"Google Speech API error: {e}")
-            return ""
-        except Exception as e:
-            print(f"Transcription error: {e}")
-            return ""
-        finally:
-            if os.path.exists(audio_file):
-                os.unlink(audio_file)
-
     def transcribe_whisper(self, audio_file):
         """Transcribe audio using Faster-Whisper"""
         try:
@@ -1385,47 +1350,8 @@ class OllamaVoiceListener:
         # For now, just return True
         return True
 
-    def play_surah(self, surah_name_or_number):
-        """Play a specific Surah by name or number"""
-        if MPV is None:
-            print("python_mpv_jsonipc is not installed; use command mode playback instead.")
-            return
-
-        # Convert to surah number
-        if isinstance(surah_name_or_number, int):
-            surah_number = surah_name_or_number
-        else:
-            # Normalize the input
-            normalized = surah_name_or_number.lower().strip()
-            surah_number = SURAH_NAMES.get(normalized)
-            if surah_number is None:
-                print(f"Unknown Surah: {surah_name_or_number}")
-                return
-
-        # Stop any currently playing audio
-        self.stop_playback()
-
-        print(f"▶ Playing Surah {surah_number}...")
-        self.player = MPV(
-            audio_device='pulse',
-            input_default_bindings=True,
-            input_vo_keyboard=True,
-            osc=True
-        )
-        # ... rest of the method ...
-
-    def pause_playback(self):
-        """Pause the currently playing audio"""
-        if self.player:
-            self.player.pause = True
-            print("⏸ Playback paused")
-
     def stop_playback(self):
         """Stop playback and release resources"""
-        if self.player:
-            self.player.terminate()
-            self.player = None
-            print("⏹ Playback stopped")
         if self.current_process:
             try:
                 if self.current_process.poll() is None:
@@ -1517,11 +1443,18 @@ class OllamaVoiceListener:
 
     def check_memory(self):
         """Check memory usage and clear cache if high"""
+        now = time.time()
+        if (now - self._last_memory_check) < DEFAULT_MEMORY_CHECK_INTERVAL_SEC:
+            return
+        self._last_memory_check = now
+
+        if psutil is None:
+            return
+
         try:
-            import psutil
             mem = psutil.virtual_memory()
             if mem.percent > 80:  # If memory usage is over 80%
-                print("⚠ High memory usage! Clearing cache...")
+                print("High memory usage! Clearing cache...")
                 self.whisper = None
                 import gc
                 gc.collect()

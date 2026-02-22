@@ -124,15 +124,14 @@ let config = {
 			module: "MMM-QuranDisplay",
 			position: "middle_center",
 			config: {
-				showArabic: true,
-				showTranslation: false,
 				showVerseNumber: true,
 				showSurahName: true,
+				showBismillah: true,
+				hideBismillahForSurah9: true,
+				ayahLabelFormat: "compact",
 				animationSpeed: 500,
 				fontSize: {
-					arabic: "2.5em",
-					translation: "1.2em",
-					info: "0.9em"
+					info: "1.1em"
 				}
 			}
 		},

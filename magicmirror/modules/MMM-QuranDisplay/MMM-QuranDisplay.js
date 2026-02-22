@@ -7,15 +7,14 @@
 
 Module.register("MMM-QuranDisplay", {
 	defaults: {
-		showArabic: false,
-		showTranslation: false,
 		showVerseNumber: true,
 		showSurahName: true,
+		showBismillah: true,
+		hideBismillahForSurah9: true,
+		bismillahText: "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
 		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
 		animationSpeed: 500,
 		fontSize: {
-			arabic: "1.8em",
-			translation: "1em",
 			info: "1.1em"
 		}
 	},
@@ -48,6 +47,17 @@ Module.register("MMM-QuranDisplay", {
 			return `${surahNum}:${verseNum}`;
 		}
 		return `Ayah ${verseNum}${totalVerses ? ` / ${totalVerses}` : ""}`;
+	},
+
+	shouldShowBismillah: function () {
+		if (!this.config.showBismillah) {
+			return false;
+		}
+		const currentSurah = Number(this.currentVerse?.surah || 0);
+		if (this.config.hideBismillahForSurah9 && currentSurah === 9) {
+			return false;
+		}
+		return true;
 	},
 
 	renderStatusIndicators: function (wrapper) {
@@ -99,6 +109,13 @@ Module.register("MMM-QuranDisplay", {
 			wrapper.appendChild(waitingDiv);
 			this.renderStatusIndicators(wrapper);
 			return wrapper;
+		}
+
+		if (this.shouldShowBismillah()) {
+			const bismillahDiv = document.createElement("div");
+			bismillahDiv.className = "bismillah-line";
+			bismillahDiv.textContent = this.config.bismillahText;
+			wrapper.appendChild(bismillahDiv);
 		}
 
 		if (this.config.showSurahName) {
