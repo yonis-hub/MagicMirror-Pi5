@@ -1,21 +1,22 @@
 /* Magic Mirror
  * Module: MMM-QuranDisplay
- * Minimalist verse display for Verse Chainer
+ * Compact Quran playback display for Verse Chainer
  * Receives updates via socket notifications from quran_chainer.py
  * MIT Licensed.
  */
 
 Module.register("MMM-QuranDisplay", {
 	defaults: {
-		showArabic: true,
-		showTranslation: false, //hide english translation
+		showArabic: false,
+		showTranslation: false,
 		showVerseNumber: true,
 		showSurahName: true,
+		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
 		animationSpeed: 500,
 		fontSize: {
-			arabic: "2.5em",
-			translation: "1.2em",
-			info: "0.9em"
+			arabic: "1.8em",
+			translation: "1em",
+			info: "1.1em"
 		}
 	},
 
@@ -30,10 +31,55 @@ Module.register("MMM-QuranDisplay", {
 		this.surahInfo = null;
 		this.isListening = false;
 		this.isRecording = false;
+		this.isProcessing = false;
 
 		this.sendSocketNotification("MODULE_READY", {
 			config: this.config
 		});
+	},
+
+	formatAyahLabel: function () {
+		const surahNum = this.currentVerse?.surah || "";
+		const verseNum = this.currentVerse?.verse || "";
+		const totalVerses = this.surahInfo ? this.surahInfo.totalVerses : "";
+		const format = String(this.config.ayahLabelFormat || "ayah").toLowerCase();
+
+		if (format === "compact") {
+			return `${surahNum}:${verseNum}`;
+		}
+		return `Ayah ${verseNum}${totalVerses ? ` / ${totalVerses}` : ""}`;
+	},
+
+	renderStatusIndicators: function (wrapper) {
+		if (!this.isRecording && !this.isProcessing && !this.isListening) {
+			return;
+		}
+
+		const statusContainer = document.createElement("div");
+		statusContainer.className = "status-indicators";
+
+		if (this.isRecording) {
+			const recordingDiv = document.createElement("div");
+			recordingDiv.className = "recording-indicator";
+			recordingDiv.innerHTML = '<span class="recording-dot" aria-hidden="true"></span><span class="status-text">Recording</span>';
+			statusContainer.appendChild(recordingDiv);
+		}
+
+		if (this.isProcessing) {
+			const processingDiv = document.createElement("div");
+			processingDiv.className = "processing-indicator";
+			processingDiv.innerHTML = '<span class="processing-dot" aria-hidden="true"></span><span class="status-text">Thinking</span>';
+			statusContainer.appendChild(processingDiv);
+		}
+
+		if (this.isListening) {
+			const listeningDiv = document.createElement("div");
+			listeningDiv.className = "listening-indicator";
+			listeningDiv.innerHTML = '<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening</span>';
+			statusContainer.appendChild(listeningDiv);
+		}
+
+		wrapper.appendChild(statusContainer);
 	},
 
 	getDom: function () {
@@ -41,76 +87,53 @@ Module.register("MMM-QuranDisplay", {
 		wrapper.className = "mmm-quran-display";
 
 		if (!this.currentVerse) {
-			wrapper.innerHTML = '<div class="waiting">Say "Play Surah Fatiha" to begin</div>';
+			const waitingDiv = document.createElement("div");
+			waitingDiv.className = "waiting";
+			if (this.isProcessing) {
+				waitingDiv.textContent = "Processing request...";
+			} else if (this.isRecording) {
+				waitingDiv.textContent = "Listening to your request...";
+			} else {
+				waitingDiv.textContent = 'Say "Mo, play Surah Fatiha"';
+			}
+			wrapper.appendChild(waitingDiv);
+			this.renderStatusIndicators(wrapper);
 			return wrapper;
 		}
 
-		// Surah header
-		if (this.config.showSurahName && this.surahInfo) {
+		if (this.config.showSurahName) {
 			const header = document.createElement("div");
 			header.className = "surah-header";
-			header.innerHTML = `<span class="surah-arabic">${this.surahInfo.arabicName}</span> <span class="surah-english">${this.surahInfo.englishName}</span>`;
+
+			const arabicName = document.createElement("div");
+			arabicName.className = "surah-arabic";
+			arabicName.textContent = this.surahInfo?.arabicName || "";
+
+			const englishName = document.createElement("div");
+			englishName.className = "surah-english";
+			englishName.textContent = this.surahInfo?.englishName || `Surah ${this.currentVerse.surah || ""}`;
+
+			header.appendChild(arabicName);
+			header.appendChild(englishName);
 			wrapper.appendChild(header);
 		}
 
-		// Arabic text
-		if (this.config.showArabic && this.currentVerse.arabic) {
-			const arabicDiv = document.createElement("div");
-			arabicDiv.className = "verse-arabic";
-			arabicDiv.style.fontSize = this.config.fontSize.arabic;
-			arabicDiv.innerHTML = this.currentVerse.arabic;
-			wrapper.appendChild(arabicDiv);
-		}
-
-		// Translation
-		if (this.config.showTranslation && this.currentVerse.translation) {
-			const translationDiv = document.createElement("div");
-			translationDiv.className = "verse-translation";
-			translationDiv.style.fontSize = this.config.fontSize.translation;
-			translationDiv.textContent = this.currentVerse.translation;
-			wrapper.appendChild(translationDiv);
-		}
-
-		// Verse info
 		if (this.config.showVerseNumber) {
 			const infoDiv = document.createElement("div");
 			infoDiv.className = "verse-info";
 			infoDiv.style.fontSize = this.config.fontSize.info;
-			const surahNum = this.currentVerse.surah || "";
-			const verseNum = this.currentVerse.verse || "";
-			const totalVerses = this.surahInfo ? this.surahInfo.totalVerses : "";
-			infoDiv.textContent = `Verse ${verseNum}${totalVerses ? ` of ${totalVerses}` : ""}`;
+			infoDiv.textContent = this.formatAyahLabel();
 			wrapper.appendChild(infoDiv);
 		}
 
-		// Playing indicator
 		if (this.isPlaying) {
 			const playingDiv = document.createElement("div");
 			playingDiv.className = "playing-indicator";
-			playingDiv.innerHTML = "🔊 Playing...";
+			playingDiv.textContent = "Reciting";
 			wrapper.appendChild(playingDiv);
 		}
 
-		if (this.isRecording || this.isListening) {
-			const statusContainer = document.createElement("div");
-			statusContainer.className = "status-indicators";
-
-			if (this.isRecording) {
-				const recordingDiv = document.createElement("div");
-				recordingDiv.className = "recording-indicator";
-				recordingDiv.innerHTML = `<span class="recording-dot" aria-hidden="true"></span><span class="status-text">Recording</span>`;
-				statusContainer.appendChild(recordingDiv);
-			}
-
-			if (this.isListening) {
-				const listeningDiv = document.createElement("div");
-				listeningDiv.className = "listening-indicator";
-				listeningDiv.innerHTML = `<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening...</span>`;
-				statusContainer.appendChild(listeningDiv);
-			}
-
-			wrapper.appendChild(statusContainer);
-		}
+		this.renderStatusIndicators(wrapper);
 
 		return wrapper;
 	},
@@ -141,11 +164,13 @@ Module.register("MMM-QuranDisplay", {
 		} else if (notification === "RECORDING_STATUS") {
 			this.isRecording = payload.isRecording;
 			this.updateDom(0);
+		} else if (notification === "PROCESSING_STATUS") {
+			this.isProcessing = payload.isProcessing;
+			this.updateDom(0);
 		}
 	},
 
 	notificationReceived: function (notification, payload, sender) {
-		// Handle voice commands from Google Assistant or other modules
 		if (notification === "QURAN_PLAY_SURAH") {
 			this.sendSocketNotification("PLAY_SURAH", {
 				surah: payload.surah,

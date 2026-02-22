@@ -338,10 +338,12 @@ WORD_REPLACEMENT_PATTERN = re.compile(
 
 WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mohammed", "mohammad", "mohamed", "mohd", "mohamad"}
 
-STOP_KEYWORDS = {"stop", "pause", "quiet", "silence", "halt", "end", "cancel"}
-PLAY_KEYWORDS = {"play", "recite", "read", "start", "resume", "continue"}
+STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
+PAUSE_KEYWORDS = {"pause", "hold", "wait"}
+RESUME_KEYWORDS = {"resume", "continue", "unpause"}
+PLAY_KEYWORDS = {"play", "recite", "read", "start"}
 SEARCH_KEYWORDS = {"search", "find", "look"}
-COMMAND_KEYWORDS = STOP_KEYWORDS | PLAY_KEYWORDS | SEARCH_KEYWORDS
+COMMAND_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS | PLAY_KEYWORDS | SEARCH_KEYWORDS
 
 EMBEDDING_DIR = Path(__file__).parent / "embeddings"
 EMBEDDING_VECTOR_PATH = EMBEDDING_DIR / "verse_embeddings.npy"
@@ -485,8 +487,30 @@ def contains_any_token(text, keywords):
         return False
     return bool(set(tokenize_words(text)).intersection(keywords))
 
-def has_wake_word(text):
-    return contains_any_token(text, WAKE_WORDS)
+
+def parse_wake_words(raw_wake_words):
+    if raw_wake_words is None:
+        return set(WAKE_WORDS)
+
+    if isinstance(raw_wake_words, (list, tuple, set)):
+        values = raw_wake_words
+    else:
+        values = str(raw_wake_words).split(",")
+
+    parsed = {str(word).strip().lower() for word in values if str(word).strip()}
+    return parsed or set(WAKE_WORDS)
+
+
+def has_wake_word(text, wake_words=None):
+    return contains_any_token(text, wake_words or WAKE_WORDS)
+
+
+def strip_wake_words(text, wake_words=None):
+    if not text:
+        return ""
+    wake_set = wake_words or WAKE_WORDS
+    filtered = [token for token in tokenize_words(text) if token not in wake_set]
+    return " ".join(filtered).strip()
 
 def normalize_surah(value):
     """Convert Ollama JSON surah field into an integer 1-114."""
@@ -584,7 +608,7 @@ Use the conversation context provided and respond ONLY with valid JSON.
 
 JSON schema (all keys required):
 {
-  "action": "play" | "play_verse" | "stop" | "search" | "none",
+  "action": "play" | "play_verse" | "pause" | "resume" | "stop" | "search" | "none",
   "surah": <number 1-114 or null>,
   "topic": "<short topic>" | null,
   "mood": "<optional mood adjective>" | null,
@@ -598,6 +622,8 @@ JSON schema (all keys required):
 Guidelines:
 - Respect the latest context summary when resolving references like "same one" or "resume".
 - Use "play_verse" when the user asks for a specific verse or Ayah.
+- Use "pause" when the user asks to pause/hold.
+- Use "resume" when the user asks to continue/unpause current recitation.
 - Use "search" only when you need Mo to find a verse by topic; include a descriptive topic string.
 - If the user asks for an emotion, quality, or theme (e.g., calming, mercy, forgiveness) without naming a surah, prefer {"action":"search","topic":"<theme>"}.
 - Never invent Surah numbers; use integers from 1-114.
@@ -612,6 +638,9 @@ Output: {"action":"play","surah":55,"topic":null,"mood":"calm","verse_start":nul
 
 Input: "Stop"
 Output: {"action":"stop","surah":null,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"confidence":0.99,"reason":"user asked to stop","follow_up_needed":false}
+
+Input: "Pause for now"
+Output: {"action":"pause","surah":null,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"confidence":0.97,"reason":"user asked to pause","follow_up_needed":false}
 """
 
 
@@ -627,7 +656,8 @@ class OllamaVoiceListener:
         stt_model=DEFAULT_STT_MODEL,
         stt_language=DEFAULT_STT_LANGUAGE,
         wake_window_sec=DEFAULT_WAKE_WINDOW_SEC,
-        command_window_sec=DEFAULT_COMMAND_WINDOW_SEC
+        command_window_sec=DEFAULT_COMMAND_WINDOW_SEC,
+        wake_words=None
     ):
         self.device = device
         self.mirror_url = mirror_url
@@ -655,10 +685,18 @@ class OllamaVoiceListener:
         self.stt_language_label = stt_language if stt_language else DEFAULT_STT_LANGUAGE
         self.wake_window_sec = max(1.0, float(wake_window_sec))
         self.command_window_sec = max(1.0, float(command_window_sec))
+        self.wake_words = parse_wake_words(wake_words)
+        self.primary_wake_word = sorted(self.wake_words)[0] if self.wake_words else "mo"
+        self.wake_words_display = ", ".join(sorted(self.wake_words))
         self.timing_history = deque(maxlen=100)
+        self._last_listening_status = None
+        self._last_recording_status = None
+        self._last_processing_status = None
+        wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
-            "Keywords: mo play recite stop pause surah fatiha yasin rahman mulk baqarah ikhlas nas."
+            f"Wake words: {wake_words_prompt}. "
+            "Keywords: play recite pause resume continue stop surah fatiha yasin rahman mulk baqarah ikhlas nas."
         )
 
         # Print audio device information
@@ -685,6 +723,12 @@ class OllamaVoiceListener:
 
     def extend_followup_window(self):
         self.followup_deadline = time.time() + FOLLOWUP_WINDOW_SECONDS
+
+    def detect_wake_word(self, text):
+        return has_wake_word(text, self.wake_words)
+
+    def remove_wake_words(self, text):
+        return strip_wake_words(text, self.wake_words)
 
     def get_context_summary(self):
         if not self.command_history:
@@ -802,6 +846,10 @@ class OllamaVoiceListener:
             verse_ref = self.get_verse_from_topic(intent.get("topic"))
             if verse_ref:
                 return ("play_verse", verse_ref)
+        if action == "pause":
+            return ("pause", None)
+        if action == "resume":
+            return ("resume", None)
         if action == "stop":
             return ("stop", None)
         return ("none", None)
@@ -879,6 +927,10 @@ class OllamaVoiceListener:
             surah = intent.get("surah")
             verse = intent.get("verse_start")
             message = f"Playing Surah {surah}, verse {verse}"
+        elif action == "pause":
+            message = "Pausing recitation"
+        elif action == "resume":
+            message = "Resuming recitation"
         elif action == "stop":
             message = "Stopping playback"
         else:
@@ -921,54 +973,102 @@ class OllamaVoiceListener:
             return self.parse_with_ollama(command_text, require_wake=False)
         return local_result
 
+    def start_chainer(self, surah, verse_start=None):
+        command = [sys.executable, "quran_chainer.py", "--surah", str(surah)]
+        if verse_start is not None:
+            command.extend(["--start-verse", str(verse_start)])
+        print(f"  Launching chainer: {' '.join(command)}")
+        self.current_process = subprocess.Popen(
+            command,
+            cwd=self.script_dir,
+            stdin=subprocess.PIPE,
+            text=True
+        )
+
+    def send_chainer_command(self, command):
+        if not self.current_process or self.current_process.poll() is not None:
+            return False
+        try:
+            if self.current_process.stdin:
+                self.current_process.stdin.write(f"{command}\n")
+                self.current_process.stdin.flush()
+                return True
+        except Exception as e:
+            print(f"  Could not send {command} command: {e}")
+        return False
+
+    def pause_chainer(self):
+        if self.send_chainer_command("PAUSE"):
+            print("⏸ Pause command sent to quran_chainer.")
+            return True
+        print("  No active recitation process to pause.")
+        return False
+
+    def resume_chainer(self):
+        if self.send_chainer_command("RESUME"):
+            print("▶ Resume command sent to quran_chainer.")
+            return True
+        print("  No active recitation process to resume.")
+        return False
+
     def process_command(self, command_text):
-        parse_started_at = time.perf_counter()
-        slots = extract_slots(command_text)
-        result = self._parse_command(command_text)
-        parse_ms = (time.perf_counter() - parse_started_at) * 1000
+        self.send_processing_status(True)
+        self.send_listening_status(False)
+        try:
+            parse_started_at = time.perf_counter()
+            slots = extract_slots(command_text)
+            result = self._parse_command(command_text)
+            parse_ms = (time.perf_counter() - parse_started_at) * 1000
 
-        if not result or len(result) != 3:
-            action, value, intent = ("none", None, create_intent())
-        else:
-            action, value, intent = result
+            if not result or len(result) != 3:
+                action, value, intent = ("none", None, create_intent())
+            else:
+                action, value, intent = result
 
-        intent = self.apply_semantic_overrides(intent, slots, command_text)
-        resolved_action, resolved_value = self.resolve_action_value(intent)
-        if resolved_action != "none":
-            action, value = resolved_action, resolved_value
+            intent = self.apply_semantic_overrides(intent, slots, command_text)
+            resolved_action, resolved_value = self.resolve_action_value(intent)
+            if resolved_action != "none":
+                action, value = resolved_action, resolved_value
 
-        confidence = intent.get("confidence", DEFAULT_CONFIDENCE)
-        print(f"  Parser mode={self.parser_mode}, action={action}, confidence={confidence:.2f}, parse_ms={parse_ms:.1f}")
-        if action == "none" or (confidence < 0.4 and action != "stop"):
-            self.play_error()
-            print("  (Command not understood)")
-            return
+            confidence = intent.get("confidence", DEFAULT_CONFIDENCE)
+            print(f"  Parser mode={self.parser_mode}, action={action}, confidence={confidence:.2f}, parse_ms={parse_ms:.1f}")
+            if action == "none" or (confidence < 0.4 and action not in {"stop", "pause", "resume"}):
+                self.play_error()
+                print("  (Command not understood)")
+                return
 
-        self.acknowledge_intent(intent)
-        self.remember_intent(command_text, intent)
-        self.extend_followup_window()
+            self.acknowledge_intent(intent)
+            self.remember_intent(command_text, intent)
+            self.extend_followup_window()
 
-        if action == "play" and value:
-            self.play_confirmation()
-            self.stop_playback()
-            self.current_process = subprocess.Popen(
-                ["python3", "quran_chainer.py", "--surah", str(value)],
-                cwd=self.script_dir
-            )
-        elif action == "play_verse" and value:
-            surah, verse = value
-            self.play_confirmation()
-            self.stop_playback()
-            self.current_process = subprocess.Popen(
-                ["python3", "quran_chainer.py", "--surah", str(surah), "--start-verse", str(verse)],
-                cwd=self.script_dir
-            )
-        elif action == "stop":
-            self.play_confirmation()
-            self.stop_playback()
-        else:
-            self.play_error()
-            print("  (Command not executed)")
+            if action == "play" and value:
+                self.play_confirmation()
+                self.stop_playback()
+                self.start_chainer(value)
+            elif action == "play_verse" and value:
+                surah, verse = value
+                self.play_confirmation()
+                self.stop_playback()
+                self.start_chainer(surah, verse_start=verse)
+            elif action == "pause":
+                if self.pause_chainer():
+                    self.play_confirmation()
+                else:
+                    self.play_error()
+            elif action == "resume":
+                if self.resume_chainer():
+                    self.play_confirmation()
+                else:
+                    self.play_error()
+            elif action == "stop":
+                self.play_confirmation()
+                self.stop_playback()
+            else:
+                self.play_error()
+                print("  (Command not executed)")
+        finally:
+            self.send_processing_status(False)
+            self.send_listening_status(True)
 
     def check_ollama(self):
         """Check if Ollama is running"""
@@ -1144,7 +1244,7 @@ class OllamaVoiceListener:
         try:
             context = self.get_context_summary()
             domain_hint = (
-                "Command vocabulary includes: mo, play, recite, stop, surah, verse. "
+                "Command vocabulary includes: mo, play, recite, pause, resume, stop, surah, verse. "
                 "Common surah names: fatiha, baqarah, yasin, rahman, kahf, mulk, ikhlas, nas."
             )
             prompt = (
@@ -1173,7 +1273,11 @@ class OllamaVoiceListener:
                     print(f"  Ollama raw response: {response_text}")
                 result = self._parse_intent_response(response_text)
                 if result:
-                    return result
+                    action, value, intent = result
+                    confidence = intent.get("confidence", DEFAULT_CONFIDENCE)
+                    if action in {"stop", "pause", "resume"} or confidence >= 0.35:
+                        return result
+                    print(f"  Ollama low confidence ({confidence:.2f}); using fallback parser.")
         except requests.exceptions.Timeout:
             print("  Ollama timed out, falling back to local parser...")
         except Exception as e:
@@ -1221,6 +1325,10 @@ class OllamaVoiceListener:
         elif intent["action"] == "search" and intent["topic"]:
             verse_ref = self.get_verse_from_topic(intent["topic"])
             return ("play_verse", verse_ref, intent)
+        elif intent["action"] == "pause":
+            return ("pause", None, intent)
+        elif intent["action"] == "resume":
+            return ("resume", None, intent)
         elif intent["action"] == "stop":
             return ("stop", None, intent)
 
@@ -1231,18 +1339,31 @@ class OllamaVoiceListener:
         if not text:
             return (None, None, create_intent())
 
-        words = tokenize_words(text)
-        wake_present = bool(set(words).intersection(WAKE_WORDS))
+        wake_present = self.detect_wake_word(text)
+        command_text = self.remove_wake_words(text)
+        words = tokenize_words(command_text)
 
         if require_wake and not wake_present:
             return (None, None, create_intent())
 
-        if contains_any_token(text, STOP_KEYWORDS):
+        if contains_any_token(command_text, STOP_KEYWORDS):
             confidence = 0.7 if wake_present else 0.6
             return ("stop", None, create_intent(action="stop", confidence=confidence))
 
-        if contains_any_token(text, PLAY_KEYWORDS):
-            surah_number = extract_surah_number(text)
+        if contains_any_token(command_text, PAUSE_KEYWORDS):
+            confidence = 0.75 if wake_present else 0.65
+            return ("pause", None, create_intent(action="pause", confidence=confidence))
+
+        if contains_any_token(command_text, RESUME_KEYWORDS):
+            confidence = 0.75 if wake_present else 0.65
+            return ("resume", None, create_intent(action="resume", confidence=confidence))
+
+        surah_number = extract_surah_number(command_text)
+
+        if surah_number and (wake_present or not require_wake):
+            return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
+
+        if contains_any_token(command_text, PLAY_KEYWORDS):
             if surah_number:
                 return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.7))
 
@@ -1251,8 +1372,8 @@ class OllamaVoiceListener:
 
             return ("play", 1, create_intent(action="play", surah=1, confidence=0.45))
 
-        if contains_any_token(text, SEARCH_KEYWORDS):
-            topic = self.detect_topic_from_text(text)
+        if contains_any_token(command_text, SEARCH_KEYWORDS):
+            topic = self.detect_topic_from_text(command_text)
             if topic:
                 return ("search", topic, create_intent(action="search", topic=topic, confidence=0.6))
 
@@ -1309,6 +1430,9 @@ class OllamaVoiceListener:
             try:
                 if self.current_process.poll() is None:
                     print("⏹ Stopping Quran chainer process...")
+                    self.send_chainer_command("STOP")
+                    if self.current_process.stdin:
+                        self.current_process.stdin.close()
                     self.current_process.terminate()
                     try:
                         self.current_process.wait(timeout=5)
@@ -1327,6 +1451,10 @@ class OllamaVoiceListener:
 
     def send_listening_status(self, listening):
         """Send listening status to MagicMirror"""
+        listening = bool(listening)
+        if self._last_listening_status == listening:
+            return
+        self._last_listening_status = listening
         try:
             url = f"{self.mirror_url}/api/quran/listening"
             requests.post(url, json={"isListening": listening}, timeout=1)
@@ -1335,11 +1463,27 @@ class OllamaVoiceListener:
 
     def send_recording_status(self, recording):
         """Send recording status to MagicMirror"""
+        recording = bool(recording)
+        if self._last_recording_status == recording:
+            return
+        self._last_recording_status = recording
         try:
             url = f"{self.mirror_url}/api/quran/recording"
             requests.post(url, json={"isRecording": recording}, timeout=1)
         except Exception as e:
             print(f" Could not send recording status: {e}")
+
+    def send_processing_status(self, processing):
+        """Send command-processing status to MagicMirror"""
+        processing = bool(processing)
+        if self._last_processing_status == processing:
+            return
+        self._last_processing_status = processing
+        try:
+            url = f"{self.mirror_url}/api/quran/processing"
+            requests.post(url, json={"isProcessing": processing}, timeout=1)
+        except Exception as e:
+            print(f" Could not send processing status: {e}")
 
     def send_playback_status(self, playing):
         """Send playback status to MagicMirror"""
@@ -1402,7 +1546,7 @@ class OllamaVoiceListener:
         print(f"STT language: {self.stt_language_label}")
         print(f"Wake window: {self.wake_window_sec:.1f}s")
         print(f"Command window: {self.command_window_sec:.1f}s")
-        print("Wake word: 'Mo'")
+        print(f"Wake words: {self.wake_words_display}")
         print("")
         print("Commands (natural language):")
         print("  • 'Mo, play Quran'")
@@ -1424,11 +1568,14 @@ class OllamaVoiceListener:
             self.check_ollama()
             if self.parser_mode == "ollama" and not self.ollama_available:
                 print("⚠ Parser mode is 'ollama' but Ollama is unavailable; listener will fall back to local parser.")
-        print("\nListening... (say 'Mo' to start)")
+        print(f"\nListening... (say '{self.primary_wake_word}' to start)")
+
+        self.send_processing_status(False)
+        self.send_recording_status(False)
+        self.send_listening_status(True)
 
         while self.is_running:
             try:
-                self.send_listening_status(True)
                 wake_record_started_at = time.perf_counter()
                 audio_file = self.record_audio(self.wake_window_sec)
                 wake_record_ms = (time.perf_counter() - wake_record_started_at) * 1000
@@ -1450,9 +1597,13 @@ class OllamaVoiceListener:
                     print(f"  Raw Input: '{text}'")
                     text_fixed = self.normalize_speech(text)
                     print(f"  Processing: '{text_fixed}'")
-                    wake_detected = has_wake_word(text_fixed)
+                    wake_detected = self.detect_wake_word(text_fixed)
+                    command_candidate = self.remove_wake_words(text_fixed) if wake_detected else text_fixed
                     followup_active = self.within_followup_window()
-                    command_hint_present = contains_any_token(text_fixed, COMMAND_KEYWORDS)
+                    command_hint_present = (
+                        contains_any_token(command_candidate, COMMAND_KEYWORDS)
+                        or bool(extract_surah_number(command_candidate))
+                    )
                     print(f"  Wake words detected: {wake_detected} (follow-up active: {followup_active})")
 
                     should_handle = False
@@ -1460,13 +1611,15 @@ class OllamaVoiceListener:
 
                     if wake_detected:
                         should_handle = True
-                        print("  Wake word detected! Stopping active playback before command capture...")
-                        self.stop_playback()
+                        if command_hint_present and command_candidate:
+                            immediate_text = command_candidate
+                            print("  Wake word and command detected in same utterance.")
+                        else:
+                            print("  Wake word detected. Waiting for command phrase...")
                     elif followup_active and command_hint_present:
                         should_handle = True
-                        immediate_text = text_fixed
+                        immediate_text = command_candidate
                         print("  Follow-up window active; accepting command without wake word.")
-                        self.stop_playback()
 
                     if should_handle:
                         command_text = immediate_text or ""
@@ -1476,7 +1629,7 @@ class OllamaVoiceListener:
                         if not immediate_text:
                             if command_hint_present:
                                 print("  Using full command from initial detection")
-                                command_text = text_fixed
+                                command_text = command_candidate
                             else:
                                 print("  Recording command...")
                                 command_record_started_at = time.perf_counter()
@@ -1498,6 +1651,7 @@ class OllamaVoiceListener:
                                 if text:
                                     print(f"  Raw Input: '{text}'")
                                     command_text = self.normalize_speech(text)
+                                    command_text = self.remove_wake_words(command_text)
                                     print(f"  Processing: '{command_text}'")
 
                         if not command_text:
@@ -1533,10 +1687,11 @@ class OllamaVoiceListener:
             except Exception as e:
                 print(f"Error: {e}")
                 time.sleep(1)
-            finally:
-                self.send_listening_status(False)
 
         print("\n👋 Voice listener stopped")
+        self.send_processing_status(False)
+        self.send_recording_status(False)
+        self.send_listening_status(False)
         self.stop_playback()
 
 
@@ -1581,6 +1736,11 @@ def main():
         default=DEFAULT_COMMAND_WINDOW_SEC,
         help="Follow-up command capture window length in seconds"
     )
+    parser.add_argument(
+        "--wake-words",
+        default=",".join(sorted(WAKE_WORDS)),
+        help="Comma-separated wake words (default includes common 'Mo' variants)"
+    )
 
     args = parser.parse_args()
 
@@ -1593,7 +1753,8 @@ def main():
         stt_model=args.stt_model,
         stt_language=args.stt_language,
         wake_window_sec=args.wake_window_sec,
-        command_window_sec=args.command_window_sec
+        command_window_sec=args.command_window_sec,
+        wake_words=args.wake_words
     )
     listener.listen_loop()
 

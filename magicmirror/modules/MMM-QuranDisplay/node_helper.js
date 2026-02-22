@@ -62,6 +62,13 @@ module.exports = NodeHelper.create({
 			this.sendSocketNotification("RECORDING_STATUS", { isRecording });
 			res.status(200).json({ status: "success" });
 		});
+
+		// API endpoint for processing/thinking status updates
+		this.expressApp.post("/api/quran/processing", (req, res) => {
+			const { isProcessing } = req.body;
+			this.sendSocketNotification("PROCESSING_STATUS", { isProcessing });
+			res.status(200).json({ status: "success" });
+		});
 	},
 
 	socketNotificationReceived: function (notification, payload) {

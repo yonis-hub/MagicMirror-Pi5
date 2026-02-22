@@ -10,11 +10,13 @@ Usage:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
 import requests
 import signal
+import threading
 
 # Surah name mapping for voice command parsing
 SURAH_NAMES = {
@@ -49,14 +51,49 @@ class QuranChainer:
         self.is_paused = False
         self.is_stopped = False
         self.current_process = None
+        self.stdin_thread = None
 
         # Handle signals for graceful shutdown
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
 
+        # Node helper spawns this script with stdin pipe; handle PAUSE/RESUME/STOP.
+        if not sys.stdin.isatty():
+            self.stdin_thread = threading.Thread(target=self._stdin_listener, daemon=True)
+            self.stdin_thread.start()
+
+    def _stdin_listener(self):
+        """Listen for control commands from parent process stdin."""
+        try:
+            for line in sys.stdin:
+                command = line.strip().upper()
+                if not command:
+                    continue
+                if command == "PAUSE":
+                    self.is_paused = True
+                    self._update_playback_status(False)
+                    if self.current_process and self.current_process.poll() is None and hasattr(signal, "SIGSTOP"):
+                        os.kill(self.current_process.pid, signal.SIGSTOP)
+                    print("Playback paused")
+                elif command == "RESUME":
+                    if self.current_process and self.current_process.poll() is None and hasattr(signal, "SIGCONT"):
+                        os.kill(self.current_process.pid, signal.SIGCONT)
+                    self.is_paused = False
+                    self._update_playback_status(True)
+                    print("Playback resumed")
+                elif command in {"STOP", "QUIT", "EXIT"}:
+                    self.is_stopped = True
+                    if self.current_process and self.current_process.poll() is None:
+                        self.current_process.terminate()
+                    print("Playback stop command received")
+                    break
+        except Exception as e:
+            print(f"Control listener error: {e}")
+
     def _signal_handler(self, signum, frame):
         print("\nReceived stop signal, cleaning up...")
         self.is_stopped = True
+        self.is_paused = False
         if self.current_process:
             self.current_process.terminate()
         self._clear_display()
@@ -102,8 +139,8 @@ class QuranChainer:
         print(f"Fetching Surah {surah_number}...")
 
         # Fetch Arabic text with Al-Afasy recitation
-        arabic_url = f"http://api.alquran.cloud/v1/surah/{surah_number}/ar.alafasy"
-        english_url = f"http://api.alquran.cloud/v1/surah/{surah_number}/en.asad"
+        arabic_url = f"https://api.alquran.cloud/v1/surah/{surah_number}/ar.alafasy"
+        english_url = f"https://api.alquran.cloud/v1/surah/{surah_number}/en.asad"
 
         try:
             arabic_response = requests.get(arabic_url, timeout=30)
@@ -121,6 +158,7 @@ class QuranChainer:
             for i, (ar_ayah, en_ayah) in enumerate(zip(arabic_data["ayahs"], english_data["ayahs"])):
                 verses.append({
                     "number": ar_ayah["numberInSurah"],
+                    "ayah_number": ar_ayah["number"],
                     "arabic": ar_ayah["text"],
                     "translation": en_ayah["text"],
                     "audio": ar_ayah.get("audio", ar_ayah.get("audioSecondary", [None])[0] if ar_ayah.get("audioSecondary") else None)
@@ -227,8 +265,8 @@ class QuranChainer:
             if verse.get("audio"):
                 self.play_audio(verse["audio"])
             else:
-                # Fallback: construct audio URL
-                audio_url = f"https://cdn.islamic.network/quran/audio/128/ar.alafasy/{verse['number']}.mp3"
+                # Fallback requires global ayah index, not numberInSurah.
+                audio_url = f"https://cdn.islamic.network/quran/audio/128/ar.alafasy/{verse['ayah_number']}.mp3"
                 self.play_audio(audio_url)
 
             # Brief pause between verses

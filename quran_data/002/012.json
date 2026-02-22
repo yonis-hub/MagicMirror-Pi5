@@ -1,6 +1,9 @@
 {
   "verse_key": "2:12",
-  "text_uthmani": "أَلَآ إِنَّهُمْ هُمُ ٱلْمُفْسِدُونَ وَلَـٰكِن لَّا يَشْعُرُونَ",
+  "ayah_number": 19,
+  "text_uthmani": "أَلَآ إِنَّهُمْ هُمُ ٱلْمُفْسِدُونَ وَلَٰكِن لَّا يَشْعُرُونَ",
+  "translation_en": "Oh, verily, it is they, they who are spreading corruption but they perceive it not?",
+  "audio_url": "https://cdn.islamic.network/quran/audio/128/ar.alafasy/19.mp3",
   "segments": [],
   "segment_present": false
 }

@@ -1,6 +1,9 @@
 {
   "verse_key": "2:3",
-  "text_uthmani": "ٱلَّذِينَ يُؤْمِنُونَ بِٱلْغَيْبِ وَيُقِيمُونَ ٱلصَّلَوٰةَ وَمِمَّا رَزَقْنَـٰهُمْ يُنفِقُونَ",
+  "ayah_number": 10,
+  "text_uthmani": "ٱلَّذِينَ يُؤْمِنُونَ بِٱلْغَيْبِ وَيُقِيمُونَ ٱلصَّلَوٰةَ وَمِمَّا رَزَقْنَٰهُمْ يُنفِقُونَ",
+  "translation_en": "Who believe in [the existence of] that which is beyond the reach of human perception, and are constant in prayer, and spend on others out of what We provide for them as sustenance;",
+  "audio_url": "https://cdn.islamic.network/quran/audio/128/ar.alafasy/10.mp3",
   "segments": [],
   "segment_present": false
 }

@@ -1,6 +1,9 @@
 {
   "verse_key": "2:9",
-  "text_uthmani": "يُخَـٰدِعُونَ ٱللَّهَ وَٱلَّذِينَ ءَامَنُوا۟ وَمَا يَخْدَعُونَ إِلَّآ أَنفُسَهُمْ وَمَا يَشْعُرُونَ",
+  "ayah_number": 16,
+  "text_uthmani": "يُخَٰدِعُونَ ٱللَّهَ وَٱلَّذِينَ ءَامَنُوا۟ وَمَا يَخْدَعُونَ إِلَّآ أَنفُسَهُمْ وَمَا يَشْعُرُونَ",
+  "translation_en": "They would deceive God and those who have attained to faith-the while they deceive none but themselves, and perceive it not.",
+  "audio_url": "https://cdn.islamic.network/quran/audio/128/ar.alafasy/16.mp3",
   "segments": [],
   "segment_present": false
 }

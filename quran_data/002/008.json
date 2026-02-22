@@ -1,6 +1,9 @@
 {
   "verse_key": "2:8",
-  "text_uthmani": "وَمِنَ ٱلنَّاسِ مَن يَقُولُ ءَامَنَّا بِٱللَّهِ وَبِٱلْيَوْمِ ٱلْـَٔاخِرِ وَمَا هُم بِمُؤْمِنِينَ",
+  "ayah_number": 15,
+  "text_uthmani": "وَمِنَ ٱلنَّاسِ مَن يَقُولُ ءَامَنَّا بِٱللَّهِ وَبِٱلْيَوْمِ ٱلْءَاخِرِ وَمَا هُم بِمُؤْمِنِينَ",
+  "translation_en": "And there are people who say, \"We do believe in God and the Last Day,\" the while they do not [really] believe.",
+  "audio_url": "https://cdn.islamic.network/quran/audio/128/ar.alafasy/15.mp3",
   "segments": [],
   "segment_present": false
 }

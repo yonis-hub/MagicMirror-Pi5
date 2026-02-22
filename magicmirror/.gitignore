@@ -68,6 +68,8 @@ Temporary Items
 !/modules/MMM-QuranDisplay/**
 !/modules/MMM-MyScoreboard
 !/modules/MMM-MyScoreboard/**
+/modules/MMM-QuranDisplay/__pycache__/
+/modules/MMM-QuranDisplay/**/*.pyc
 
 # Ignore changes to the custom css files.
 /css/custom.css

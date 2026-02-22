@@ -1,142 +1,153 @@
-/* MMM-QuranDisplay Styles */
+/* MMM-QuranDisplay Styles - Compact Mode */
 
 .mmm-quran-display {
-	text-align: center;
-	padding: 20px;
-	max-width: 800px;
-	margin: 0 auto;
+  position: relative;
+  text-align: center;
+  padding: 12px 12px 10px;
+  max-width: 420px;
+  min-height: 110px;
+  margin: 0 auto;
 }
 
 .mmm-quran-display .waiting {
-	color: #888;
-	font-style: italic;
-	font-size: 1.2em;
+  color: #8f8f8f;
+  font-style: italic;
+  font-size: 0.95em;
+  padding-top: 26px;
 }
 
 .mmm-quran-display .surah-header {
-	margin-bottom: 20px;
-	padding-bottom: 10px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgb(255 255 255 / 16%);
 }
 
 .mmm-quran-display .surah-arabic {
-	font-family: "Traditional Arabic", "Scheherazade New", "Amiri", serif;
-	font-size: 1.8em;
-	color: #90EE90;
-	margin-right: 15px;
+  font-family: "Traditional Arabic", "Scheherazade New", Amiri, serif;
+  font-size: 1.9em;
+  line-height: 1.2;
+  color: #90ee90;
 }
 
 .mmm-quran-display .surah-english {
-	font-size: 1.2em;
-	color: #aaa;
-}
-
-.mmm-quran-display .verse-arabic {
-	font-family: "Traditional Arabic", "Scheherazade New", "Amiri", serif;
-	direction: rtl;
-	line-height: 1.8;
-	margin-bottom: 20px;
-	color: #fff;
-	text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-}
-
-.mmm-quran-display .verse-translation {
-	color: #ddd;
-	line-height: 1.6;
-	margin-bottom: 15px;
-	font-style: italic;
-	max-width: 700px;
-	margin-left: auto;
-	margin-right: auto;
+  font-size: 1.05em;
+  line-height: 1.2;
+  color: #c7c7c7;
+  margin-top: 2px;
 }
 
 .mmm-quran-display .verse-info {
-	color: #888;
-	margin-top: 15px;
+  color: #a5a5a5;
+  margin-top: 6px;
+  letter-spacing: 0.3px;
 }
 
 .mmm-quran-display .playing-indicator {
-	margin-top: 10px;
-	color: #90EE90;
-	animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.5; }
+  margin-top: 6px;
+  color: #90ee90;
+  font-size: 0.8em;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  animation: pulse 1.4s infinite;
 }
 
 .status-indicators {
-	position: absolute;
-	bottom: 10px;
-	right: 10px;
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 6px;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  z-index: 2;
 }
 
 .listening-indicator,
-.recording-indicator {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 1.05em;
+.recording-indicator,
+.processing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  padding: 3px 8px;
+  background: rgb(0 0 0 / 45%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 999px;
+  backdrop-filter: blur(2px);
 }
 
 .listening-indicator {
-	color: #4fc3f7;
-	animation: pulse 1s infinite;
+  color: #4fc3f7;
+  animation: pulse 1s infinite;
 }
 
 .recording-indicator {
-	color: #ff5252;
-	font-weight: 600;
+  color: #ff5252;
+  font-weight: 600;
+}
+
+.processing-indicator {
+  color: #ffd166;
+  font-weight: 600;
 }
 
 .recording-dot {
-	width: 10px;
-	height: 10px;
-	background-color: #ff1744;
-	border-radius: 50%;
-	box-shadow: 0 0 8px rgba(255, 23, 68, 0.9);
-	animation: pulse 0.8s infinite;
-	display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #ff1744;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgb(255 23 68 / 90%);
+  animation: pulse 0.8s infinite;
+  display: inline-block;
+}
+
+.processing-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #ffb703;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgb(255 183 3 / 90%);
+  animation: pulse 0.8s infinite;
+  display: inline-block;
 }
 
 .mic-icon {
-	width: 8px;
-	height: 18px;
-	border: 2px solid #4fc3f7;
-	border-radius: 4px;
-	position: relative;
-	display: inline-block;
+  width: 7px;
+  height: 15px;
+  border: 2px solid #4fc3f7;
+  border-radius: 4px;
+  position: relative;
+  display: inline-block;
 }
 
 .mic-icon::after {
-	content: "";
-	position: absolute;
-	left: 50%;
-	transform: translateX(-50%);
-	bottom: -6px;
-	width: 12px;
-	height: 8px;
-	border-bottom: 2px solid #4fc3f7;
-	border-radius: 0 0 10px 10px;
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -5px;
+  width: 10px;
+  height: 7px;
+  border-bottom: 2px solid #4fc3f7;
+  border-radius: 0 0 10px 10px;
 }
 
 .status-text {
-	letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  font-size: 0.9em;
 }
 
 @keyframes pulse {
-	0% { opacity: 1; }
-	50% { opacity: 0.5; }
-	100% { opacity: 1; }
-}
+  0% {
+    opacity: 1;
+  }
 
-/* Transition animations */
-.mmm-quran-display .verse-arabic,
-.mmm-quran-display .verse-translation {
-	transition: opacity 0.5s ease-in-out;
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
