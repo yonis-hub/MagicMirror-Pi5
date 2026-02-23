@@ -1,211 +1,252 @@
 {
     "morning":  [
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/1.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/001.mp3",
                         "title":  "Ayat al-Kursi: The Greatest Protection",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/1.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/2.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/002.mp3",
                         "title":  "3 Quls: Be Sufficed in All Your Matters",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/2.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/4.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/003.mp3",
                         "title":  "Protect Yourself From Anxiety, Laziness, Debt etc",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/4.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/5.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/004.mp3",
                         "title":  "Well-being in this World and the Hereafter",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/5.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/7.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/005.mp3",
                         "title":  "Entrust All Your Matters to Allah",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/7.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/8.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/006.mp3",
                         "title":  "Fulfil Your Obligation to Thank Allah",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/8.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/9.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/007.mp3",
                         "title":  "Start Your Day by Renewing Tawhid",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/9.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/10.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/008.mp3",
                         "title":  "Start the Morning by Praising Allah",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/10.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/11.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/009.mp3",
                         "title":  "Ask Allah for a Good Day",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/11.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/13.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/010.mp3",
                         "title":  "Ask Allah to Bless Your Day",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/13.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/14.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/011.mp3",
                         "title":  "Upon Entering the Morning",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/14.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/15.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/012.mp3",
                         "title":  "Ask Allah For Good Health and Protection",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/15.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/16.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/013.mp3",
                         "title":  "Allah Will Suffice You in Everything",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/16.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/17.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/014.mp3",
                         "title":  "Have the Prophet (PBUH) Hold Your Hand and Admit You to Paradise",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/17.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/18.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/015.mp3",
                         "title":  "Protect Yourself From All Harm",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/18.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/19.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/016.mp3",
                         "title":  "Get Your Sins Forgiven",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/19.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/20.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/017.mp3",
                         "title":  "An Unparalleled Reward",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/20.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/22.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/018.mp3",
                         "title":  "Receive the Intercession of the Prophet (PBUH)",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/22.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/23.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/019.mp3",
                         "title":  "Seek Forgiveness and Repent",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/23.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/24.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/morning/020.mp3",
                         "title":  "4 Phrases That Outweigh All Other Dhikr",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/7-Morning/24.mp3"
                     }
                 ],
     "evening":  [
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/25.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/001.mp3",
                         "title":  "Ayat al-Kursi: The Greatest Protection",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/25.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/26.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/002.mp3",
                         "title":  "3 Quls: To Suffice You in All Your Matters",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/26.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/28.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/003.mp3",
                         "title":  "Protect Yourself From Anxiety, Laziness, Debt etc",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/28.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/29.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/004.mp3",
                         "title":  "Well-being in this World and the Hereafter",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/29.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/31.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/005.mp3",
                         "title":  "Entrust All Your Matters to Allah",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/31.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/32.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/006.mp3",
                         "title":  "Fulfil Your Obligation to Thank Allah",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/32.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/33.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/007.mp3",
                         "title":  "Start Your Evening by Renewing Tawhid",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/33.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/34.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/008.mp3",
                         "title":  "Start the Evening by Praising Allah",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/34.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/35.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/009.mp3",
                         "title":  "Ask Allah for a Good Evening",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/35.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/36.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/010.mp3",
                         "title":  "Ask Allah to Bless Your Evening",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/36.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/37.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/011.mp3",
                         "title":  "Get Yourself Freed from the Hell-fire",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/37.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/38.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/012.mp3",
                         "title":  "Upon Entering the Evening",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/38.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/39.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/013.mp3",
                         "title":  "Ask Allah For Good Health and Protection",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/39.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/40.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/014.mp3",
                         "title":  "Allah Will Suffice You in Everything",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/40.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/41.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/015.mp3",
                         "title":  "Have the Prophet (PBUH) Hold Your Hand and Admit You to Paradise",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/41.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/42.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/016.mp3",
                         "title":  "Protect Yourself From All Harm",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/42.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/43.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/017.mp3",
                         "title":  "Get Your Sins Forgiven",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/43.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/44.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/018.mp3",
                         "title":  "An Unparalleled Reward",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/44.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/45.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/019.mp3",
                         "title":  "Tasbih, Tahmid and Takbir",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/45.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/46.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/020.mp3",
                         "title":  "Receive the Intercession of the Prophet (PBUH)",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/46.mp3"
                     },
                     {
-                        "url":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/47.mp3",
+                        "url":  "modules/MMM-MyPrayerTimes/adhkar/evening/021.mp3",
                         "title":  "Protection from all Evil",
-                        "titleArabic":  ""
+                        "titleArabic":  "",
+                        "sourceUrl":  "https://static.lifewithallah.com/file/LifeWithAllah/main/8-Evening/47.mp3"
                     }
                 ]
 }

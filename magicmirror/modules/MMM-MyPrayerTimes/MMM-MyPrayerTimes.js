@@ -38,7 +38,13 @@ Module.register("MMM-MyPrayerTimes", {
 		morningAdhkarTracks: [],
 		eveningAdhkarTracks: [],
 		adhkarVolume: 0.85,
-		adhkarCheckInterval: 30 * 1000
+		adhkarCheckInterval: 30 * 1000,
+		// Arbitration settings (avoid overlapping Quran/adhaan/adhkar audio)
+		pauseQuranForAdhan: true,
+		pauseQuranForAdhkar: true,
+		resumeQuranAfterInterruptions: true,
+		quranPauseNotification: "QURAN_PAUSE",
+		quranResumeNotification: "QURAN_RESUME"
 	},
 
 	// Define required files
@@ -69,6 +75,7 @@ Module.register("MMM-MyPrayerTimes", {
 		};
 
 		this.adhanAudio = null;
+		this.activeAdhanPauseReason = null;
 		this.adhkarAudio = null;
 		this.adhkarTracks = {
 			morning: [],
@@ -80,6 +87,8 @@ Module.register("MMM-MyPrayerTimes", {
 			index: -1,
 			total: 0
 		};
+
+		this.audioInterruptionReasons = new Set();
 
 		this.updateTimer = null;
 		this.adhanCheckTimer = null;
@@ -173,6 +182,41 @@ Module.register("MMM-MyPrayerTimes", {
 		return Math.min(1, Math.max(0, numeric));
 	},
 
+	requestQuranPause: function (reason, enabledByConfig) {
+		if (!enabledByConfig) {
+			return;
+		}
+
+		const reasonKey = String(reason || "unknown");
+		if (this.audioInterruptionReasons.has(reasonKey)) {
+			return;
+		}
+
+		const shouldNotifyPause = this.audioInterruptionReasons.size === 0;
+		this.audioInterruptionReasons.add(reasonKey);
+
+		if (shouldNotifyPause) {
+			this.sendNotification(this.config.quranPauseNotification, {
+				source: this.name,
+				reason: reasonKey
+			});
+		}
+	},
+
+	releaseQuranPause: function (reason) {
+		const reasonKey = String(reason || "unknown");
+		if (this.audioInterruptionReasons.has(reasonKey)) {
+			this.audioInterruptionReasons.delete(reasonKey);
+		}
+
+		if (this.audioInterruptionReasons.size === 0 && this.config.resumeQuranAfterInterruptions) {
+			this.sendNotification(this.config.quranResumeNotification, {
+				source: this.name,
+				reason: reasonKey
+			});
+		}
+	},
+
 	scheduleAdhanCheck: function () {
 		this.checkAdhanTime();
 		this.adhanCheckTimer = setInterval(() => this.checkAdhanTime(), this.config.adhanCheckInterval);
@@ -214,6 +258,10 @@ Module.register("MMM-MyPrayerTimes", {
 				continue;
 			}
 
+			if (this.adhkarPlayback.isPlaying) {
+				this.finishAdhkarPlayback("adhan-preempt");
+			}
+
 			Log.info(`MMM-MyPrayerTimes: Playing Adhan for ${prayerKey}`);
 			this.playAdhan(prayerKey);
 			this.playedAdhanToday[playbackKey] = true;
@@ -226,26 +274,42 @@ Module.register("MMM-MyPrayerTimes", {
 			this.adhanAudio = null;
 		}
 
+		if (this.activeAdhanPauseReason) {
+			this.releaseQuranPause(this.activeAdhanPauseReason);
+			this.activeAdhanPauseReason = null;
+		}
+
+		const pauseReason = `adhan:${String(prayerKey || "unknown").toLowerCase()}`;
+		this.requestQuranPause(pauseReason, this.config.pauseQuranForAdhan);
+		this.activeAdhanPauseReason = pauseReason;
+
 		const audio = new Audio(this.config.adhanFile);
-		audio.volume = this.getVolume(this.config.adhanVolume, 0.8);
-		audio.onended = () => {
+		let finalized = false;
+		const finalize = () => {
+			if (finalized) {
+				return;
+			}
+			finalized = true;
 			if (this.adhanAudio === audio) {
 				this.adhanAudio = null;
+			}
+			if (this.activeAdhanPauseReason === pauseReason) {
+				this.releaseQuranPause(pauseReason);
+				this.activeAdhanPauseReason = null;
 			}
 		};
+
+		audio.volume = this.getVolume(this.config.adhanVolume, 0.8);
+		audio.onended = () => finalize();
 		audio.onerror = () => {
 			Log.error(`MMM-MyPrayerTimes: Error while playing Adhan for ${prayerKey}`);
-			if (this.adhanAudio === audio) {
-				this.adhanAudio = null;
-			}
+			finalize();
 		};
 
 		this.adhanAudio = audio;
 		audio.play().catch((error) => {
 			Log.error(`MMM-MyPrayerTimes: Error playing Adhan: ${error}`);
-			if (this.adhanAudio === audio) {
-				this.adhanAudio = null;
-			}
+			finalize();
 		});
 	},
 
@@ -305,13 +369,15 @@ Module.register("MMM-MyPrayerTimes", {
 			index: 0,
 			total: tracks.length
 		};
+
+		this.requestQuranPause("adhkar", this.config.pauseQuranForAdhkar);
 		this.playAdhkarTrack(period, 0);
 	},
 
 	playAdhkarTrack: function (period, index) {
 		const tracks = this.adhkarTracks[period];
 		if (!Array.isArray(tracks) || index >= tracks.length) {
-			this.finishAdhkarPlayback();
+			this.finishAdhkarPlayback("complete");
 			return;
 		}
 
@@ -368,27 +434,34 @@ Module.register("MMM-MyPrayerTimes", {
 		});
 	},
 
-	finishAdhkarPlayback: function () {
+	finishAdhkarPlayback: function (reason) {
 		if (this.adhkarAudio) {
 			this.adhkarAudio.pause();
 			this.adhkarAudio = null;
 		}
 
+		const wasPlaying = this.adhkarPlayback.isPlaying;
 		this.adhkarPlayback = {
 			isPlaying: false,
 			period: null,
 			index: -1,
 			total: 0
 		};
-		this.sendAdhkarStatus({
-			isPlaying: false,
-			period: null,
-			index: 0,
-			total: 0,
-			title: "",
-			titleArabic: "",
-			url: ""
-		});
+
+		if (wasPlaying) {
+			this.sendAdhkarStatus({
+				isPlaying: false,
+				period: null,
+				index: 0,
+				total: 0,
+				title: "",
+				titleArabic: "",
+				url: "",
+				reason: String(reason || "")
+			});
+		}
+
+		this.releaseQuranPause("adhkar");
 	},
 
 	sendAdhkarStatus: function (payload) {
@@ -416,7 +489,7 @@ Module.register("MMM-MyPrayerTimes", {
 			const hijriDiv = document.createElement("div");
 			hijriDiv.className = "hijri-date bright";
 			const hijriText = `${this.hijriDate.day} ${this.hijriDate.month.en}, ${this.hijriDate.year} AH`;
-			const hijriArabic = `${this.hijriDate.month.ar} ${this.hijriDate.day}، ${this.hijriDate.year}`;
+			const hijriArabic = `${this.hijriDate.month.ar} ${this.hijriDate.day}\u060C ${this.hijriDate.year}`;
 			hijriDiv.innerHTML = `<span class="hijri-en">${hijriText}</span><br><span class="hijri-ar dimmed">${hijriArabic}</span>`;
 			wrapper.appendChild(hijriDiv);
 		}
@@ -428,30 +501,30 @@ Module.register("MMM-MyPrayerTimes", {
 			{
 				key: "Imsak",
 				label: "IMSAK",
-				arabic: "الإمساك",
+				arabic: "\u0627\u0644\u0625\u0645\u0633\u0627\u0643",
 				show: this.config.showImsak
 			},
-			{ key: "Fajr", label: "FAJR", arabic: "الفجر" },
+			{ key: "Fajr", label: "FAJR", arabic: "\u0627\u0644\u0641\u062c\u0631" },
 			{
 				key: "Sunrise",
 				label: "SUNRISE",
-				arabic: "شروق الشمس",
+				arabic: "\u0634\u0631\u0648\u0642 \u0627\u0644\u0634\u0645\u0633",
 				show: this.config.showSunrise
 			},
-			{ key: "Dhuhr", label: "DHUHR", arabic: "الظهر" },
-			{ key: "Asr", label: "ASR", arabic: "العصر" },
+			{ key: "Dhuhr", label: "DHUHR", arabic: "\u0627\u0644\u0638\u0647\u0631" },
+			{ key: "Asr", label: "ASR", arabic: "\u0627\u0644\u0639\u0635\u0631" },
 			{
 				key: "Sunset",
 				label: "SUNSET",
-				arabic: "غروب الشمس",
+				arabic: "\u063a\u0631\u0648\u0628 \u0627\u0644\u0634\u0645\u0633",
 				show: this.config.showSunset
 			},
-			{ key: "Maghrib", label: "MAGHRIB", arabic: "المغرب" },
-			{ key: "Isha", label: "ISHA", arabic: "العشاء" },
+			{ key: "Maghrib", label: "MAGHRIB", arabic: "\u0627\u0644\u0645\u063a\u0631\u0628" },
+			{ key: "Isha", label: "ISHA", arabic: "\u0627\u0644\u0639\u0634\u0627\u0621" },
 			{
 				key: "Midnight",
 				label: "MIDNIGHT",
-				arabic: "منتصف الليل",
+				arabic: "\u0645\u0646\u062a\u0635\u0641 \u0627\u0644\u0644\u064a\u0644",
 				show: this.config.showMidnight
 			}
 		];
@@ -542,7 +615,7 @@ Module.register("MMM-MyPrayerTimes", {
 		});
 
 		this.MPT = normalizedTimings;
-		this.hijriDate = data.hijri;
+		this.hijriDate = data ? data.hijri : null;
 		this.loaded = true;
 	},
 

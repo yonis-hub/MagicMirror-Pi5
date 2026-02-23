@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/voice_listener.log"
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-$LOG_DIR/voice_listener.heartbeat}"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
 
@@ -48,4 +49,22 @@ fi
 
 log "Starting $LISTENER_SCRIPT..."
 cd "$SCRIPT_DIR"
+touch "$HEARTBEAT_FILE"
+
+(
+    while true; do
+        touch "$HEARTBEAT_FILE"
+        sleep 15
+    done
+) &
+HEARTBEAT_PID=$!
+
+set +e
 python3 "$LISTENER_SCRIPT" "$@" 2>&1 | tee -a "$LOG_FILE"
+PYTHON_EXIT=${PIPESTATUS[0]}
+set -e
+
+kill "$HEARTBEAT_PID" >/dev/null 2>&1 || true
+wait "$HEARTBEAT_PID" 2>/dev/null || true
+
+exit "$PYTHON_EXIT"

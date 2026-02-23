@@ -1,46 +1,30 @@
 # MagicMirror + Voice Autostart Guide (Pi 5)
 
-This setup keeps the mirror UI visible and keeps voice control running all day with automatic restart.
+This setup keeps the mirror UI and voice control running all day with auto-restart and health checks.
 
 ## Recommended architecture
 
-- `MagicMirror UI`: start from desktop autostart (needs active display session).
-- `Quran voice listener`: run as `systemd` service (`Restart=always`).
-- `Ollama`: run as `systemd` service with low-memory limits.
+- `magicmirror@<user>.service`: always-on MagicMirror UI process
+- `quran-voice@<user>.service`: always-on wake-word + Quran voice listener
+- `mm-healthcheck@<user>.timer`: every-minute watchdog that restarts unhealthy services
+- `ollama.service`: low-memory tuned override for Pi stability
 
-## 1) Desktop autostart for MagicMirror UI
+## 1) Pull latest repo on Pi
 
 ```bash
-mkdir -p ~/.config/autostart
-
-cat > ~/start_mirror.sh << 'EOF'
-#!/bin/bash
-cd ~/MagicMirror-Pi5/magicmirror
-npm run start
-EOF
-
-chmod +x ~/start_mirror.sh
-
-cat > ~/.config/autostart/magicmirror.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=MagicMirror
-Exec=/bin/bash -lc "~/start_mirror.sh"
-X-GNOME-Autostart-enabled=true
-EOF
+cd ~/MagicMirror-Pi5
+git pull
 ```
 
-## 2) Install always-on Quran voice service
-
-The repo includes production-ready templates in `deploy/systemd`.
+## 2) Install systemd unit templates
 
 ```bash
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/magicmirror@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/quran-voice@.service /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.service /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now quran-voice@hyonis.service
 ```
-
-Replace `hyonis` with your actual Pi username.
 
 ## 3) Apply Ollama low-memory override
 
@@ -51,23 +35,34 @@ sudo systemctl daemon-reload
 sudo systemctl restart ollama
 ```
 
-## 4) Verify
+## 4) Enable always-on services
 
 ```bash
-systemctl status quran-voice@hyonis --no-pager
-systemctl status ollama --no-pager
-journalctl -u quran-voice@hyonis -n 100 --no-pager
+sudo systemctl enable --now magicmirror@hyonis.service
+sudo systemctl enable --now quran-voice@hyonis.service
+sudo systemctl enable --now mm-healthcheck@hyonis.timer
 ```
 
-## 5) Disable (if needed)
+Replace `hyonis` with your actual Pi username.
+
+## 5) Verify status
 
 ```bash
-sudo systemctl disable --now quran-voice@hyonis
-rm -f ~/.config/autostart/magicmirror.desktop
+systemctl status magicmirror@hyonis --no-pager
+systemctl status quran-voice@hyonis --no-pager
+systemctl status mm-healthcheck@hyonis.timer --no-pager
+systemctl status ollama --no-pager
+```
+
+## 6) Optional cleanup pass
+
+```bash
+bash ~/MagicMirror-Pi5/deploy/pi_cleanup.sh
+bash ~/MagicMirror-Pi5/deploy/pi_cleanup.sh --apply
 ```
 
 ## Notes
 
-- Local Quran playback uses `quran_data` first.
-- Keep `quran_data/surah_index.json` in place for fast offline surah metadata.
-- `start_listener.sh` now applies tuned defaults when no args are passed.
+- Voice heartbeat file is maintained automatically by `start_listener.sh`.
+- Healthcheck timer restarts services if the heartbeat goes stale.
+- Adhkar tracks are local-first from `magicmirror/modules/MMM-MyPrayerTimes/adhkar/`.

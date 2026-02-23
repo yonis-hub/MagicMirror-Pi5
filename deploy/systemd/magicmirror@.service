@@ -1,0 +1,25 @@
+[Unit]
+Description=MagicMirror UI for user %i
+After=graphical.target network-online.target sound.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=15
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/MagicMirror-Pi5/magicmirror
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=NODE_ENV=production
+ExecStartPre=/usr/bin/test -d /home/%i/MagicMirror-Pi5/magicmirror
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical.target

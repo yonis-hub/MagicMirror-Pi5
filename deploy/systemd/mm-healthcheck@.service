@@ -1,0 +1,8 @@
+[Unit]
+Description=MagicMirror stack health check for user %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/%i/MagicMirror-Pi5/deploy/systemd/mm-stack-healthcheck.sh %i

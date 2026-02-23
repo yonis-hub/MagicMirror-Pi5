@@ -1,170 +1,110 @@
 # MMM-MyPrayerTimes
-MyPrayerTimes is a simple Module, that calculates the prayer times for any location around the world, based on a variety of calculation methods currently used in Muslim communities using the Aladhan API. 
 
-The mathematical side of how the calculation should work is generally agreed upon in the Islamic world. Then again, this is an assumption I am making based on the number of countries that use the angle based calculation (and please note that I am not religiously or formally qualified and am providing this information with absolute humility in the hope that it may be useful). However, based on location, government preferences, and other 'factors', there are differences in the methods that produce, sometimes, a substantial variation in timings. If the mathematical side interests you, have a look at this excellent explanation: http://praytimes.org/wiki/Prayer_Times_Calculation.
+Prayer times module for MagicMirror using AlAdhan API, with local adhan/adhkar audio support.
 
-A calculation method is typically made up of the following:
+## Key Features
 
-- The Fajr Angle
-- The Maghrib Angle or minutes after sunset that Maghrib should be
-- The Isha Angle or minutes after Maghrib that Isha should be
+- Daily prayer times by location (`mptLat`, `mptLon`, `mptMethod`)
+- Reliable daily timing refresh (URL/date rolls over correctly at midnight)
+- Adhan playback with trigger-window protection (`adhanTriggerWindowMinutes`)
+- Auto morning/evening adhkar playlists
+- Local adhkar assets (`adhkar/`) with manifest metadata (`adhkar_manifest.json`)
+- Audio arbitration with Quran module (`QURAN_PAUSE` / `QURAN_RESUME`)
 
-The AlAdhan API has default values for all 3, and most methods only specifically specify Fajr and Isha.
+## Install
 
-Most countries adhere to one of the above methods, and they then tune the timings further, by adding a few minutes here and there, based on criteria that may seem completely arbitrary. 
-
-![Screenshot](screenshot.png)
-
-## Installation
-Clone this repository in your modules folder, and install dependencies:
-
-```
-cd ~/MagicMirror/modules 
+```bash
+cd ~/MagicMirror/modules
 git clone https://github.com/htilburgs/MMM-MyPrayerTimes
 cd MMM-MyPrayerTimes
-npm install 
-```
-## Update
-When you need to update this module:
-
-```
-cd ~/MagicMirror/modules/MMM-MyPrayerTimes
-git pull
+npm install
 ```
 
-## Configuration
-Go to the MagicMirror/config directory and edit the config.js file.
-Add the module to your modules array in your config.js.
+## Config Example
 
-```
+```js
 {
-  module: 'MMM-MyPrayerTimes',
-  position: 'top_left',
-  header: 'My Prayer Times',
+  module: "MMM-MyPrayerTimes",
+  position: "top_left",
+  header: "Prayer Times",
   config: {
-          mptLat: null,				// Replace with the latitude of your location - example mptLat: 12.34567
-	  mptLon: null,				// Replace with the Longitude of your location - example mptLon: 76.54321
-	  mptMethod: 3,				// Which calculation methode is used, see options below
-	  mptOffset: "0,0,0,0,0,0,0,0,0",	// Time corrections for your location: Imsak, Fajr, Sunrise, Duhr, Asr, Sunset, Maghrib, Isha, Midnight
-	  showSunrise: true,			// Display Sunrise, false if you want to hide
-	  showSunset: true,			// Display Sunset, false if you want to hide
-	  showMidnight: true,			// Display Midnight, false if you want to hide
-	  showImsak: true,			// Display Imsak, false if you want to hide
-	  show24Clock: true,			// Default display 24hour clock -> false is 12hour (AM/PM) clock
-	  playAdhan: true,			// Play adhan audio at selected prayer times
-	  adhanTriggerWindowMinutes: 1,		// Trigger window to avoid missing adhan due timer drift
-	  autoPlayAdhkar: true,			// Autoplay adhkar once in each daily window
-	  adhkarManifestFile: "adhkar_manifest.json",	// Track list in module folder
-	  adhkarVolume: 0.85,			// Adhkar playback volume (0.0 - 1.0)
-	  }
-},
-```
-To get your latitude and longitude, you can go to https://latitudelongitude.org
+    mptLat: 42.9849,
+    mptLon: -81.2453,
+    mptMethod: 2,
+    mptOffset: "0,0,0,0,0,0,0,0,0",
+    showSunrise: false,
+    showSunset: false,
+    showMidnight: false,
+    showImsak: false,
+    show24Clock: false,
+    showOnlyNext: true,
 
-## Module configuration
-Here is the documentation of options for the modules configuration:
+    playAdhan: true,
+    adhanTriggerWindowMinutes: 1,
 
-<table>
-  <thead>
-    <tr>
-      <th>Option</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>mptLat</code></td>
-      <td>The latitude of your location for a correct calculation<br /><br /><strong>Number</strong><br />Default: <code>null</code></td>
-    </tr>
-    <tr>
-      <td><code>mptLon</code></td>
-      <td>The longitude of your location for a correct calculation<br /><br /><strong>Number</strong><br />Default: <code>null</code></td>
-    </tr>
-    <tr>
-      <td><code>mptMethod</code></td>
-      <td>Kind of calculation method to use<br /><br /><strong>Default: </strong>Number<br /></strong>Possible values:
-	  <li>0 - Shia Ithna-Ansari</li>
-	  <li>1 - University of Islamic Sciences, Karachi</li>
-	  <li>2 - Islamic Society of North America</li>
-	  <li>3 - Muslim World League</li>
-	  <li>4 - Umm Al-Qura University, Makkah</li>
-	  <li>5 - Egyptian General Authority of Survey</li>
-	  <li>7 - Institute of Geophysics, University of Tehran</li>
-	  <li>8 - Gulf Region</li>
-	  <li>9 - Kuwait</li>
-	  <li>10 - Qatar</li>
-	  <li>11 - Majlis Ugama Islam Singapura, Singapore</li>
-	  <li>12 - Union Organization islamic de France</li>
-	  <li>13 - Diyanet İşleri Başkanlığı, Turkey</li>
-	  <li>99 - Custom. See https://aladhan.com/calculation-methods</li>
-	</strong></td>
-    </tr>
-    <tr>
-      <td><code>mptOffset</code></td>
-	<td>Posibilty for time corrections for your location <strong>(in minutes)</strong><br /><br /><strong>"Imsak, Fajr, Sunrise, Duhr, Asr, Sunset, Maghrib, Isha, Midnight"<br /></strong><br />Default: <code>"0,0,0,0,0,0,0,0,0"</code></td>
-    </tr>	
-    <tr>
-      <td><code>showSunrise</code></td>
-      <td>Shows Sunrise in the Prayer Times<br /><br /><strong>True / False</strong><br />Default: <code>true</code></td>
-    </tr>
-     <tr>
-      <td><code>showSunset</code></td>
-      <td>Shows Sunset in the Prayer Times<br /><br /><strong>True / False</strong><br />Default: <code>true</code></td>
-    </tr>
-    <tr>
-      <td><code>showMidnight</code></td>
-      <td>Shows Midnight in the Prayer Times<br /><br /><strong>True / False</strong><br />Default: <code>true</code></td>
-    </tr>
-    <tr>
-      <td><code>showImsak</code></td>
-      <td>Shows Imsak in the Prayer Times<br /><br /><strong>True / False</strong><br />Default: <code>true</code></td>
-    </tr>
-    <tr>
-      <td><code>show24Clock</code></td>
-      <td>Show Prayer Times in 12hour (AM/PM) or 24hour format<br /><br /><strong>True / False</strong><br />Default: <code>true</code></td>
-    </tr>
-</tbody>
-</table>
+    autoPlayAdhkar: true,
+    adhkarManifestFile: "adhkar_manifest.json",
+    adhkarVolume: 0.85,
 
-## Adhkar autoplay
-
-The module now supports automatic morning/evening adhkar playback.
-
-- Morning window: `Fajr` to `Sunrise`
-- Evening window: `Asr` to `Sunset`
-- Each window plays once per local day
-- Current track title is broadcast through `ADHKAR_STATUS` for other modules (for example `MMM-QuranDisplay`)
-
-Default track metadata is loaded from `adhkar_manifest.json` in this folder. You can override tracks using:
-
-- `morningAdhkarTracks` in module config
-- `eveningAdhkarTracks` in module config
-
-Each track supports:
-
-```json
-{
-  "url": "https://example.com/track.mp3",
-  "title": "Track Title",
-  "titleArabic": ""
+    pauseQuranForAdhan: true,
+    pauseQuranForAdhkar: true,
+    resumeQuranAfterInterruptions: true
+  }
 }
 ```
 
-## Language support
-The MMM-MyPrayerTimes module support different languages. 
+## Adhkar Windows
 
-## Version
+- Morning: `Fajr -> Sunrise`
+- Evening: `Asr -> Sunset`
+- Each period auto-plays once per day
 
-v2.0 - 24-06-2024	: update node_helper.js from request (deprecated) to fetch <br/>
-v2.1 - 30-12-2024	: minor adjustment i.e. MMM-Config (sdetweil); optimize code; fix date parameter in URL
+While adhkar is playing, this module publishes `ADHKAR_STATUS` notifications. `MMM-QuranDisplay` can render the current adhkar title from that status.
+
+## Local Adhkar Assets
+
+Manifest file: `adhkar_manifest.json`
+Local audio folders:
+
+- `adhkar/morning/*.mp3`
+- `adhkar/evening/*.mp3`
+
+Sync/repair local files from `sourceUrl` entries:
+
+```bash
+cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-MyPrayerTimes
+python3 sync_adhkar_assets.py
+```
+
+Verify only:
+
+```bash
+python3 sync_adhkar_assets.py --verify-only
+```
+
+Force redownload:
+
+```bash
+python3 sync_adhkar_assets.py --force
+```
+
+## Core Options
+
+- `mptLat`: latitude (number)
+- `mptLon`: longitude (number)
+- `mptMethod`: AlAdhan calculation method
+- `mptOffset`: comma-separated minute offsets for timings
+- `playAdhan`: enable adhan playback
+- `adhanPrayers`: list of prayers that trigger adhan
+- `adhanTriggerWindowMinutes`: tolerant trigger window for timer drift
+- `autoPlayAdhkar`: enable adhkar autoplay windows
+- `adhkarManifestFile`: track metadata file
+- `morningAdhkarTracks`: optional inline override array
+- `eveningAdhkarTracks`: optional inline override array
+- `pauseQuranForAdhan`: send `QURAN_PAUSE` during adhan
+- `pauseQuranForAdhkar`: send `QURAN_PAUSE` during adhkar
+- `resumeQuranAfterInterruptions`: send `QURAN_RESUME` when done
 
 ## License
-### The MIT License (MIT)
 
-Copyright © 2019 Harm Tilburgs
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-The software is provided “as is”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+MIT

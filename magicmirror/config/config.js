@@ -49,8 +49,8 @@ let config = {
 			position: "top_left",
 			header: "Prayer Times",
 			config: {
-				mptLat: 43.6532, // Toronto, Canada
-				mptLon: -79.3832, // Toronto, Canada
+				mptLat: 42.9849, // London, Ontario, Canada
+				mptLon: -81.2453, // London, Ontario, Canada
 				mptMethod: 2, // 2 = Islamic Society of North America (ISNA)
 				mptOffset: "0,0,0,0,0,0,0,0,0",
 				showSunrise: false,
@@ -58,7 +58,14 @@ let config = {
 				showMidnight: false,
 				showImsak: false,
 				show24Clock: false, // 12-hour format with AM/PM
-				showOnlyNext: true // Show only the next prayer time
+				showOnlyNext: true, // Show only the next prayer time
+				playAdhan: true,
+				adhanTriggerWindowMinutes: 1,
+				autoPlayAdhkar: true,
+				adhkarManifestFile: "adhkar_manifest.json",
+				pauseQuranForAdhan: true,
+				pauseQuranForAdhkar: true,
+				resumeQuranAfterInterruptions: true
 			}
 		},
 		{

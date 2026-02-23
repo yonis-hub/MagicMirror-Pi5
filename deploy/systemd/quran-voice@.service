@@ -2,6 +2,8 @@
 Description=MMM Quran Voice Listener for user %i
 After=network-online.target sound.target ollama.service
 Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=20
 
 [Service]
 Type=simple
@@ -11,9 +13,12 @@ Environment=PYTHONUNBUFFERED=1
 Environment=OMP_NUM_THREADS=2
 Environment=OPENBLAS_NUM_THREADS=2
 Environment=NUMEXPR_NUM_THREADS=2
+Environment=HEARTBEAT_FILE=/home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/logs/voice_listener.heartbeat
+ExecStartPre=/usr/bin/test -x /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 ExecStart=/bin/bash /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 Restart=always
-RestartSec=3
+RestartSec=2
+TimeoutStartSec=45
 TimeoutStopSec=15
 KillSignal=SIGTERM
 Nice=5
