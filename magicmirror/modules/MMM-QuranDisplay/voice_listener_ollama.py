@@ -422,6 +422,8 @@ DEFAULT_WAKE_WINDOW_SEC = 2.5
 DEFAULT_COMMAND_WINDOW_SEC = 3.5
 DEFAULT_MEMORY_CHECK_INTERVAL_SEC = 60
 FUZZY_SURAH_THRESHOLD = 0.82
+DEFAULT_SILENCE_MAX_AMP = 60
+DEFAULT_SILENCE_RMS_AMP = 12
 
 def clamp_confidence(value, default=DEFAULT_CONFIDENCE):
     try:
@@ -654,7 +656,9 @@ class OllamaVoiceListener:
         stt_language=DEFAULT_STT_LANGUAGE,
         wake_window_sec=DEFAULT_WAKE_WINDOW_SEC,
         command_window_sec=DEFAULT_COMMAND_WINDOW_SEC,
-        wake_words=None
+        wake_words=None,
+        silence_max_amp=DEFAULT_SILENCE_MAX_AMP,
+        silence_rms_amp=DEFAULT_SILENCE_RMS_AMP
     ):
         self.device = device
         self.mirror_url = mirror_url
@@ -684,6 +688,8 @@ class OllamaVoiceListener:
         self.wake_words = parse_wake_words(wake_words)
         self.primary_wake_word = sorted(self.wake_words)[0] if self.wake_words else "mo"
         self.wake_words_display = ", ".join(sorted(self.wake_words))
+        self.silence_max_amp = max(0, int(silence_max_amp))
+        self.silence_rms_amp = max(0, int(silence_rms_amp))
         self.timing_history = deque(maxlen=100)
         self._last_listening_status = None
         self._last_recording_status = None
@@ -1163,24 +1169,37 @@ class OllamaVoiceListener:
                 self.send_recording_status(False)
                 self.send_listening_status(True)
 
-    def is_silent(self, audio_file, threshold=100):  # Reduced threshold
-        """Check if the audio file is silent by checking maximum amplitude"""
+    def is_silent(self, audio_file):
+        """Check if the audio file is silent using both max and RMS amplitude."""
         try:
             import wave
-            import struct
             with wave.open(audio_file, 'rb') as wf:
                 nframes = wf.getnframes()
                 data = wf.readframes(nframes)
-                # Convert to integers
-                if wf.getsampwidth() == 2:
-                    fmt = f"{nframes * wf.getnchannels()}h"
-                    samples = struct.unpack(fmt, data)
-                    max_amp = max(abs(s) for s in samples)
-                    return max_amp < threshold
-                else:
-                    # Unsupported format
+                if wf.getsampwidth() != 2:
                     return False
-        except:
+
+                samples = np.frombuffer(data, dtype=np.int16)
+                if samples.size == 0:
+                    return True
+
+                abs_samples = np.abs(samples.astype(np.int32))
+                max_amp = int(abs_samples.max())
+                rms_amp = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
+
+                if self.silence_max_amp == 0 and self.silence_rms_amp == 0:
+                    print("  Silence gate disabled (both thresholds set to 0)")
+                    return False
+
+                silent = max_amp < self.silence_max_amp and rms_amp < self.silence_rms_amp
+                state = "silent" if silent else "voice"
+                print(
+                    f"  Audio levels: max={max_amp}, rms={rms_amp:.1f} "
+                    f"(gate max<{self.silence_max_amp}, rms<{self.silence_rms_amp}) -> {state}"
+                )
+                return silent
+        except Exception as e:
+            print(f"  Silence check error: {e}")
             return False
 
     def transcribe_whisper(self, audio_file):
@@ -1503,6 +1522,7 @@ class OllamaVoiceListener:
         print(f"STT language: {self.stt_language_label}")
         print(f"Wake window: {self.wake_window_sec:.1f}s")
         print(f"Command window: {self.command_window_sec:.1f}s")
+        print(f"Silence gate: max<{self.silence_max_amp}, rms<{self.silence_rms_amp}")
         print(f"Wake words: {self.wake_words_display}")
         print("")
         print("Commands (natural language):")
@@ -1708,6 +1728,18 @@ def main():
         default=",".join(sorted(WAKE_WORDS)),
         help="Comma-separated wake words (default includes common 'Mo' variants)"
     )
+    parser.add_argument(
+        "--silence-max-amp",
+        type=int,
+        default=int(os.getenv("VOICE_SILENCE_MAX_AMP", DEFAULT_SILENCE_MAX_AMP)),
+        help="Max int16 amplitude below which audio may be treated as silent"
+    )
+    parser.add_argument(
+        "--silence-rms-amp",
+        type=int,
+        default=int(os.getenv("VOICE_SILENCE_RMS_AMP", DEFAULT_SILENCE_RMS_AMP)),
+        help="RMS int16 amplitude below which audio may be treated as silent"
+    )
 
     args = parser.parse_args()
 
@@ -1721,7 +1753,9 @@ def main():
         stt_language=args.stt_language,
         wake_window_sec=args.wake_window_sec,
         command_window_sec=args.command_window_sec,
-        wake_words=args.wake_words
+        wake_words=args.wake_words,
+        silence_max_amp=args.silence_max_amp,
+        silence_rms_amp=args.silence_rms_amp
     )
     listener.listen_loop()
 
