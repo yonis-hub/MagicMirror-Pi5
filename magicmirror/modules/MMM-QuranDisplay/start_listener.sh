@@ -45,6 +45,8 @@ VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
 VOICE_REQUIRE_PULSE="${VOICE_REQUIRE_PULSE:-1}"
 VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-120%}"
 VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-100%}"
+VOICE_BT_CARD="${VOICE_BT_CARD:-bluez_card.FC_A8_9A_F6_FB_DA}"
+VOICE_BT_PROFILE="${VOICE_BT_PROFILE:-a2dp-sink}"
 RUNTIME_UID="$(id -u)"
 RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
 
@@ -59,6 +61,8 @@ if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; th
         export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
     fi
 fi
+export PULSE_SOURCE="${PULSE_SOURCE:-$VOICE_SOURCE}"
+export PULSE_SINK="${PULSE_SINK:-$VOICE_SINK}"
 
 # Prefer shared Pulse capture and pin default source to the intended USB mic.
 if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
@@ -73,6 +77,10 @@ if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
     done
 
     if [ "$PULSE_READY" -eq 1 ]; then
+        if pactl list cards short | awk '{print $2}' | grep -Fxq "$VOICE_BT_CARD"; then
+            pactl set-card-profile "$VOICE_BT_CARD" "$VOICE_BT_PROFILE" || true
+            log "Pulse Bluetooth profile set: $VOICE_BT_CARD -> $VOICE_BT_PROFILE"
+        fi
         if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
             pactl set-default-sink "$VOICE_SINK" || true
             pactl set-sink-mute "$VOICE_SINK" 0 || true

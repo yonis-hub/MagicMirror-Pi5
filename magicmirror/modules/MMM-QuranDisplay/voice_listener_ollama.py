@@ -432,6 +432,7 @@ DEFAULT_MEMORY_CHECK_INTERVAL_SEC = 60
 FUZZY_SURAH_THRESHOLD = 0.82
 DEFAULT_SILENCE_MAX_AMP = 60
 DEFAULT_SILENCE_RMS_AMP = 12
+DEFAULT_COMMAND_DEBOUNCE_SEC = 3.0
 
 def clamp_confidence(value, default=DEFAULT_CONFIDENCE):
     try:
@@ -698,12 +699,15 @@ class OllamaVoiceListener:
         self.wake_words_display = ", ".join(sorted(self.wake_words))
         self.silence_max_amp = max(0, int(silence_max_amp))
         self.silence_rms_amp = max(0, int(silence_rms_amp))
+        self.command_debounce_sec = max(0.0, float(os.getenv("VOICE_COMMAND_DEBOUNCE_SEC", str(DEFAULT_COMMAND_DEBOUNCE_SEC))))
         self.timing_history = deque(maxlen=100)
         self._last_listening_status = None
         self._last_recording_status = None
         self._last_processing_status = None
         self._last_transcript_payload = None
         self._last_memory_check = 0.0
+        self._last_command_signature = None
+        self._last_command_ts = 0.0
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
@@ -983,6 +987,11 @@ class OllamaVoiceListener:
         return local_result
 
     def start_chainer(self, surah, verse_start=None):
+        # Defensive guard: enforce one active chainer even if a stale process remains.
+        if self.current_process and self.current_process.poll() is None:
+            self.stop_playback()
+        self._terminate_stale_chainers()
+
         command = [sys.executable, "quran_chainer.py", "--surah", str(surah)]
         if verse_start is not None:
             command.extend(["--start-verse", str(verse_start)])
@@ -1005,6 +1014,55 @@ class OllamaVoiceListener:
         except Exception as e:
             print(f"  Could not send {command} command: {e}")
         return False
+
+    def _terminate_stale_chainers(self):
+        """Terminate leftover quran_chainer processes not tracked by this listener."""
+        try:
+            result = subprocess.run(
+                ["pgrep", "-af", "quran_chainer.py"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode not in {0, 1}:
+                return
+
+            tracked_pid = self.current_process.pid if self.current_process else None
+            lines = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
+            for line in lines:
+                parts = line.split(maxsplit=1)
+                if not parts:
+                    continue
+                try:
+                    pid = int(parts[0])
+                except ValueError:
+                    continue
+                if tracked_pid and pid == tracked_pid:
+                    continue
+                cmd = parts[1] if len(parts) > 1 else ""
+                print(f"  Terminating stale chainer PID {pid}: {cmd}")
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    continue
+        except Exception as e:
+            print(f"  Warning: could not scan stale chainer processes: {e}")
+
+    def _command_signature(self, action, value):
+        if action == "play_verse" and isinstance(value, (tuple, list)) and len(value) >= 2:
+            return ("play_verse", int(value[0]), int(value[1]))
+        if action == "play" and value is not None:
+            return ("play", int(value))
+        return (str(action), str(value))
+
+    def _is_duplicate_command(self, signature):
+        if signature != self._last_command_signature:
+            return False
+        return (time.time() - self._last_command_ts) < self.command_debounce_sec
+
+    def _remember_command(self, signature):
+        self._last_command_signature = signature
+        self._last_command_ts = time.time()
 
     def pause_chainer(self):
         if self.send_chainer_command("PAUSE"):
@@ -1048,30 +1106,41 @@ class OllamaVoiceListener:
                 print("  (Command not understood)")
                 return
 
+            signature = self._command_signature(action, value)
+            if self._is_duplicate_command(signature):
+                self.send_transcript_status(command_text, phase="duplicate", raw_text=raw_text or command_text)
+                print(f"  Duplicate command ignored within {self.command_debounce_sec:.1f}s: {signature}")
+                return
+
             self.acknowledge_intent(intent)
             self.remember_intent(command_text, intent)
             self.extend_followup_window()
 
             if action == "play" and value:
+                self._remember_command(signature)
                 self.play_confirmation()
                 self.stop_playback()
                 self.start_chainer(value)
             elif action == "play_verse" and value:
                 surah, verse = value
+                self._remember_command(signature)
                 self.play_confirmation()
                 self.stop_playback()
                 self.start_chainer(surah, verse_start=verse)
             elif action == "pause":
+                self._remember_command(signature)
                 if self.pause_chainer():
                     self.play_confirmation()
                 else:
                     self.play_error()
             elif action == "resume":
+                self._remember_command(signature)
                 if self.resume_chainer():
                     self.play_confirmation()
                 else:
                     self.play_error()
             elif action == "stop":
+                self._remember_command(signature)
                 self.play_confirmation()
                 self.stop_playback()
             else:

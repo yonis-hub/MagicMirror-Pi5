@@ -22,6 +22,9 @@ Environment=VOICE_SOURCE=alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback
 Environment=VOICE_SOURCE_VOLUME=120%
 Environment=VOICE_PULSE_WAIT_SEC=30
 Environment=VOICE_FOLLOWUP_WINDOW_SEC=2
+Environment=VOICE_COMMAND_DEBOUNCE_SEC=3
+Environment=VOICE_BT_CARD=bluez_card.FC_A8_9A_F6_FB_DA
+Environment=VOICE_BT_PROFILE=a2dp-sink
 Environment=QURAN_MPV_AO=pulse
 Environment=QURAN_MPV_AUDIO_DEVICE=pulse/bluez_output.FC_A8_9A_F6_FB_DA.1
 ExecStartPre=/usr/bin/test -x /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
