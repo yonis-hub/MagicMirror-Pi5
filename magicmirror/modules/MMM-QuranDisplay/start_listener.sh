@@ -36,10 +36,12 @@ fi
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
 export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-2}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
+VOICE_DEVICE="${VOICE_DEVICE:-plughw:CARD=ME6S,DEV=0}"
 
 if [ "$#" -eq 0 ]; then
     # Tuned defaults for always-on wall mirror mode.
     set -- \
+        --device "$VOICE_DEVICE" \
         --parser-mode hybrid \
         --stt-model tiny \
         --stt-language auto \
@@ -47,6 +49,7 @@ if [ "$#" -eq 0 ]; then
         --command-window-sec 3.0
 fi
 
+log "Voice input device: $VOICE_DEVICE"
 log "Starting $LISTENER_SCRIPT..."
 cd "$SCRIPT_DIR"
 touch "$HEARTBEAT_FILE"
