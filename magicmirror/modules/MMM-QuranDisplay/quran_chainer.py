@@ -11,6 +11,7 @@ Usage:
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -339,11 +340,27 @@ class QuranChainer:
             return False
 
         try:
-            # Use mpv to play audio (quieter output)
+            # Use mpv for playback; allow explicit audio backend/device overrides.
+            mpv_cmd = ["mpv", "--no-video", "--really-quiet"]
+            mpv_ao = os.environ.get("QURAN_MPV_AO", "").strip()
+            mpv_audio_device = os.environ.get("QURAN_MPV_AUDIO_DEVICE", "").strip()
+            mpv_extra = os.environ.get("QURAN_MPV_EXTRA_ARGS", "").strip()
+
+            if mpv_ao:
+                mpv_cmd.append(f"--ao={mpv_ao}")
+            if mpv_audio_device:
+                mpv_cmd.append(f"--audio-device={mpv_audio_device}")
+            if mpv_extra:
+                mpv_cmd.extend(shlex.split(mpv_extra))
+
+            mpv_cmd.append(audio_url)
+            print(f"  mpv playback command: {' '.join(mpv_cmd)}")
+
             self.current_process = subprocess.Popen(
-                ["mpv", "--no-video", "--really-quiet", audio_url],
+                mpv_cmd,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.PIPE,
+                text=True
             )
 
             # Wait for playback to complete
@@ -358,7 +375,21 @@ class QuranChainer:
 
                 time.sleep(0.1)
 
+            return_code = self.current_process.returncode
+            stderr_text = ""
+            if self.current_process.stderr:
+                try:
+                    stderr_text = self.current_process.stderr.read().strip()
+                except Exception:
+                    stderr_text = ""
+
             self.current_process = None
+            if return_code != 0:
+                if stderr_text:
+                    print(f"mpv exited with code {return_code}: {stderr_text}")
+                else:
+                    print(f"mpv exited with code {return_code}")
+                return False
             return True
 
         except FileNotFoundError:
