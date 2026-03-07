@@ -47,11 +47,15 @@ RUNTIME_UID="$(id -u)"
 RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
 
 # Ensure user audio runtime env is available under systemd service context.
-if [ -d "$RUNTIME_DIR_DEFAULT" ]; then
-    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
+if [ -z "${XDG_RUNTIME_DIR:-}" ] || [[ "${XDG_RUNTIME_DIR}" == *"%"* ]] || [ ! -d "${XDG_RUNTIME_DIR}" ]; then
+    if [ -d "$RUNTIME_DIR_DEFAULT" ]; then
+        export XDG_RUNTIME_DIR="$RUNTIME_DIR_DEFAULT"
+    fi
 fi
 if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; then
-    export PULSE_SERVER="${PULSE_SERVER:-unix:${XDG_RUNTIME_DIR}/pulse/native}"
+    if [ -z "${PULSE_SERVER:-}" ] || [[ "${PULSE_SERVER}" == *"%"* ]]; then
+        export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+    fi
 fi
 
 # Prefer shared Pulse capture and pin default source to the intended USB mic.

@@ -13,8 +13,6 @@ Environment=PYTHONUNBUFFERED=1
 Environment=OMP_NUM_THREADS=2
 Environment=OPENBLAS_NUM_THREADS=2
 Environment=NUMEXPR_NUM_THREADS=2
-Environment=XDG_RUNTIME_DIR=/run/user/%U
-Environment=PULSE_SERVER=unix:/run/user/%U/pulse/native
 Environment=HEARTBEAT_FILE=/home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/logs/voice_listener.heartbeat
 Environment=VOICE_DEVICE=pulse
 Environment=VOICE_REQUIRE_PULSE=1
