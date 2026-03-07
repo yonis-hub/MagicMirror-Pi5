@@ -43,6 +43,8 @@ VOICE_SINK="${VOICE_SINK:-bluez_output.FC_A8_9A_F6_FB_DA.1}"
 VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=ME6S,DEV=0}"
 VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
 VOICE_REQUIRE_PULSE="${VOICE_REQUIRE_PULSE:-1}"
+VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-120%}"
+VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-100%}"
 RUNTIME_UID="$(id -u)"
 RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
 
@@ -74,12 +76,15 @@ if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
         if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
             pactl set-default-sink "$VOICE_SINK" || true
             pactl set-sink-mute "$VOICE_SINK" 0 || true
+            pactl set-sink-volume "$VOICE_SINK" "$VOICE_SINK_VOLUME" || true
             log "Pulse sink pinned: $VOICE_SINK"
         else
             log "WARNING: Pulse sink not found: $VOICE_SINK (using current default sink)"
         fi
         if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
             pactl set-default-source "$VOICE_SOURCE" || true
+            pactl set-source-mute "$VOICE_SOURCE" 0 || true
+            pactl set-source-volume "$VOICE_SOURCE" "$VOICE_SOURCE_VOLUME" || true
             log "Pulse source pinned: $VOICE_SOURCE"
         else
             log "WARNING: Pulse source not found: $VOICE_SOURCE (using current default source)"
