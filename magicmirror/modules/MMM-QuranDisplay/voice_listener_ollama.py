@@ -299,6 +299,14 @@ COMMON_REPLACEMENTS = {
     "mode": "mo",
     "more": "mo",
     "moe": "mo",
+    "mow": "mo",
+    "moh": "mo",
+    "oh play": "mo play",
+    "oh recite": "mo recite",
+    "oh stop": "mo stop",
+    "oh pause": "mo pause",
+    "oh resume": "mo resume",
+    "oh surah": "mo surah",
     "sir": "surah",
     "sarah": "surah",
     "circle": "surah",
@@ -332,7 +340,7 @@ WORD_REPLACEMENT_PATTERN = re.compile(
     r"\b(" + "|".join(map(re.escape, WORD_REPLACEMENTS.keys())) + r")\b"
 ) if WORD_REPLACEMENTS else None
 
-WAKE_WORDS = {"mo", "moe", "mow", "more", "moh", "mohammed", "mohammad", "mohamed", "mohd", "mohamad"}
+WAKE_WORDS = {"mo"}
 
 STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
 PAUSE_KEYWORDS = {"pause", "hold", "wait"}
@@ -1095,6 +1103,9 @@ class OllamaVoiceListener:
         if not text:
             return ""
         text = text.lower().strip()
+
+        # Handle "oh, play ..." style wake-word miss heard as "oh".
+        text = re.sub(r"\boh[\s,]+(?=(play|recite|stop|pause|resume|surah)\b)", "mo ", text)
 
         # Apply phrase replacements first (multi-word expressions)
         for src, dst in PHRASE_REPLACEMENTS.items():
