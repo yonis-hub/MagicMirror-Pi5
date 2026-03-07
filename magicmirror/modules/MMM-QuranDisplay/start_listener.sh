@@ -36,6 +36,7 @@ fi
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
 export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-2}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 VOICE_DEVICE="${VOICE_DEVICE:-plughw:CARD=ME6S,DEV=0}"
 
 if [ "$#" -eq 0 ]; then
@@ -63,7 +64,7 @@ touch "$HEARTBEAT_FILE"
 HEARTBEAT_PID=$!
 
 set +e
-python3 "$LISTENER_SCRIPT" "$@" 2>&1 | tee -a "$LOG_FILE"
+python3 -u "$LISTENER_SCRIPT" "$@" 2>&1 | tee -a "$LOG_FILE"
 PYTHON_EXIT=${PIPESTATUS[0]}
 set -e
 
