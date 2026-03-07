@@ -9,6 +9,8 @@ sudo cp ~/MagicMirror-Pi5/deploy/systemd/magicmirror@.service /etc/systemd/syste
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/quran-voice@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.timer /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/myscoreboard-update@.service /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/myscoreboard-update@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
@@ -27,6 +29,7 @@ sudo systemctl restart ollama
 sudo systemctl enable --now magicmirror@hyonis.service
 sudo systemctl enable --now quran-voice@hyonis.service
 sudo systemctl enable --now mm-healthcheck@hyonis.timer
+sudo systemctl enable --now myscoreboard-update@hyonis.timer
 ```
 
 Replace `hyonis` with your Pi username if different.
@@ -37,6 +40,7 @@ Replace `hyonis` with your Pi username if different.
 systemctl status magicmirror@hyonis --no-pager
 systemctl status quran-voice@hyonis --no-pager
 systemctl status mm-healthcheck@hyonis.timer --no-pager
+systemctl status myscoreboard-update@hyonis.timer --no-pager
 systemctl status ollama --no-pager
 journalctl -u magicmirror@hyonis -n 100 --no-pager
 journalctl -u quran-voice@hyonis -n 100 --no-pager
@@ -46,6 +50,7 @@ journalctl -u quran-voice@hyonis -n 100 --no-pager
 
 ```bash
 sudo systemctl disable --now mm-healthcheck@hyonis.timer
+sudo systemctl disable --now myscoreboard-update@hyonis.timer
 sudo systemctl disable --now quran-voice@hyonis.service
 sudo systemctl disable --now magicmirror@hyonis.service
 ```
@@ -54,4 +59,5 @@ sudo systemctl disable --now magicmirror@hyonis.service
 
 - `quran-voice@.service` now writes a heartbeat file used by `mm-healthcheck@.timer`.
 - `mm-healthcheck@.timer` runs every minute and restarts Mirror/voice/Ollama when unhealthy.
+- `myscoreboard-update@.timer` runs every 12 hours, updates `MMM-MyScoreboard`, and restarts MagicMirror if changes were applied.
 - For strict local/offline Quran playback, keep `quran_data` complete.

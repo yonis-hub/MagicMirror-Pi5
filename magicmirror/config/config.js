@@ -45,6 +45,14 @@ let config = {
 			position: "top_bar"
 		},
 		{
+			module: "MMM-BismillahBanner",
+			position: "top_bar",
+			config: {
+				showLigature: false,
+				showTransliteration: false
+			}
+		},
+		{
 			module: "MMM-MyPrayerTimes",
 			position: "top_left",
 			header: "Prayer Times",

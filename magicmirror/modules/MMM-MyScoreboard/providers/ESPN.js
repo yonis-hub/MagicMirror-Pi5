@@ -8,6 +8,7 @@
     NCAAF (College Football, FBS Division)
     NCAAM (College Basketball. Division I)
     NCAAM_MM (College Basketball, March Madness Tournament)
+    NCAAB (College Baseball)
     MLB (Major League Baseball)
     NHL
     NFL
@@ -52,6 +53,7 @@ module.exports = {
     'NCAAM': 'basketball/mens-college-basketball',
     'NCAAM_MM': 'basketball/mens-college-basketball',
     'NCAAW': 'basketball/womens-college-basketball',
+    'NCAAB': 'baseball/college-baseball',
     'PLL': 'lacrosse/pll',
     'NLL': 'lacrosse/nll',
     'MLB': 'baseball/mlb',
@@ -59,6 +61,7 @@ module.exports = {
     'NHL': 'hockey/nhl',
     'MLS': 'soccer/usa.1',
     'RUGBY': 'rugby/scorepanel',
+    'WBC': 'baseball/world-baseball-classic',
 
     // International Soccer
     'AFC_ASIAN_CUP': 'soccer/afc.cup',
@@ -705,8 +708,6 @@ module.exports = {
       var broadcast = []
       var classes = []
 
-      var gameState = 0
-
       var hTeamData = game.competitions[0].competitors[0]
       var vTeamData = game.competitions[0].competitors[1]
 
@@ -834,7 +835,7 @@ module.exports = {
         // Not started
         case '5': // cancelled
         case '6': // postponed
-          gameState = 0
+          var gameState = 0
           status.push(game.status.type.detail)
           break
         case '0' : // TBD
@@ -936,12 +937,10 @@ module.exports = {
       }
 
       // determine which display name to use
-      var hTeamLong = ''
-      var vTeamLong = ''
       // For college sports, use the displayName property
-      if (payload.league == 'NCAAF' || payload.league == 'NCAAM') {
-        hTeamLong = (hTeamData.team.abbreviation == undefined ? '' : hTeamData.team.abbreviation + ' ') + hTeamData.team.name
-        vTeamLong = (vTeamData.team.abbreviation == undefined ? '' : vTeamData.team.abbreviation + ' ') + vTeamData.team.name
+      if (payload.league.startsWith('NCAA')) {
+        var hTeamLong = (hTeamData.team.abbreviation == undefined ? '' : hTeamData.team.abbreviation + ' ') + hTeamData.team.name
+        var vTeamLong = (vTeamData.team.abbreviation == undefined ? '' : vTeamData.team.abbreviation + ' ') + vTeamData.team.name
       }
       else { // use the shortDisplayName property
         hTeamLong = hTeamData.team.shortDisplayName
@@ -988,8 +987,8 @@ module.exports = {
           vTeam: vTeamData.team.abbreviation == undefined ? vTeamData.team.name.substring(0, 4).toUpperCase() + ' ' : vTeamData.team.abbreviation,
           hTeamLong: hTeamLong,
           vTeamLong: vTeamLong,
-          hTeamRanking: (payload.league == 'NCAAF' || payload.league == 'NCAAM') ? this.formatT25Ranking(hTeamData.curatedRank.current) : null,
-          vTeamRanking: (payload.league == 'NCAAF' || payload.league == 'NCAAM') ? this.formatT25Ranking(vTeamData.curatedRank.current) : null,
+          hTeamRanking: (payload.league.startsWith('NCAA') && hTeamData.curatedRank) ? this.formatT25Ranking(hTeamData.curatedRank.current) : null,
+          vTeamRanking: (payload.league.startsWith('NCAA') && vTeamData.curatedRank) ? this.formatT25Ranking(vTeamData.curatedRank.current) : null,
           hScore: parseInt(hTeamData.score),
           vScore: parseInt(vTeamData.score),
           status: status,

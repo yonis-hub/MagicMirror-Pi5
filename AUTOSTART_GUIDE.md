@@ -23,6 +23,8 @@ sudo cp ~/MagicMirror-Pi5/deploy/systemd/magicmirror@.service /etc/systemd/syste
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/quran-voice@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.timer /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/myscoreboard-update@.service /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/myscoreboard-update@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
@@ -41,6 +43,7 @@ sudo systemctl restart ollama
 sudo systemctl enable --now magicmirror@hyonis.service
 sudo systemctl enable --now quran-voice@hyonis.service
 sudo systemctl enable --now mm-healthcheck@hyonis.timer
+sudo systemctl enable --now myscoreboard-update@hyonis.timer
 ```
 
 Replace `hyonis` with your actual Pi username.
@@ -51,6 +54,7 @@ Replace `hyonis` with your actual Pi username.
 systemctl status magicmirror@hyonis --no-pager
 systemctl status quran-voice@hyonis --no-pager
 systemctl status mm-healthcheck@hyonis.timer --no-pager
+systemctl status myscoreboard-update@hyonis.timer --no-pager
 systemctl status ollama --no-pager
 ```
 
@@ -65,4 +69,5 @@ bash ~/MagicMirror-Pi5/deploy/pi_cleanup.sh --apply
 
 - Voice heartbeat file is maintained automatically by `start_listener.sh`.
 - Healthcheck timer restarts services if the heartbeat goes stale.
+- Scoreboard updater timer refreshes `MMM-MyScoreboard` from upstream every 12 hours.
 - Adhkar tracks are local-first from `magicmirror/modules/MMM-MyPrayerTimes/adhkar/`.

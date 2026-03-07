@@ -1,0 +1,27 @@
+.mmm-bismillah-banner {
+  text-align: center;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.mmm-bismillah-banner .bismillah-arabic {
+  font-family: "Scheherazade New", "Noto Naskh Arabic", Amiri, "Traditional Arabic", serif;
+  font-size: 1.35em;
+  color: #f4e29f;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.mmm-bismillah-banner .bismillah-ligature {
+  font-family: "Scheherazade New", "Noto Naskh Arabic", Amiri, "Traditional Arabic", serif;
+  font-size: 1.9em;
+  color: #f4e29f;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.mmm-bismillah-banner .bismillah-transliteration {
+  color: #a5a5a5;
+  font-size: 0.73em;
+  margin-top: 2px;
+}
