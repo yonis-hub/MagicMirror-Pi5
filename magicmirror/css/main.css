@@ -1,6 +1,6 @@
 :root {
-  --color-text: #999;
-  --color-text-dimmed: #666;
+  --color-text: #e6e6e6;
+  --color-text-dimmed: #999;
   --color-text-bright: #fff;
   --color-background: #000;
   --font-primary: "Roboto Condensed";
@@ -57,6 +57,14 @@ body {
 
 .bright {
   color: var(--color-text-bright);
+}
+
+/* Global text boost: render all text 50% closer to white. */
+.module,
+.module *,
+.region,
+.region * {
+  color: color-mix(in srgb, currentColor 50%, white) !important;
 }
 
 .xsmall {
