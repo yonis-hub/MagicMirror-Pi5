@@ -40,6 +40,7 @@ export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 VOICE_DEVICE="${VOICE_DEVICE:-pulse}"
 VOICE_SOURCE="${VOICE_SOURCE:-alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback}"
 VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=ME6S,DEV=0}"
+VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
 RUNTIME_UID="$(id -u)"
 RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
 
@@ -55,7 +56,7 @@ fi
 if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
     # Give PipeWire/Pulse a moment after boot before falling back.
     PULSE_READY=0
-    for _ in 1 2 3 4 5; do
+    for _ in $(seq 1 "$VOICE_PULSE_WAIT_SEC"); do
         if pactl info >/dev/null 2>&1; then
             PULSE_READY=1
             break

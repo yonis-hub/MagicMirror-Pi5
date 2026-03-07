@@ -13,9 +13,12 @@ Environment=PYTHONUNBUFFERED=1
 Environment=OMP_NUM_THREADS=2
 Environment=OPENBLAS_NUM_THREADS=2
 Environment=NUMEXPR_NUM_THREADS=2
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=PULSE_SERVER=unix:/run/user/%U/pulse/native
 Environment=HEARTBEAT_FILE=/home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/logs/voice_listener.heartbeat
 Environment=VOICE_DEVICE=pulse
 Environment=VOICE_SOURCE=alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback
+Environment=VOICE_PULSE_WAIT_SEC=30
 ExecStartPre=/usr/bin/test -x /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 ExecStart=/bin/bash /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 Restart=always
