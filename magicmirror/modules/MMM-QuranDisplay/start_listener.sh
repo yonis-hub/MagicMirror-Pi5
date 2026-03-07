@@ -40,10 +40,30 @@ export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 VOICE_DEVICE="${VOICE_DEVICE:-pulse}"
 VOICE_SOURCE="${VOICE_SOURCE:-alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback}"
 VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=ME6S,DEV=0}"
+RUNTIME_UID="$(id -u)"
+RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
+
+# Ensure user audio runtime env is available under systemd service context.
+if [ -d "$RUNTIME_DIR_DEFAULT" ]; then
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
+fi
+if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; then
+    export PULSE_SERVER="${PULSE_SERVER:-unix:${XDG_RUNTIME_DIR}/pulse/native}"
+fi
 
 # Prefer shared Pulse capture and pin default source to the intended USB mic.
 if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
-    if pactl info >/dev/null 2>&1; then
+    # Give PipeWire/Pulse a moment after boot before falling back.
+    PULSE_READY=0
+    for _ in 1 2 3 4 5; do
+        if pactl info >/dev/null 2>&1; then
+            PULSE_READY=1
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "$PULSE_READY" -eq 1 ]; then
         if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
             pactl set-default-source "$VOICE_SOURCE" || true
             log "Pulse source pinned: $VOICE_SOURCE"
