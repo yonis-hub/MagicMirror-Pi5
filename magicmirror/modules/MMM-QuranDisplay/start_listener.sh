@@ -39,15 +39,24 @@ export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 VOICE_DEVICE="${VOICE_DEVICE:-pulse}"
 VOICE_SOURCE="${VOICE_SOURCE:-alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback}"
+VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=ME6S,DEV=0}"
 
 # Prefer shared Pulse capture and pin default source to the intended USB mic.
 if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
-    if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
-        pactl set-default-source "$VOICE_SOURCE" || true
-        log "Pulse source pinned: $VOICE_SOURCE"
+    if pactl info >/dev/null 2>&1; then
+        if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
+            pactl set-default-source "$VOICE_SOURCE" || true
+            log "Pulse source pinned: $VOICE_SOURCE"
+        else
+            log "WARNING: Pulse source not found: $VOICE_SOURCE (using current default source)"
+        fi
     else
-        log "WARNING: Pulse source not found: $VOICE_SOURCE"
+        log "WARNING: Pulse server unavailable; falling back to ALSA device: $VOICE_DEVICE_FALLBACK"
+        VOICE_DEVICE="$VOICE_DEVICE_FALLBACK"
     fi
+elif [ "$VOICE_DEVICE" = "pulse" ]; then
+    log "WARNING: pactl not found; falling back to ALSA device: $VOICE_DEVICE_FALLBACK"
+    VOICE_DEVICE="$VOICE_DEVICE_FALLBACK"
 fi
 
 if [ "$#" -eq 0 ]; then
