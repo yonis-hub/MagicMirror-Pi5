@@ -68,6 +68,18 @@ module.exports = NodeHelper.create({
 			this.sendSocketNotification("PROCESSING_STATUS", { isProcessing });
 			res.status(200).json({ status: "success" });
 		});
+
+		// API endpoint for latest recognized transcript/phrase
+		this.expressApp.post("/api/quran/transcript", (req, res) => {
+			const { text, phase, rawText } = req.body || {};
+			this.sendSocketNotification("VOICE_TRANSCRIPT", {
+				text: text || "",
+				phase: phase || "idle",
+				rawText: rawText || "",
+				updatedAt: Date.now()
+			});
+			res.status(200).json({ status: "success" });
+		});
 	},
 
 	logDebug: function (...parts) {

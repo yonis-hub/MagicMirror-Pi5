@@ -13,6 +13,7 @@ Module.register("MMM-QuranDisplay", {
 		hideBismillahForSurah9: true,
 		bismillahText: "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064e\u0651\u0647\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0652\u0645\u064e\u0646\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0650\u064a\u0645\u0650",
 		showAdhkarNowPlaying: true,
+		showVoiceTranscript: true,
 		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
 		animationSpeed: 500,
 		fontSize: {
@@ -39,6 +40,12 @@ Module.register("MMM-QuranDisplay", {
 			total: 0,
 			title: "",
 			titleArabic: ""
+		};
+		this.voiceTranscript = {
+			text: "",
+			phase: "idle",
+			rawText: "",
+			updatedAt: 0
 		};
 
 		this.sendSocketNotification("MODULE_READY", {
@@ -151,6 +158,51 @@ Module.register("MMM-QuranDisplay", {
 		return true;
 	},
 
+	getWaitingText: function () {
+		if (this.isProcessing) {
+			return "Hold on... finding your request.";
+		}
+		if (this.isRecording) {
+			return "Recording command...";
+		}
+		return 'Say "Mo, play Surah 1"';
+	},
+
+	getTranscriptPhaseLabel: function () {
+		const phase = String(this.voiceTranscript?.phase || "").toLowerCase();
+		if (phase === "processing") {
+			return "Heard";
+		}
+		if (phase === "unrecognized") {
+			return "Could not parse";
+		}
+		if (phase === "wake") {
+			return "Wake word";
+		}
+		return "Recorded";
+	},
+
+	renderVoiceTranscript: function (wrapper) {
+		if (!this.config.showVoiceTranscript || !this.voiceTranscript?.text) {
+			return;
+		}
+
+		const transcriptDiv = document.createElement("div");
+		transcriptDiv.className = "voice-transcript";
+
+		const labelDiv = document.createElement("div");
+		labelDiv.className = "voice-transcript-label";
+		labelDiv.textContent = this.getTranscriptPhaseLabel();
+		transcriptDiv.appendChild(labelDiv);
+
+		const textDiv = document.createElement("div");
+		textDiv.className = "voice-transcript-text";
+		textDiv.textContent = `"${this.voiceTranscript.text}"`;
+		transcriptDiv.appendChild(textDiv);
+
+		wrapper.appendChild(transcriptDiv);
+	},
+
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-quran-display";
@@ -160,15 +212,10 @@ Module.register("MMM-QuranDisplay", {
 			if (!hasAdhkarNowPlaying) {
 				const waitingDiv = document.createElement("div");
 				waitingDiv.className = "waiting";
-				if (this.isProcessing) {
-					waitingDiv.textContent = "Processing request...";
-				} else if (this.isRecording) {
-					waitingDiv.textContent = "Listening to your request...";
-				} else {
-					waitingDiv.textContent = 'Say "Mo, play Surah Fatiha"';
-				}
+				waitingDiv.textContent = this.getWaitingText();
 				wrapper.appendChild(waitingDiv);
 			}
+			this.renderVoiceTranscript(wrapper);
 			this.renderStatusIndicators(wrapper);
 			return wrapper;
 		}
@@ -244,6 +291,14 @@ Module.register("MMM-QuranDisplay", {
 			this.updateDom(0);
 		} else if (notification === "PROCESSING_STATUS") {
 			this.isProcessing = payload.isProcessing;
+			this.updateDom(0);
+		} else if (notification === "VOICE_TRANSCRIPT") {
+			this.voiceTranscript = {
+				text: payload && payload.text ? payload.text : "",
+				phase: payload && payload.phase ? payload.phase : "idle",
+				rawText: payload && payload.rawText ? payload.rawText : "",
+				updatedAt: payload && payload.updatedAt ? payload.updatedAt : Date.now()
+			};
 			this.updateDom(0);
 		}
 	},

@@ -688,6 +688,7 @@ class OllamaVoiceListener:
         self._last_listening_status = None
         self._last_recording_status = None
         self._last_processing_status = None
+        self._last_transcript_payload = None
         self._last_memory_check = 0.0
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
@@ -1005,7 +1006,8 @@ class OllamaVoiceListener:
         print("  No active recitation process to resume.")
         return False
 
-    def process_command(self, command_text):
+    def process_command(self, command_text, raw_text=None):
+        self.send_transcript_status(command_text, phase="processing", raw_text=raw_text or command_text)
         self.send_processing_status(True)
         self.send_listening_status(False)
         try:
@@ -1027,6 +1029,7 @@ class OllamaVoiceListener:
             confidence = intent.get("confidence", DEFAULT_CONFIDENCE)
             print(f"  Parser mode={self.parser_mode}, action={action}, confidence={confidence:.2f}, parse_ms={parse_ms:.1f}")
             if action == "none" or (confidence < 0.4 and action not in {"stop", "pause", "resume"}):
+                self.send_transcript_status(command_text, phase="unrecognized", raw_text=raw_text or command_text)
                 self.play_error()
                 print("  (Command not understood)")
                 return
@@ -1058,6 +1061,7 @@ class OllamaVoiceListener:
                 self.play_confirmation()
                 self.stop_playback()
             else:
+                self.send_transcript_status(command_text, phase="unrecognized", raw_text=raw_text or command_text)
                 self.play_error()
                 print("  (Command not executed)")
         finally:
@@ -1100,7 +1104,7 @@ class OllamaVoiceListener:
 
         return text
 
-    def record_audio(self, duration=5):  # Default duration changed to 5 seconds
+    def record_audio(self, duration=5, show_recording=False):
         """Record audio using arecord"""
         capture_seconds = max(1, int(math.ceil(duration)))
         timeout = capture_seconds + 7  # Additional buffer for device initialization
@@ -1109,7 +1113,9 @@ class OllamaVoiceListener:
             f"(arecord capture: {capture_seconds}s)..."
         )
         temp_file = None
-        self.send_recording_status(True)
+        if show_recording:
+            self.send_listening_status(False)
+            self.send_recording_status(True)
 
         try:
             # Verify device exists
@@ -1153,7 +1159,9 @@ class OllamaVoiceListener:
         finally:
             if temp_file and not os.path.exists(temp_file):
                 temp_file = None
-            self.send_recording_status(False)
+            if show_recording:
+                self.send_recording_status(False)
+                self.send_listening_status(True)
 
     def is_silent(self, audio_file, threshold=100):  # Reduced threshold
         """Check if the audio file is silent by checking maximum amplitude"""
@@ -1411,6 +1419,22 @@ class OllamaVoiceListener:
         except Exception as e:
             print(f" Could not send processing status: {e}")
 
+    def send_transcript_status(self, text="", phase="idle", raw_text=""):
+        """Send latest recognized phrase to MagicMirror"""
+        payload = {
+            "text": (text or "").strip(),
+            "phase": str(phase or "idle"),
+            "rawText": (raw_text or "").strip()
+        }
+        if self._last_transcript_payload == payload:
+            return
+        self._last_transcript_payload = payload
+        try:
+            url = f"{self.mirror_url}/api/quran/transcript"
+            requests.post(url, json=payload, timeout=1)
+        except Exception as e:
+            print(f" Could not send transcript status: {e}")
+
     def send_playback_status(self, playing):
         """Send playback status to MagicMirror"""
         try:
@@ -1506,11 +1530,12 @@ class OllamaVoiceListener:
         self.send_processing_status(False)
         self.send_recording_status(False)
         self.send_listening_status(True)
+        self.send_transcript_status("", phase="idle")
 
         while self.is_running:
             try:
                 wake_record_started_at = time.perf_counter()
-                audio_file = self.record_audio(self.wake_window_sec)
+                audio_file = self.record_audio(self.wake_window_sec, show_recording=False)
                 wake_record_ms = (time.perf_counter() - wake_record_started_at) * 1000
                 if not audio_file:
                     continue
@@ -1544,6 +1569,7 @@ class OllamaVoiceListener:
 
                     if wake_detected:
                         should_handle = True
+                        self.send_transcript_status(text_fixed, phase="wake", raw_text=text)
                         if command_hint_present and command_candidate:
                             immediate_text = command_candidate
                             print("  Wake word and command detected in same utterance.")
@@ -1556,6 +1582,7 @@ class OllamaVoiceListener:
 
                     if should_handle:
                         command_text = immediate_text or ""
+                        command_raw_text = command_text
                         command_record_ms = 0.0
                         command_stt_ms = 0.0
 
@@ -1563,10 +1590,11 @@ class OllamaVoiceListener:
                             if command_hint_present:
                                 print("  Using full command from initial detection")
                                 command_text = command_candidate
+                                command_raw_text = command_candidate
                             else:
                                 print("  Recording command...")
                                 command_record_started_at = time.perf_counter()
-                                audio_file = self.record_audio(self.command_window_sec)
+                                audio_file = self.record_audio(self.command_window_sec, show_recording=True)
                                 command_record_ms = (time.perf_counter() - command_record_started_at) * 1000
 
                                 if not audio_file:
@@ -1583,12 +1611,17 @@ class OllamaVoiceListener:
                                 command_stt_ms = (time.perf_counter() - command_stt_started_at) * 1000
                                 if text:
                                     print(f"  Raw Input: '{text}'")
+                                    command_raw_text = text
                                     command_text = self.normalize_speech(text)
                                     command_text = self.remove_wake_words(command_text)
                                     print(f"  Processing: '{command_text}'")
 
                         if not command_text:
                             continue
+
+                        self.send_transcript_status(command_text, phase="captured", raw_text=command_raw_text)
+                        if self.enable_voice:
+                            self.speak(f"I heard: {command_text}. Hold on.")
 
                         print(
                             "  Timing ms: "
@@ -1599,7 +1632,7 @@ class OllamaVoiceListener:
                         if self.confirm_command(command_text):
                             print("  Command confirmed.")
                             command_processing_started_at = time.perf_counter()
-                            self.process_command(command_text)
+                            self.process_command(command_text, raw_text=command_raw_text)
                             command_processing_ms = (time.perf_counter() - command_processing_started_at) * 1000
                             self.timing_history.append({
                                 "wake_record_ms": wake_record_ms,
@@ -1625,6 +1658,7 @@ class OllamaVoiceListener:
         self.send_processing_status(False)
         self.send_recording_status(False)
         self.send_listening_status(False)
+        self.send_transcript_status("", phase="idle")
         self.stop_playback()
 
 

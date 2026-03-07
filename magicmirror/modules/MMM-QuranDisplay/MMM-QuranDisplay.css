@@ -16,6 +16,28 @@
   padding-top: 26px;
 }
 
+.mmm-quran-display .voice-transcript {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  background: rgb(255 255 255 / 5%);
+}
+
+.mmm-quran-display .voice-transcript-label {
+  color: #9f9f9f;
+  font-size: 0.72em;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.mmm-quran-display .voice-transcript-text {
+  color: #f2f2f2;
+  font-size: 0.9em;
+  line-height: 1.3;
+  margin-top: 3px;
+}
+
 .mmm-quran-display .adhkar-now-playing {
   margin-bottom: 10px;
   padding: 8px 10px;
