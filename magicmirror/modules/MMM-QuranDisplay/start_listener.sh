@@ -37,7 +37,18 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
 export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-2}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
-VOICE_DEVICE="${VOICE_DEVICE:-plughw:CARD=ME6S,DEV=0}"
+VOICE_DEVICE="${VOICE_DEVICE:-pulse}"
+VOICE_SOURCE="${VOICE_SOURCE:-alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback}"
+
+# Prefer shared Pulse capture and pin default source to the intended USB mic.
+if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
+    if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
+        pactl set-default-source "$VOICE_SOURCE" || true
+        log "Pulse source pinned: $VOICE_SOURCE"
+    else
+        log "WARNING: Pulse source not found: $VOICE_SOURCE"
+    fi
+fi
 
 if [ "$#" -eq 0 ]; then
     # Tuned defaults for always-on wall mirror mode.
