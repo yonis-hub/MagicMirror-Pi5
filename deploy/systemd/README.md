@@ -44,6 +44,13 @@ systemctl status myscoreboard-update@hyonis.timer --no-pager
 systemctl status ollama --no-pager
 journalctl -u magicmirror@hyonis -n 100 --no-pager
 journalctl -u quran-voice@hyonis -n 100 --no-pager
+journalctl -u myscoreboard-update@hyonis.service -n 100 --no-pager
+```
+
+Manual one-shot scoreboard refresh:
+
+```bash
+sudo systemctl start myscoreboard-update@hyonis.service
 ```
 
 ## 5) Disable (if needed)
@@ -59,5 +66,5 @@ sudo systemctl disable --now magicmirror@hyonis.service
 
 - `quran-voice@.service` now writes a heartbeat file used by `mm-healthcheck@.timer`.
 - `mm-healthcheck@.timer` runs every minute and restarts Mirror/voice/Ollama when unhealthy.
-- `myscoreboard-update@.timer` runs every 12 hours, updates `MMM-MyScoreboard`, and restarts MagicMirror if changes were applied.
+- `myscoreboard-update@.timer` runs daily (and shortly after boot), updates `MMM-MyScoreboard`, and restarts MagicMirror only when changes were applied.
 - For strict local/offline Quran playback, keep `quran_data` complete.

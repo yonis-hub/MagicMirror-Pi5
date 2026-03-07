@@ -13,6 +13,19 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
+tree_hash() {
+  local dir="$1"
+  (
+    cd "$dir"
+    find . \
+      -mindepth 1 \
+      -type f \
+      ! -path "./.git/*" \
+      ! -path "./logos_custom/*" \
+      -print0 | sort -z | xargs -0 sha256sum
+  ) | sha256sum | awk '{print $1}'
+}
+
 cleanup() {
   rm -rf "${TMP_DIR}"
 }
@@ -37,21 +50,27 @@ if [[ -d "${MODULE_DIR}/.git" ]]; then
   fi
 else
   git clone --depth 1 --branch "${BRANCH}" "${UPSTREAM_URL}" "${TMP_DIR}/upstream"
+  LOCAL_HASH="$(tree_hash "${MODULE_DIR}")"
+  UPSTREAM_HASH="$(tree_hash "${TMP_DIR}/upstream")"
 
-  if [[ -d "${MODULE_DIR}/logos_custom" ]]; then
-    cp -a "${MODULE_DIR}/logos_custom" "${TMP_DIR}/logos_custom_backup"
+  if [[ "${LOCAL_HASH}" == "${UPSTREAM_HASH}" ]]; then
+    log "MMM-MyScoreboard snapshot already up to date"
+  else
+    if [[ -d "${MODULE_DIR}/logos_custom" ]]; then
+      cp -a "${MODULE_DIR}/logos_custom" "${TMP_DIR}/logos_custom_backup"
+    fi
+
+    find "${MODULE_DIR}" -mindepth 1 -maxdepth 1 ! -name "logos_custom" -exec rm -rf {} +
+    cp -a "${TMP_DIR}/upstream"/. "${MODULE_DIR}/"
+    rm -rf "${MODULE_DIR}/.git"
+
+    if [[ -d "${TMP_DIR}/logos_custom_backup" ]]; then
+      rm -rf "${MODULE_DIR}/logos_custom"
+      mv "${TMP_DIR}/logos_custom_backup" "${MODULE_DIR}/logos_custom"
+    fi
+
+    UPDATED=1
   fi
-
-  find "${MODULE_DIR}" -mindepth 1 -maxdepth 1 ! -name "logos_custom" -exec rm -rf {} +
-  cp -a "${TMP_DIR}/upstream"/. "${MODULE_DIR}/"
-  rm -rf "${MODULE_DIR}/.git"
-
-  if [[ -d "${TMP_DIR}/logos_custom_backup" ]]; then
-    rm -rf "${MODULE_DIR}/logos_custom"
-    mv "${TMP_DIR}/logos_custom_backup" "${MODULE_DIR}/logos_custom"
-  fi
-
-  UPDATED=1
 fi
 
 if [[ "${UPDATED}" -eq 1 ]]; then

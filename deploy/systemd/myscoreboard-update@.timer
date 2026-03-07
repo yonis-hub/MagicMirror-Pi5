@@ -1,9 +1,9 @@
 [Unit]
-Description=Run MMM-MyScoreboard updater every 12h for user %i
+Description=Run MMM-MyScoreboard updater daily for user %i
 
 [Timer]
-OnBootSec=4m
-OnUnitActiveSec=12h
+OnBootSec=2m
+OnUnitActiveSec=1d
 Unit=myscoreboard-update@%i.service
 Persistent=true
 

@@ -58,6 +58,13 @@ systemctl status myscoreboard-update@hyonis.timer --no-pager
 systemctl status ollama --no-pager
 ```
 
+Manual one-shot scoreboard update:
+
+```bash
+sudo systemctl start myscoreboard-update@hyonis.service
+journalctl -u myscoreboard-update@hyonis.service -n 100 --no-pager
+```
+
 ## 6) Optional cleanup pass
 
 ```bash
@@ -69,5 +76,5 @@ bash ~/MagicMirror-Pi5/deploy/pi_cleanup.sh --apply
 
 - Voice heartbeat file is maintained automatically by `start_listener.sh`.
 - Healthcheck timer restarts services if the heartbeat goes stale.
-- Scoreboard updater timer refreshes `MMM-MyScoreboard` from upstream every 12 hours.
+- Scoreboard updater timer refreshes `MMM-MyScoreboard` from upstream daily (plus boot-time run).
 - Adhkar tracks are local-first from `magicmirror/modules/MMM-MyPrayerTimes/adhkar/`.

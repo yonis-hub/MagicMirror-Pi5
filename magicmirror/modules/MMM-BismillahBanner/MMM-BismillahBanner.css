@@ -2,20 +2,24 @@
   text-align: center;
   margin-top: 6px;
   width: 100%;
+  --bismillah-font-scale: 1.25;
+  --bismillah-text-color: #ffffff;
+  --bismillah-arabic-font-family: "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  --bismillah-ligature-font-family: "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif;
 }
 
 .mmm-bismillah-banner .bismillah-arabic {
-  font-family: "Scheherazade New", "Noto Naskh Arabic", Amiri, "Traditional Arabic", serif;
-  font-size: 1.35em;
-  color: #f4e29f;
+  font-family: var(--bismillah-arabic-font-family);
+  font-size: calc(1.35em * var(--bismillah-font-scale));
+  color: var(--bismillah-text-color);
   line-height: 1.25;
   letter-spacing: 0;
 }
 
 .mmm-bismillah-banner .bismillah-ligature {
-  font-family: "Scheherazade New", "Noto Naskh Arabic", Amiri, "Traditional Arabic", serif;
-  font-size: 1.9em;
-  color: #f4e29f;
+  font-family: var(--bismillah-ligature-font-family);
+  font-size: calc(1.9em * var(--bismillah-font-scale));
+  color: var(--bismillah-text-color);
   line-height: 1;
   margin-top: 2px;
 }

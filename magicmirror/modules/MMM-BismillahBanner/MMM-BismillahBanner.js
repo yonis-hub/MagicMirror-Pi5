@@ -10,16 +10,49 @@ Module.register("MMM-BismillahBanner", {
 		ligatureText: "\uFDFD",
 		showLigature: false,
 		showTransliteration: false,
-		transliteration: "Bismillah ir-Rahman ir-Rahim"
+		transliteration: "Bismillah ir-Rahman ir-Rahim",
+		stylePreset: "classical-naskh",
+		fontScale: 1.25,
+		textColor: "#ffffff"
 	},
 
 	getStyles: function () {
 		return [this.file("MMM-BismillahBanner.css")];
 	},
 
+	getStylePresets: function () {
+		return {
+			"classical-naskh": {
+				arabicFontFamily: "\"Amiri\", \"Scheherazade New\", \"Noto Naskh Arabic\", \"Traditional Arabic\", serif",
+				ligatureFontFamily: "\"Amiri\", \"Scheherazade New\", \"Noto Naskh Arabic\", \"Traditional Arabic\", serif"
+			},
+			thuluth: {
+				arabicFontFamily: "\"Aref Ruqaa\", \"Scheherazade New\", \"Noto Naskh Arabic\", \"Traditional Arabic\", serif",
+				ligatureFontFamily: "\"Aref Ruqaa\", \"Scheherazade New\", \"Noto Naskh Arabic\", \"Traditional Arabic\", serif"
+			},
+			compact: {
+				arabicFontFamily: "\"Noto Naskh Arabic\", \"Scheherazade New\", \"Amiri\", \"Traditional Arabic\", serif",
+				ligatureFontFamily: "\"Noto Naskh Arabic\", \"Scheherazade New\", \"Amiri\", \"Traditional Arabic\", serif"
+			}
+		};
+	},
+
+	resolveStylePreset: function () {
+		const presets = this.getStylePresets();
+		const key = String(this.config.stylePreset || "").trim().toLowerCase();
+		return presets[key] || presets["classical-naskh"];
+	},
+
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-bismillah-banner";
+
+		const safeScale = Number.isFinite(Number(this.config.fontScale)) ? Number(this.config.fontScale) : 1.25;
+		const stylePreset = this.resolveStylePreset();
+		wrapper.style.setProperty("--bismillah-font-scale", String(Math.max(0.5, safeScale)));
+		wrapper.style.setProperty("--bismillah-text-color", String(this.config.textColor || "#ffffff"));
+		wrapper.style.setProperty("--bismillah-arabic-font-family", stylePreset.arabicFontFamily);
+		wrapper.style.setProperty("--bismillah-ligature-font-family", stylePreset.ligatureFontFamily);
 
 		const arabic = document.createElement("div");
 		arabic.className = "bismillah-arabic";
