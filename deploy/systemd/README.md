@@ -34,6 +34,16 @@ sudo systemctl enable --now myscoreboard-update@hyonis.timer
 
 Replace `hyonis` with your Pi username if different.
 
+Optional (recommended) for Bluetooth speaker auto-reconnect:
+
+```bash
+sudo systemctl enable --now bluetooth
+bluetoothctl devices
+# Example:
+# bluetoothctl trust FC:A8:9A:F6:FB:DA
+# bluetoothctl connect FC:A8:9A:F6:FB:DA
+```
+
 ## 4) Verify runtime health
 
 ```bash
@@ -65,6 +75,7 @@ sudo systemctl disable --now magicmirror@hyonis.service
 ## Notes
 
 - `quran-voice@.service` now writes a heartbeat file used by `mm-healthcheck@.timer`.
+- `quran-voice@.service` prefers Pulse/PipeWire with user runtime env, pins default sink/source, and retries on boot until Pulse is ready.
 - `mm-healthcheck@.timer` runs every minute and restarts Mirror/voice/Ollama when unhealthy.
 - `myscoreboard-update@.timer` runs daily (and shortly after boot), updates `MMM-MyScoreboard`, and restarts MagicMirror only when changes were applied.
 - For strict local/offline Quran playback, keep `quran_data` complete.

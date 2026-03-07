@@ -39,8 +39,10 @@ export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 VOICE_DEVICE="${VOICE_DEVICE:-pulse}"
 VOICE_SOURCE="${VOICE_SOURCE:-alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback}"
+VOICE_SINK="${VOICE_SINK:-bluez_output.FC_A8_9A_F6_FB_DA.1}"
 VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=ME6S,DEV=0}"
 VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
+VOICE_REQUIRE_PULSE="${VOICE_REQUIRE_PULSE:-1}"
 RUNTIME_UID="$(id -u)"
 RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
 
@@ -65,6 +67,13 @@ if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
     done
 
     if [ "$PULSE_READY" -eq 1 ]; then
+        if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
+            pactl set-default-sink "$VOICE_SINK" || true
+            pactl set-sink-mute "$VOICE_SINK" 0 || true
+            log "Pulse sink pinned: $VOICE_SINK"
+        else
+            log "WARNING: Pulse sink not found: $VOICE_SINK (using current default sink)"
+        fi
         if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
             pactl set-default-source "$VOICE_SOURCE" || true
             log "Pulse source pinned: $VOICE_SOURCE"
@@ -72,10 +81,18 @@ if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
             log "WARNING: Pulse source not found: $VOICE_SOURCE (using current default source)"
         fi
     else
+        if [ "$VOICE_REQUIRE_PULSE" = "1" ]; then
+            log "ERROR: Pulse server unavailable after ${VOICE_PULSE_WAIT_SEC}s; exiting for systemd retry."
+            exit 1
+        fi
         log "WARNING: Pulse server unavailable; falling back to ALSA device: $VOICE_DEVICE_FALLBACK"
         VOICE_DEVICE="$VOICE_DEVICE_FALLBACK"
     fi
 elif [ "$VOICE_DEVICE" = "pulse" ]; then
+    if [ "$VOICE_REQUIRE_PULSE" = "1" ]; then
+        log "ERROR: pactl not found while Pulse is required; exiting for systemd retry."
+        exit 1
+    fi
     log "WARNING: pactl not found; falling back to ALSA device: $VOICE_DEVICE_FALLBACK"
     VOICE_DEVICE="$VOICE_DEVICE_FALLBACK"
 fi

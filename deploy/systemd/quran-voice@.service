@@ -1,7 +1,7 @@
 [Unit]
 Description=MMM Quran Voice Listener for user %i
-After=network-online.target sound.target ollama.service
-Wants=network-online.target
+After=network-online.target sound.target bluetooth.service ollama.service
+Wants=network-online.target bluetooth.service
 StartLimitIntervalSec=120
 StartLimitBurst=20
 
@@ -17,12 +17,14 @@ Environment=XDG_RUNTIME_DIR=/run/user/%U
 Environment=PULSE_SERVER=unix:/run/user/%U/pulse/native
 Environment=HEARTBEAT_FILE=/home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/logs/voice_listener.heartbeat
 Environment=VOICE_DEVICE=pulse
+Environment=VOICE_REQUIRE_PULSE=1
+Environment=VOICE_SINK=bluez_output.FC_A8_9A_F6_FB_DA.1
 Environment=VOICE_SOURCE=alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback
 Environment=VOICE_PULSE_WAIT_SEC=30
 ExecStartPre=/usr/bin/test -x /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 ExecStart=/bin/bash /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 Restart=always
-RestartSec=2
+RestartSec=5
 TimeoutStartSec=45
 TimeoutStopSec=15
 KillSignal=SIGTERM
