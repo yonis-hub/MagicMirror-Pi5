@@ -9,6 +9,10 @@ BRANCH="${MYSCOREBOARD_BRANCH:-master}"
 TMP_DIR="$(mktemp -d)"
 UPDATED=0
 
+git_module() {
+  git -c safe.directory="${MODULE_DIR}" -C "${MODULE_DIR}" "$@"
+}
+
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
@@ -39,13 +43,13 @@ fi
 log "Checking MMM-MyScoreboard updates from ${UPSTREAM_URL} (${BRANCH})"
 
 if [[ -d "${MODULE_DIR}/.git" ]]; then
-  git -C "${MODULE_DIR}" fetch origin "${BRANCH}"
-  LOCAL_SHA="$(git -C "${MODULE_DIR}" rev-parse HEAD)"
-  REMOTE_SHA="$(git -C "${MODULE_DIR}" rev-parse "origin/${BRANCH}")"
+  git_module fetch origin "${BRANCH}"
+  LOCAL_SHA="$(git_module rev-parse HEAD)"
+  REMOTE_SHA="$(git_module rev-parse "origin/${BRANCH}")"
   if [[ "${LOCAL_SHA}" != "${REMOTE_SHA}" ]]; then
     log "Updating git-based MMM-MyScoreboard checkout"
-    git -C "${MODULE_DIR}" checkout "${BRANCH}"
-    git -C "${MODULE_DIR}" reset --hard "origin/${BRANCH}"
+    git_module checkout "${BRANCH}"
+    git_module reset --hard "origin/${BRANCH}"
     UPDATED=1
   fi
 else
