@@ -504,6 +504,42 @@ Module.register("MMM-MyPrayerTimes", {
 		return normalized || value || "--:--";
 	},
 
+	getCurrentAndNextPrayerKeys: function (prayerTimes) {
+		const now = new Date();
+		const currentMinutes = now.getHours() * 60 + now.getMinutes();
+		const timedPrayers = prayerTimes
+			.filter((prayer) => prayer.show !== false)
+			.map((prayer) => ({
+				key: prayer.key,
+				minutes: this.timeToMinutes(this.MPT[prayer.key])
+			}))
+			.filter((prayer) => prayer.minutes !== null);
+
+		if (!timedPrayers.length) {
+			return { current: null, next: null };
+		}
+
+		let nextPrayer = timedPrayers.find((prayer) => prayer.minutes > currentMinutes);
+		if (!nextPrayer) {
+			nextPrayer = timedPrayers[0];
+		}
+
+		let currentPrayer = null;
+		timedPrayers.forEach((prayer) => {
+			if (prayer.minutes <= currentMinutes) {
+				currentPrayer = prayer;
+			}
+		});
+		if (!currentPrayer) {
+			currentPrayer = timedPrayers[timedPrayers.length - 1];
+		}
+
+		return {
+			current: currentPrayer.key,
+			next: nextPrayer.key
+		};
+	},
+
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "wrapper";
@@ -560,30 +596,11 @@ Module.register("MMM-MyPrayerTimes", {
 			}
 		];
 
+		const prayerState = this.getCurrentAndNextPrayerKeys(prayerTimes);
+
 		// Filter to show only next prayer if configured
 		if (this.config.showOnlyNext) {
-			const now = new Date();
-			const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-			let nextPrayer = null;
-			for (const prayer of prayerTimes) {
-				if (prayer.show === false) {
-					continue;
-				}
-				const prayerMinutes = this.timeToMinutes(this.MPT[prayer.key]);
-				if (prayerMinutes === null) {
-					continue;
-				}
-				if (prayerMinutes > currentMinutes) {
-					nextPrayer = prayer;
-					break;
-				}
-			}
-
-			// If no next prayer found today, show first prayer (Fajr tomorrow)
-			if (!nextPrayer) {
-				nextPrayer = prayerTimes.find((prayer) => prayer.key === "Fajr");
-			}
+			const nextPrayer = prayerTimes.find((prayer) => prayer.key === prayerState.next);
 			prayerTimes = nextPrayer ? [nextPrayer] : [];
 		}
 
@@ -591,7 +608,18 @@ Module.register("MMM-MyPrayerTimes", {
 			if (prayer.show === false) {
 				return;
 			}
-			const row = this.createPrayerRow(prayer.label, this.getDisplayTime(this.MPT[prayer.key]), prayer.arabic);
+			let rowStateClass = "";
+			if (prayer.key === prayerState.current) {
+				rowStateClass = "current-prayer";
+			} else if (prayer.key === prayerState.next) {
+				rowStateClass = "next-prayer";
+			}
+			const row = this.createPrayerRow(
+				prayer.label,
+				this.getDisplayTime(this.MPT[prayer.key]),
+				prayer.arabic,
+				rowStateClass
+			);
 			table.appendChild(row);
 		});
 
@@ -599,8 +627,12 @@ Module.register("MMM-MyPrayerTimes", {
 		return wrapper;
 	},
 
-	createPrayerRow: function (label, time, arabicText) {
+	createPrayerRow: function (label, time, arabicText, rowStateClass) {
 		const row = document.createElement("tr");
+		row.className = "prayer-row";
+		if (rowStateClass) {
+			row.classList.add(rowStateClass);
+		}
 
 		const textCell = document.createElement("td");
 		textCell.className = `${label.toLowerCase()}-text`;

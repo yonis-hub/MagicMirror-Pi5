@@ -15,6 +15,44 @@ Pick your color, copy and paste the HEX number. Example - #62FF00 = bright green
   text-align: left;           /* Align header text. (left, center, right) */
 }
 
+.MMM-MyPrayerTimes {
+  --mpt-text-main: #d7dde6;
+  --mpt-text-secondary: #8f9aaa;
+  --mpt-divider: #2d3746;
+  --mpt-next: #8fdea6;
+  --mpt-current: #e8d39a;
+  --mpt-arabic: #f1efe7;
+}
+
+.MMM-MyPrayerTimes table td {
+  color: var(--mpt-text-main) !important;
+}
+
+.MMM-MyPrayerTimes .prayer-row td:first-child {
+  border-left: 2px solid transparent;
+  padding-left: 6px;
+}
+
+.MMM-MyPrayerTimes .prayer-row td[class$="-arab"] {
+  color: var(--mpt-arabic) !important;
+}
+
+.MMM-MyPrayerTimes .prayer-row.current-prayer td {
+  color: var(--mpt-current) !important;
+}
+
+.MMM-MyPrayerTimes .prayer-row.current-prayer td:first-child {
+  border-left-color: var(--mpt-current);
+}
+
+.MMM-MyPrayerTimes .prayer-row.next-prayer td {
+  color: var(--mpt-next) !important;
+}
+
+.MMM-MyPrayerTimes .prayer-row.next-prayer td:first-child {
+  border-left-color: var(--mpt-next);
+}
+
 .MMM-MyPrayerTimes .imsak-text {
   text-align: left;
 }
@@ -128,15 +166,16 @@ Pick your color, copy and paste the HEX number. Example - #62FF00 = bright green
   text-align: center;
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid var(--mpt-divider);
 }
 
 .MMM-MyPrayerTimes .hijri-en {
   font-size: 1.2em;
-  color: #fff;
+  color: var(--mpt-text-main) !important;
 }
 
 .MMM-MyPrayerTimes .hijri-ar {
   font-size: 1em;
   direction: rtl;
+  color: var(--mpt-text-secondary) !important;
 }
