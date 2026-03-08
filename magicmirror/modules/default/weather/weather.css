@@ -1,13 +1,13 @@
 .weather {
-  /* Soft Natural palette for weather glyphs. */
-  --weather-icon-default: #9fb3c8;
-  --weather-icon-sun: #f2c66d;
-  --weather-icon-cloud: #aab7c5;
-  --weather-icon-rain: #7ec8e3;
-  --weather-icon-snow: #b8d8f8;
-  --weather-icon-thunder: #e0b86b;
-  --weather-icon-fog: #98a4b1;
-  --weather-icon-accent: #9aa7b5;
+  /* Brighter icon palette (size unchanged). */
+  --weather-icon-default: #bed3ea;
+  --weather-icon-sun: #ffd978;
+  --weather-icon-cloud: #c5d6e8;
+  --weather-icon-rain: #85ddff;
+  --weather-icon-snow: #d6eeff;
+  --weather-icon-thunder: #ffd28a;
+  --weather-icon-fog: #b2c2d1;
+  --weather-icon-accent: #b9c9da;
 }
 
 .weather .weathericon,
