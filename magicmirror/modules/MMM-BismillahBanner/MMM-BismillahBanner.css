@@ -3,12 +3,33 @@
   margin-top: 6px;
   width: 100%;
   --bismillah-font-scale: 1.25;
-  --bismillah-text-color: #ffffff;
+  --bismillah-text-color: #7be38d;
   --bismillah-arabic-font-family: "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif;
   --bismillah-ligature-font-family: "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  --bismillah-image-width: 380px;
+  --bismillah-image-filter: brightness(0) saturate(100%) invert(69%) sepia(57%) saturate(501%) hue-rotate(84deg) brightness(98%) contrast(88%);
+  --bismillah-image-bg: #000000;
+  --bismillah-image-padding: 8px;
+  --bismillah-image-radius: 8px;
 }
 
-.mmm-bismillah-banner .bismillah-arabic {
+.mmm-bismillah-banner .bismillah-image-wrap {
+  display: inline-block;
+  background: var(--bismillah-image-bg);
+  padding: var(--bismillah-image-padding);
+  border-radius: var(--bismillah-image-radius);
+  line-height: 0;
+}
+
+.mmm-bismillah-banner .bismillah-image {
+  display: block;
+  width: min(var(--bismillah-image-width), 82vw);
+  height: auto;
+  filter: var(--bismillah-image-filter);
+}
+
+.mmm-bismillah-banner .bismillah-arabic,
+.mmm-bismillah-banner .bismillah-text-block .bismillah-arabic {
   font-family: var(--bismillah-arabic-font-family);
   font-size: calc(1.35em * var(--bismillah-font-scale));
   color: var(--bismillah-text-color);
@@ -16,7 +37,8 @@
   letter-spacing: 0;
 }
 
-.mmm-bismillah-banner .bismillah-ligature {
+.mmm-bismillah-banner .bismillah-ligature,
+.mmm-bismillah-banner .bismillah-text-block .bismillah-ligature {
   font-family: var(--bismillah-ligature-font-family);
   font-size: calc(1.9em * var(--bismillah-font-scale));
   color: var(--bismillah-text-color);

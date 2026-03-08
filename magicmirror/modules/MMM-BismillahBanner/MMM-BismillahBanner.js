@@ -11,9 +11,16 @@ Module.register("MMM-BismillahBanner", {
 		showLigature: false,
 		showTransliteration: false,
 		transliteration: "Bismillah ir-Rahman ir-Rahim",
+		renderMode: "image",
+		imageUrl: "https://www.clipartmax.com/png/middle/269-2695997_free-download-of-bismillah-icon-clipart-image-bismillahir-rahmanir-rahim-in-arabic.png",
+		imageWidthPx: 380,
+		imageFilter: "brightness(0) saturate(100%) invert(69%) sepia(57%) saturate(501%) hue-rotate(84deg) brightness(98%) contrast(88%)",
+		imageBackgroundColor: "#000000",
+		imagePaddingPx: 8,
+		imageBorderRadiusPx: 8,
 		stylePreset: "classical-naskh",
 		fontScale: 1.25,
-		textColor: "#ffffff"
+		textColor: "#7be38d"
 	},
 
 	getStyles: function () {
@@ -43,6 +50,34 @@ Module.register("MMM-BismillahBanner", {
 		return presets[key] || presets["classical-naskh"];
 	},
 
+	buildTextBlock: function (stylePreset) {
+		const block = document.createElement("div");
+		block.className = "bismillah-text-block";
+
+		const arabic = document.createElement("div");
+		arabic.className = "bismillah-arabic";
+		arabic.textContent = this.config.arabicText;
+		block.appendChild(arabic);
+
+		if (this.config.showLigature) {
+			const ligature = document.createElement("div");
+			ligature.className = "bismillah-ligature";
+			ligature.textContent = this.config.ligatureText;
+			block.appendChild(ligature);
+		}
+
+		if (this.config.showTransliteration) {
+			const transliteration = document.createElement("div");
+			transliteration.className = "bismillah-transliteration";
+			transliteration.textContent = this.config.transliteration;
+			block.appendChild(transliteration);
+		}
+
+		block.style.setProperty("--bismillah-arabic-font-family", stylePreset.arabicFontFamily);
+		block.style.setProperty("--bismillah-ligature-font-family", stylePreset.ligatureFontFamily);
+		return block;
+	},
+
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-bismillah-banner";
@@ -50,27 +85,42 @@ Module.register("MMM-BismillahBanner", {
 		const safeScale = Number.isFinite(Number(this.config.fontScale)) ? Number(this.config.fontScale) : 1.25;
 		const stylePreset = this.resolveStylePreset();
 		wrapper.style.setProperty("--bismillah-font-scale", String(Math.max(0.5, safeScale)));
-		wrapper.style.setProperty("--bismillah-text-color", String(this.config.textColor || "#ffffff"));
+		wrapper.style.setProperty("--bismillah-text-color", String(this.config.textColor || "#7be38d"));
+		wrapper.style.setProperty("--bismillah-image-width", `${Math.max(180, Number(this.config.imageWidthPx) || 380)}px`);
+		wrapper.style.setProperty("--bismillah-image-filter", String(this.config.imageFilter || ""));
+		wrapper.style.setProperty("--bismillah-image-bg", String(this.config.imageBackgroundColor || "#000000"));
+		wrapper.style.setProperty("--bismillah-image-padding", `${Math.max(0, Number(this.config.imagePaddingPx) || 8)}px`);
+		wrapper.style.setProperty("--bismillah-image-radius", `${Math.max(0, Number(this.config.imageBorderRadiusPx) || 8)}px`);
 		wrapper.style.setProperty("--bismillah-arabic-font-family", stylePreset.arabicFontFamily);
 		wrapper.style.setProperty("--bismillah-ligature-font-family", stylePreset.ligatureFontFamily);
 
-		const arabic = document.createElement("div");
-		arabic.className = "bismillah-arabic";
-		arabic.textContent = this.config.arabicText;
-		wrapper.appendChild(arabic);
+		const wantsImage = String(this.config.renderMode || "").trim().toLowerCase() === "image";
+		const imageUrl = String(this.config.imageUrl || "").trim();
+		if (wantsImage && imageUrl) {
+			const imageWrap = document.createElement("div");
+			imageWrap.className = "bismillah-image-wrap";
 
-		if (this.config.showLigature) {
-			const ligature = document.createElement("div");
-			ligature.className = "bismillah-ligature";
-			ligature.textContent = this.config.ligatureText;
-			wrapper.appendChild(ligature);
-		}
+			const image = document.createElement("img");
+			image.className = "bismillah-image";
+			image.alt = "Bismillah calligraphy";
+			image.src = imageUrl;
 
-		if (this.config.showTransliteration) {
-			const transliteration = document.createElement("div");
-			transliteration.className = "bismillah-transliteration";
-			transliteration.textContent = this.config.transliteration;
-			wrapper.appendChild(transliteration);
+			image.addEventListener("error", () => {
+				imageWrap.remove();
+				wrapper.appendChild(this.buildTextBlock(stylePreset));
+			});
+
+			imageWrap.appendChild(image);
+			wrapper.appendChild(imageWrap);
+
+			if (this.config.showTransliteration) {
+				const transliteration = document.createElement("div");
+				transliteration.className = "bismillah-transliteration";
+				transliteration.textContent = this.config.transliteration;
+				wrapper.appendChild(transliteration);
+			}
+		} else {
+			wrapper.appendChild(this.buildTextBlock(stylePreset));
 		}
 
 		return wrapper;
