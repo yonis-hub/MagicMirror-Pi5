@@ -12,6 +12,15 @@ Module.register("MMM-QuranDisplay", {
 		showBismillah: true,
 		hideBismillahForSurah9: true,
 		bismillahText: "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064e\u0651\u0647\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0652\u0645\u064e\u0646\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0650\u064a\u0645\u0650",
+		bismillahRenderMode: "image", // "text" or "image"
+		bismillahImageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Bismillah_Calligraphy6.svg",
+		bismillahImageWidthPx: 250,
+		bismillahImageFilter: "brightness(0) saturate(100%) invert(64%) sepia(55%) saturate(562%) hue-rotate(80deg) brightness(98%) contrast(90%)",
+		bismillahImageBackgroundColor: "#000000",
+		bismillahImagePaddingPx: 0,
+		bismillahImageBorderRadiusPx: 0,
+		arabicFontFamily: "\"Aref Ruqaa Ink\", \"Aref Ruqaa\", \"Scheherazade New\", Amiri, \"Traditional Arabic\", serif",
+		arabicFontWeight: "700",
 		showAdhkarNowPlaying: true,
 		showVoiceTranscript: true,
 		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
@@ -74,6 +83,30 @@ Module.register("MMM-QuranDisplay", {
 			return false;
 		}
 		return true;
+	},
+
+	createBismillahTextNode: function () {
+		const bismillahDiv = document.createElement("div");
+		bismillahDiv.className = "bismillah-line";
+		bismillahDiv.textContent = this.config.bismillahText;
+		return bismillahDiv;
+	},
+
+	createBismillahImageNode: function () {
+		const imageWrap = document.createElement("div");
+		imageWrap.className = "bismillah-image-wrap";
+
+		const image = document.createElement("img");
+		image.className = "bismillah-image";
+		image.alt = "Bismillah calligraphy";
+		image.src = this.config.bismillahImageUrl;
+		image.addEventListener("error", () => {
+			const fallback = this.createBismillahTextNode();
+			imageWrap.replaceWith(fallback);
+		});
+
+		imageWrap.appendChild(image);
+		return imageWrap;
 	},
 
 	renderStatusIndicators: function (wrapper) {
@@ -206,6 +239,17 @@ Module.register("MMM-QuranDisplay", {
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-quran-display";
+		const imageWidth = Number.isFinite(Number(this.config.bismillahImageWidthPx)) ? Math.max(140, Number(this.config.bismillahImageWidthPx)) : 250;
+		const imagePadding = Number.isFinite(Number(this.config.bismillahImagePaddingPx)) ? Math.max(0, Number(this.config.bismillahImagePaddingPx)) : 0;
+		const imageRadius = Number.isFinite(Number(this.config.bismillahImageBorderRadiusPx)) ? Math.max(0, Number(this.config.bismillahImageBorderRadiusPx)) : 0;
+		wrapper.style.setProperty("--quran-arabic-font-family", String(this.config.arabicFontFamily || "\"Aref Ruqaa Ink\", \"Aref Ruqaa\", \"Scheherazade New\", Amiri, \"Traditional Arabic\", serif"));
+		wrapper.style.setProperty("--quran-arabic-font-weight", String(this.config.arabicFontWeight || "700"));
+		wrapper.style.setProperty("--quran-bismillah-image-width", `${imageWidth}px`);
+		wrapper.style.setProperty("--quran-bismillah-image-filter", String(this.config.bismillahImageFilter || ""));
+		wrapper.style.setProperty("--quran-bismillah-image-bg", String(this.config.bismillahImageBackgroundColor || "#000000"));
+		wrapper.style.setProperty("--quran-bismillah-image-padding", `${imagePadding}px`);
+		wrapper.style.setProperty("--quran-bismillah-image-radius", `${imageRadius}px`);
+
 		const hasAdhkarNowPlaying = this.renderAdhkarNowPlaying(wrapper);
 
 		if (!this.currentVerse) {
@@ -221,10 +265,12 @@ Module.register("MMM-QuranDisplay", {
 		}
 
 		if (this.shouldShowBismillah()) {
-			const bismillahDiv = document.createElement("div");
-			bismillahDiv.className = "bismillah-line";
-			bismillahDiv.textContent = this.config.bismillahText;
-			wrapper.appendChild(bismillahDiv);
+			const renderMode = String(this.config.bismillahRenderMode || "text").toLowerCase();
+			if (renderMode === "image" && this.config.bismillahImageUrl) {
+				wrapper.appendChild(this.createBismillahImageNode());
+			} else {
+				wrapper.appendChild(this.createBismillahTextNode());
+			}
 		}
 
 		if (this.config.showSurahName) {

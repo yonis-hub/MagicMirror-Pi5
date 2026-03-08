@@ -1,4 +1,5 @@
 /* MMM-QuranDisplay Styles - Compact Mode */
+@import url("https://fonts.googleapis.com/css2?family=Aref+Ruqaa+Ink:wght@400;700&family=Scheherazade+New:wght@400;700&display=swap");
 
 .mmm-quran-display {
   position: relative;
@@ -7,6 +8,13 @@
   max-width: 420px;
   min-height: 110px;
   margin: 0 auto;
+  --quran-arabic-font-family: "Aref Ruqaa Ink", "Aref Ruqaa", "Scheherazade New", Amiri, "Traditional Arabic", serif;
+  --quran-arabic-font-weight: 700;
+  --quran-bismillah-image-width: 250px;
+  --quran-bismillah-image-filter: brightness(0) saturate(100%) invert(64%) sepia(55%) saturate(562%) hue-rotate(80deg) brightness(98%) contrast(90%);
+  --quran-bismillah-image-bg: #000000;
+  --quran-bismillah-image-padding: 0px;
+  --quran-bismillah-image-radius: 0px;
 }
 
 .mmm-quran-display .waiting {
@@ -62,7 +70,8 @@
 
 .mmm-quran-display .adhkar-title-arabic {
   color: #9be3a5;
-  font-family: "Traditional Arabic", "Scheherazade New", Amiri, serif;
+  font-family: var(--quran-arabic-font-family);
+  font-weight: var(--quran-arabic-font-weight);
   font-size: 1.15em;
   line-height: 1.2;
   margin-top: 4px;
@@ -81,7 +90,8 @@
 }
 
 .mmm-quran-display .bismillah-line {
-  font-family: "Traditional Arabic", "Scheherazade New", Amiri, serif;
+  font-family: var(--quran-arabic-font-family);
+  font-weight: var(--quran-arabic-font-weight);
   font-size: 1.55em;
   line-height: 1.25;
   color: #f4e29f;
@@ -89,8 +99,25 @@
   letter-spacing: 0.2px;
 }
 
+.mmm-quran-display .bismillah-image-wrap {
+  display: inline-block;
+  background: var(--quran-bismillah-image-bg);
+  padding: var(--quran-bismillah-image-padding);
+  border-radius: var(--quran-bismillah-image-radius);
+  line-height: 0;
+  margin-bottom: 7px;
+}
+
+.mmm-quran-display .bismillah-image {
+  display: block;
+  width: min(var(--quran-bismillah-image-width), 70vw);
+  height: auto;
+  filter: var(--quran-bismillah-image-filter);
+}
+
 .mmm-quran-display .surah-arabic {
-  font-family: "Traditional Arabic", "Scheherazade New", Amiri, serif;
+  font-family: var(--quran-arabic-font-family);
+  font-weight: var(--quran-arabic-font-weight);
   font-size: 1.9em;
   line-height: 1.2;
   color: #90ee90;

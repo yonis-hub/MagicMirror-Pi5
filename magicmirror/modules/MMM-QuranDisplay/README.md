@@ -48,6 +48,11 @@ pip3 install sentence-transformers psutil
     showBismillah: true,
     hideBismillahForSurah9: true,
     bismillahText: "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
+    bismillahRenderMode: "image", // "image" or "text"
+    bismillahImageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Bismillah_Calligraphy6.svg",
+    bismillahImageWidthPx: 250,
+    arabicFontFamily: "\"Aref Ruqaa Ink\", \"Aref Ruqaa\", \"Scheherazade New\", Amiri, \"Traditional Arabic\", serif",
+    arabicFontWeight: "700",
     showAdhkarNowPlaying: true, // show currently playing adhkar title block
     ayahLabelFormat: "compact", // "ayah" or "compact"
     animationSpeed: 500,
