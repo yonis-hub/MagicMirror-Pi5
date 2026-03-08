@@ -22,6 +22,9 @@ Module.register("MMM-QuranDisplay", {
 		arabicFontFamily: "\"Aref Ruqaa Ink\", \"Aref Ruqaa\", \"Scheherazade New\", Amiri, \"Traditional Arabic\", serif",
 		arabicFontWeight: "700",
 		showAdhkarNowPlaying: true,
+		showAdhanIndicator: true,
+		adhanIndicatorLabel: "Adhan",
+		adhanIndicatorIcon: "https://cdn-icons-png.flaticon.com/512/2918/2918161.png",
 		showVoiceTranscript: true,
 		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
 		animationSpeed: 500,
@@ -49,6 +52,11 @@ Module.register("MMM-QuranDisplay", {
 			total: 0,
 			title: "",
 			titleArabic: ""
+		};
+		this.adhanStatus = {
+			isPlaying: false,
+			prayer: "",
+			reason: ""
 		};
 		this.voiceTranscript = {
 			text: "",
@@ -110,12 +118,37 @@ Module.register("MMM-QuranDisplay", {
 	},
 
 	renderStatusIndicators: function (wrapper) {
-		if (!this.isRecording && !this.isProcessing && !this.isListening) {
+		if (!this.isRecording && !this.isProcessing && !this.isListening && !this.adhanStatus?.isPlaying) {
 			return;
 		}
 
 		const statusContainer = document.createElement("div");
 		statusContainer.className = "status-indicators";
+
+		if (this.config.showAdhanIndicator && this.adhanStatus?.isPlaying) {
+			const adhanDiv = document.createElement("div");
+			adhanDiv.className = "adhan-indicator";
+
+			const iconSrc = String(this.config.adhanIndicatorIcon || "").trim();
+			if (iconSrc) {
+				const icon = document.createElement("img");
+				icon.className = "adhan-icon";
+				icon.src = iconSrc;
+				icon.alt = "Adhan";
+				adhanDiv.appendChild(icon);
+			} else {
+				const fallback = document.createElement("span");
+				fallback.className = "adhan-icon-fallback";
+				fallback.textContent = "🕌";
+				adhanDiv.appendChild(fallback);
+			}
+
+			const statusText = document.createElement("span");
+			statusText.className = "status-text";
+			statusText.textContent = this.config.adhanIndicatorLabel || "Adhan";
+			adhanDiv.appendChild(statusText);
+			statusContainer.appendChild(adhanDiv);
+		}
 
 		if (this.isRecording) {
 			const recordingDiv = document.createElement("div");
@@ -131,7 +164,7 @@ Module.register("MMM-QuranDisplay", {
 			statusContainer.appendChild(processingDiv);
 		}
 
-		if (this.isListening) {
+		if (this.isListening && !this.adhanStatus?.isPlaying) {
 			const listeningDiv = document.createElement("div");
 			listeningDiv.className = "listening-indicator";
 			listeningDiv.innerHTML = '<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening</span>';
@@ -375,6 +408,13 @@ Module.register("MMM-QuranDisplay", {
 			this.sendSocketNotification("PAUSE_PLAYBACK", {});
 		} else if (notification === "QURAN_RESUME") {
 			this.sendSocketNotification("RESUME_PLAYBACK", {});
+		} else if (notification === "ADHAN_STATUS") {
+			this.adhanStatus = {
+				isPlaying: Boolean(payload && payload.isPlaying),
+				prayer: payload && payload.prayer ? String(payload.prayer) : "",
+				reason: payload && payload.reason ? String(payload.reason) : ""
+			};
+			this.updateDom(0);
 		}
 	}
 });

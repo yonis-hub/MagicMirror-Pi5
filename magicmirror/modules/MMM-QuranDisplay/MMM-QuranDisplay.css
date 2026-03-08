@@ -158,7 +158,8 @@
 
 .listening-indicator,
 .recording-indicator,
-.processing-indicator {
+.processing-indicator,
+.adhan-indicator {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -183,6 +184,24 @@
 .processing-indicator {
   color: #ffd166;
   font-weight: 600;
+}
+
+.adhan-indicator {
+  color: #7be38d;
+  font-weight: 600;
+  border-color: rgb(123 227 141 / 45%);
+}
+
+.adhan-icon {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(64%) sepia(55%) saturate(562%) hue-rotate(80deg) brightness(98%) contrast(90%);
+}
+
+.adhan-icon-fallback {
+  font-size: 0.95em;
+  line-height: 1;
 }
 
 .recording-dot {

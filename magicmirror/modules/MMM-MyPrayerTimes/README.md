@@ -58,6 +58,8 @@ npm install
 - Morning: `Fajr -> Sunrise`
 - Evening: `Asr -> Sunset`
 - Each period auto-plays once per day
+- Daily timing freshness is checked before each adhan/adhkar scheduler pass
+- Publishes `ADHAN_STATUS` while adhan is playing
 
 While adhkar is playing, this module publishes `ADHKAR_STATUS` notifications. `MMM-QuranDisplay` can render the current adhkar title from that status.
 

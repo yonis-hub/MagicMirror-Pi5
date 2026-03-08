@@ -54,6 +54,9 @@ pip3 install sentence-transformers psutil
     arabicFontFamily: "\"Aref Ruqaa Ink\", \"Aref Ruqaa\", \"Scheherazade New\", Amiri, \"Traditional Arabic\", serif",
     arabicFontWeight: "700",
     showAdhkarNowPlaying: true, // show currently playing adhkar title block
+    showAdhanIndicator: true,
+    adhanIndicatorLabel: "Adhan",
+    adhanIndicatorIcon: "https://cdn-icons-png.flaticon.com/512/2918/2918161.png",
     ayahLabelFormat: "compact", // "ayah" or "compact"
     animationSpeed: 500,
     fontSize: {

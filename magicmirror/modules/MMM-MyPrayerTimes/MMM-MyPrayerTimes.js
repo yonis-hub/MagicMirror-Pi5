@@ -64,6 +64,7 @@ Module.register("MMM-MyPrayerTimes", {
 
 		this.url = "";
 		this.currentDateKey = "";
+		this.timingsDateKey = "";
 		this.MPT = {};
 		this.hijriDate = null;
 		this.loaded = false;
@@ -222,6 +223,16 @@ Module.register("MMM-MyPrayerTimes", {
 		this.adhanCheckTimer = setInterval(() => this.checkAdhanTime(), this.config.adhanCheckInterval);
 	},
 
+	ensureTimingsForToday: function () {
+		const todayKey = this.getDateKey(new Date());
+		this.refreshMptUrlIfNeeded();
+		if (this.timingsDateKey !== todayKey) {
+			this.getMPT();
+			return false;
+		}
+		return true;
+	},
+
 	cleanupPlayedAdhanCache: function (todayKey) {
 		Object.keys(this.playedAdhanToday).forEach((cacheKey) => {
 			if (!cacheKey.startsWith(todayKey)) {
@@ -232,6 +243,9 @@ Module.register("MMM-MyPrayerTimes", {
 
 	checkAdhanTime: function () {
 		if (!this.loaded || !this.config.playAdhan) {
+			return;
+		}
+		if (!this.ensureTimingsForToday()) {
 			return;
 		}
 
@@ -297,6 +311,11 @@ Module.register("MMM-MyPrayerTimes", {
 				this.releaseQuranPause(pauseReason);
 				this.activeAdhanPauseReason = null;
 			}
+			this.sendAdhanStatus({
+				isPlaying: false,
+				prayer: prayerKey || "",
+				reason: "finished"
+			});
 		};
 
 		audio.volume = this.getVolume(this.config.adhanVolume, 0.8);
@@ -307,6 +326,11 @@ Module.register("MMM-MyPrayerTimes", {
 		};
 
 		this.adhanAudio = audio;
+		this.sendAdhanStatus({
+			isPlaying: true,
+			prayer: prayerKey || "",
+			reason: "started"
+		});
 		audio.play().catch((error) => {
 			Log.error(`MMM-MyPrayerTimes: Error playing Adhan: ${error}`);
 			finalize();
@@ -332,6 +356,9 @@ Module.register("MMM-MyPrayerTimes", {
 
 	checkAdhkarAutoPlay: function () {
 		if (!this.loaded || !this.config.autoPlayAdhkar || this.adhkarPlayback.isPlaying || this.adhanAudio) {
+			return;
+		}
+		if (!this.ensureTimingsForToday()) {
 			return;
 		}
 
@@ -466,6 +493,10 @@ Module.register("MMM-MyPrayerTimes", {
 
 	sendAdhkarStatus: function (payload) {
 		this.sendNotification("ADHKAR_STATUS", payload);
+	},
+
+	sendAdhanStatus: function (payload) {
+		this.sendNotification("ADHAN_STATUS", payload);
 	},
 
 	getDisplayTime: function (value) {
@@ -617,6 +648,7 @@ Module.register("MMM-MyPrayerTimes", {
 		this.MPT = normalizedTimings;
 		this.hijriDate = data ? data.hijri : null;
 		this.loaded = true;
+		this.timingsDateKey = this.currentDateKey || this.getDateKey(new Date());
 	},
 
 	scheduleUpdate: function () {
