@@ -1,9 +1,64 @@
+.weather {
+  /* Soft Natural palette for weather glyphs. */
+  --weather-icon-default: #9fb3c8;
+  --weather-icon-sun: #f2c66d;
+  --weather-icon-cloud: #aab7c5;
+  --weather-icon-rain: #7ec8e3;
+  --weather-icon-snow: #b8d8f8;
+  --weather-icon-thunder: #e0b86b;
+  --weather-icon-fog: #98a4b1;
+  --weather-icon-accent: #9aa7b5;
+}
+
 .weather .weathericon,
 .weather .fa-home {
   font-size: 75%;
   line-height: 65px;
   display: inline-block;
   transform: translate(0, -3px);
+}
+
+.weather .weathericon {
+  color: var(--weather-icon-default);
+}
+
+.weather .weathericon[class*="wi-day-sunny"],
+.weather .weathericon[class*="wi-night-clear"] {
+  color: var(--weather-icon-sun);
+}
+
+.weather .weathericon[class*="wi-cloud"] {
+  color: var(--weather-icon-cloud);
+}
+
+.weather .weathericon[class*="wi-rain"],
+.weather .weathericon[class*="wi-showers"] {
+  color: var(--weather-icon-rain);
+}
+
+.weather .weathericon[class*="wi-snow"],
+.weather .weathericon[class*="wi-sleet"],
+.weather .weathericon[class*="wi-hail"] {
+  color: var(--weather-icon-snow);
+}
+
+.weather .weathericon[class*="wi-thunder"],
+.weather .weathericon[class*="wi-lightning"] {
+  color: var(--weather-icon-thunder);
+}
+
+.weather .weathericon[class*="wi-fog"],
+.weather .weathericon[class*="wi-mist"],
+.weather .weathericon[class*="wi-haze"],
+.weather .weathericon[class*="wi-smoke"],
+.weather .weathericon[class*="wi-dust"] {
+  color: var(--weather-icon-fog);
+}
+
+.weather .wi-strong-wind,
+.weather .wi-sunrise,
+.weather .wi-sunset {
+  color: var(--weather-icon-accent);
 }
 
 .weather .humidity-icon {
