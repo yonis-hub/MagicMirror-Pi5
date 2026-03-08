@@ -348,6 +348,7 @@ RESUME_KEYWORDS = {"resume", "continue", "unpause"}
 PLAY_KEYWORDS = {"play", "recite", "read", "start"}
 SEARCH_KEYWORDS = {"search", "find", "look"}
 COMMAND_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS | PLAY_KEYWORDS | SEARCH_KEYWORDS
+CONTROL_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS
 
 EMBEDDING_DIR = Path(__file__).parent / "embeddings"
 EMBEDDING_VECTOR_PATH = EMBEDDING_DIR / "verse_embeddings.npy"
@@ -494,6 +495,22 @@ def contains_any_token(text, keywords):
     if not text:
         return False
     return bool(set(tokenize_words(text)).intersection(keywords))
+
+
+def contains_fuzzy_token(text, keywords, cutoff=0.78):
+    """Match near-miss tokens to keyword sets for accented / noisy STT output."""
+    if not text:
+        return False
+    words = tokenize_words(text)
+    if not words:
+        return False
+    keyword_list = sorted(set(keywords))
+    for word in words:
+        if word in keywords:
+            return True
+        if difflib.get_close_matches(word, keyword_list, n=1, cutoff=cutoff):
+            return True
+    return False
 
 
 def parse_wake_words(raw_wake_words):
@@ -1064,9 +1081,65 @@ class OllamaVoiceListener:
         self._last_command_signature = signature
         self._last_command_ts = time.time()
 
+    def _pids_from_pgrep(self, pattern):
+        pids = []
+        try:
+            result = subprocess.run(
+                ["pgrep", "-af", pattern],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode not in {0, 1}:
+                return pids
+
+            for raw_line in (result.stdout or "").splitlines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                parts = line.split(maxsplit=1)
+                if not parts:
+                    continue
+                try:
+                    pid = int(parts[0])
+                except ValueError:
+                    continue
+                if pid != os.getpid():
+                    pids.append(pid)
+        except Exception:
+            return pids
+        return pids
+
+    def _signal_external_playback(self, sig):
+        """Fallback control path for stale/untracked chainer/mpv processes."""
+        targets = set()
+        targets.update(self._pids_from_pgrep("quran_chainer.py"))
+        targets.update(self._pids_from_pgrep("mpv --no-video --really-quiet"))
+
+        tracked_pid = self.current_process.pid if self.current_process else None
+        sent = 0
+        for pid in sorted(targets):
+            if tracked_pid and pid == tracked_pid:
+                continue
+            try:
+                os.kill(pid, sig)
+                sent += 1
+            except ProcessLookupError:
+                continue
+            except Exception:
+                continue
+        return sent
+
+    def has_control_intent_hint(self, text):
+        return contains_any_token(text, CONTROL_KEYWORDS) or contains_fuzzy_token(text, CONTROL_KEYWORDS, cutoff=0.76)
+
     def pause_chainer(self):
         if self.send_chainer_command("PAUSE"):
             print("⏸ Pause command sent to quran_chainer.")
+            return True
+        signaled = self._signal_external_playback(signal.SIGSTOP)
+        if signaled > 0:
+            print(f"⏸ Pause signal sent to {signaled} external playback process(es).")
             return True
         print("  No active recitation process to pause.")
         return False
@@ -1074,6 +1147,10 @@ class OllamaVoiceListener:
     def resume_chainer(self):
         if self.send_chainer_command("RESUME"):
             print("▶ Resume command sent to quran_chainer.")
+            return True
+        signaled = self._signal_external_playback(signal.SIGCONT)
+        if signaled > 0:
+            print(f"▶ Resume signal sent to {signaled} external playback process(es).")
             return True
         print("  No active recitation process to resume.")
         return False
@@ -1418,15 +1495,15 @@ class OllamaVoiceListener:
         if require_wake and not wake_present:
             return (None, None, create_intent())
 
-        if contains_any_token(command_text, STOP_KEYWORDS):
+        if contains_any_token(command_text, STOP_KEYWORDS) or contains_fuzzy_token(command_text, STOP_KEYWORDS):
             confidence = 0.7 if wake_present else 0.6
             return ("stop", None, create_intent(action="stop", confidence=confidence))
 
-        if contains_any_token(command_text, PAUSE_KEYWORDS):
+        if contains_any_token(command_text, PAUSE_KEYWORDS) or contains_fuzzy_token(command_text, PAUSE_KEYWORDS):
             confidence = 0.75 if wake_present else 0.65
             return ("pause", None, create_intent(action="pause", confidence=confidence))
 
-        if contains_any_token(command_text, RESUME_KEYWORDS):
+        if contains_any_token(command_text, RESUME_KEYWORDS) or contains_fuzzy_token(command_text, RESUME_KEYWORDS):
             confidence = 0.75 if wake_present else 0.65
             return ("resume", None, create_intent(action="resume", confidence=confidence))
 
@@ -1476,6 +1553,9 @@ class OllamaVoiceListener:
                 print(f"  ⚠  Error stopping chainer: {e}")
             finally:
                 self.current_process = None
+        killed_external = self._signal_external_playback(signal.SIGTERM)
+        if killed_external > 0:
+            print(f"⏹ Terminated {killed_external} external playback process(es).")
         try:
             requests.post(f"{self.mirror_url}/api/quran/clear", timeout=1)
         except Exception:
@@ -1679,6 +1759,10 @@ class OllamaVoiceListener:
                         should_handle = True
                         immediate_text = command_candidate
                         print("  Follow-up window active; accepting command without wake word.")
+                    elif self.current_process and self.current_process.poll() is None and self.has_control_intent_hint(command_candidate):
+                        should_handle = True
+                        immediate_text = command_candidate
+                        print("  Active playback; accepting control command without wake word.")
 
                     if should_handle:
                         command_text = immediate_text or ""
