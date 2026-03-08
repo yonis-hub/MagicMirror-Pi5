@@ -12,9 +12,11 @@ Simple static top-bar banner to display:
   position: "top_bar",
   config: {
     renderMode: "image",
-    imageUrl: "https://www.clipartmax.com/png/middle/269-2695997_free-download-of-bismillah-icon-clipart-image-bismillahir-rahmanir-rahim-in-arabic.png",
+    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Bismillah_Calligraphy6.svg",
     imageWidthPx: 380,
     imageBackgroundColor: "#000000",
+    imagePaddingPx: 0,
+    imageBorderRadiusPx: 0,
     textColor: "#7be38d",
     stylePreset: "classical-naskh",
     fontScale: 1.25,

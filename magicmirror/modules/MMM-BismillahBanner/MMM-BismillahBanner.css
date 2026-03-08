@@ -7,10 +7,10 @@
   --bismillah-arabic-font-family: "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif;
   --bismillah-ligature-font-family: "Amiri", "Scheherazade New", "Noto Naskh Arabic", "Traditional Arabic", serif;
   --bismillah-image-width: 380px;
-  --bismillah-image-filter: brightness(0) saturate(100%) invert(69%) sepia(57%) saturate(501%) hue-rotate(84deg) brightness(98%) contrast(88%);
+  --bismillah-image-filter: brightness(0) saturate(100%) invert(64%) sepia(55%) saturate(562%) hue-rotate(80deg) brightness(98%) contrast(90%);
   --bismillah-image-bg: #000000;
-  --bismillah-image-padding: 8px;
-  --bismillah-image-radius: 8px;
+  --bismillah-image-padding: 0px;
+  --bismillah-image-radius: 0px;
 }
 
 .mmm-bismillah-banner .bismillah-image-wrap {
