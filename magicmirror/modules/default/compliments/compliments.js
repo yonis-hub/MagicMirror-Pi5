@@ -8,19 +8,41 @@ Module.register("compliments", {
 	// Module config defaults.
 	defaults: {
 		compliments: {
-			anytime: ["Hey there sexy!", "Subax wanaagsan, quruxley.", "Waxaad u muuqataa qurux maanta.", "Dhoolla-caddeyntaadu waa iftiin.", "Codkaaga waa deggan yahay.", "Qalbigaagu waa naxariis.", "Qalanjo, farxad baad tahay."],
-			morning: ["Good morning, handsome!", "Subax wanaagsan, quruxley.", "Waxaad u muuqataa qurux maanta.", "Enjoy your day!", "How was your sleep?"],
-			afternoon: ["Hello, beauty!", "You look sexy!", "Looking good today!"],
-			evening: ["Wow, you look hot!", "You look nice!", "Hi, sexy!"],
-			"....-01-01": ["Happy new year!"]
+			anytime: [
+				"Dhoolla-caddeyntaadu waa iftiin.",
+				"Qalbigaagu waa naxariis.",
+				"Codkaaga waa deggan yahay.",
+				"Dadaalkaaga maanta waa qiimo.",
+				"Ilaahay ha kuu fududeeyo arrimahaaga."
+			],
+			morning: [
+				"Subax wanaagsan.",
+				"Ilaahay ha ka dhigo maanta maalin khayr leh.",
+				"Maalinta ku bilow niyad wanaagsan.",
+				"Hurdadaadii ma kuu fiicnayd?",
+				"Waxaad u muuqataa firfircoon saaka."
+			],
+			afternoon: [
+				"Galab wanaagsan.",
+				"Shaqadaadii maanta si fiican bay u socotaa.",
+				"Nasiino yar qaado, waad mutaysatay.",
+				"Ilaahay ha kuu barakeeyo galabta."
+			],
+			evening: [
+				"Fiid wanaagsan.",
+				"Maalin wanaagsan baad qabatay, alxamdulillaah.",
+				"Habeen deggan oo barako leh ha kuu noqdo.",
+				"Naso, berri waa fursad cusub."
+			],
+			"....-01-01": ["Sanad cusub oo wanaagsan!"]
 		},
 		updateInterval: 30000,
 		remoteFile: null,
 		fadeSpeed: 4000,
-		morningStartTime: 3,
+		morningStartTime: 5,
 		morningEndTime: 12,
 		afternoonStartTime: 12,
-		afternoonEndTime: 17,
+		afternoonEndTime: 18,
 		random: true
 	},
 	lastIndexUsed: -1,
