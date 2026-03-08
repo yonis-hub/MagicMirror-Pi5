@@ -1,19 +1,15 @@
-.compliments .module-content {
-  color: #f7fbff !important;
-  font-family: "Segoe Script", "Lucida Handwriting", "Apple Chancery", "Brush Script MT", cursive !important;
-  font-weight: 400 !important;
-  letter-spacing: 0.015em;
-  line-height: 1.25;
-  text-shadow:
-    0 0 1px rgba(255, 255, 255, 0.5),
-    0 0 4px rgba(255, 255, 255, 0.28),
-    0 0 8px rgba(255, 255, 255, 0.12);
-}
+@import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500&display=swap");
 
-.compliments .module-content .thin,
-.compliments .module-content .light,
-.compliments .module-content .regular,
-.compliments .module-content .bold {
-  font-family: inherit !important;
-  font-weight: 400 !important;
+.compliments .module-content,
+.compliments .module-content * {
+  color: #f7fbff !important;
+  font-family: "Dancing Script", "Great Vibes", "URW Chancery L", "Lucida Handwriting", "Brush Script MT", cursive !important;
+  font-weight: 500 !important;
+  font-style: normal;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  text-shadow:
+    0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 3px rgba(255, 255, 255, 0.22),
+    0 0 7px rgba(255, 255, 255, 0.1);
 }
