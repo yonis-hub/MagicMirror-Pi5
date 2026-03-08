@@ -32,6 +32,11 @@ Module.register("compliments", {
 		return ["moment.js"];
 	},
 
+	// Define styles.
+	getStyles: function () {
+		return ["compliments.css"];
+	},
+
 	// Define start sequence.
 	start: async function () {
 		Log.info(`Starting module: ${this.name}`);

@@ -1,0 +1,19 @@
+.compliments .module-content {
+  color: #f7fbff !important;
+  font-family: "Great Vibes", "Segoe Script", "Lucida Handwriting", "Brush Script MT", cursive !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.01em;
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 8px rgba(255, 255, 255, 0.75),
+    0 0 18px rgba(255, 255, 255, 0.55),
+    0 0 30px rgba(255, 255, 255, 0.35);
+}
+
+.compliments .module-content .thin,
+.compliments .module-content .light,
+.compliments .module-content .regular,
+.compliments .module-content .bold {
+  font-family: inherit !important;
+  font-weight: 400 !important;
+}

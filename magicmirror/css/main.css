@@ -59,12 +59,12 @@ body {
   color: var(--color-text-bright);
 }
 
-/* Global text boost: render all text 50% closer to white. */
+/* Global text boost: render all text 50% brighter than the prior 50/50 mix. */
 .module,
 .module *,
 .region,
 .region * {
-  color: color-mix(in srgb, currentColor 50%, white) !important;
+  color: color-mix(in srgb, currentColor 25%, white) !important;
 }
 
 .xsmall {
