@@ -19,32 +19,32 @@
 }
 
 .weather .weathericon {
-  color: var(--weather-icon-default);
+  color: var(--weather-icon-default) !important;
 }
 
 .weather .weathericon[class*="wi-day-sunny"],
 .weather .weathericon[class*="wi-night-clear"] {
-  color: var(--weather-icon-sun);
+  color: var(--weather-icon-sun) !important;
 }
 
 .weather .weathericon[class*="wi-cloud"] {
-  color: var(--weather-icon-cloud);
+  color: var(--weather-icon-cloud) !important;
 }
 
 .weather .weathericon[class*="wi-rain"],
 .weather .weathericon[class*="wi-showers"] {
-  color: var(--weather-icon-rain);
+  color: var(--weather-icon-rain) !important;
 }
 
 .weather .weathericon[class*="wi-snow"],
 .weather .weathericon[class*="wi-sleet"],
 .weather .weathericon[class*="wi-hail"] {
-  color: var(--weather-icon-snow);
+  color: var(--weather-icon-snow) !important;
 }
 
 .weather .weathericon[class*="wi-thunder"],
 .weather .weathericon[class*="wi-lightning"] {
-  color: var(--weather-icon-thunder);
+  color: var(--weather-icon-thunder) !important;
 }
 
 .weather .weathericon[class*="wi-fog"],
@@ -52,13 +52,13 @@
 .weather .weathericon[class*="wi-haze"],
 .weather .weathericon[class*="wi-smoke"],
 .weather .weathericon[class*="wi-dust"] {
-  color: var(--weather-icon-fog);
+  color: var(--weather-icon-fog) !important;
 }
 
 .weather .wi-strong-wind,
 .weather .wi-sunrise,
 .weather .wi-sunset {
-  color: var(--weather-icon-accent);
+  color: var(--weather-icon-accent) !important;
 }
 
 .weather .humidity-icon {
