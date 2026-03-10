@@ -371,6 +371,64 @@ class QuranChainer:
         except Exception as e:
             print(f"  WARNING: failed to prepare pulse sink: {e}")
 
+    def _env_flag(self, key, default=False):
+        raw = os.environ.get(key)
+        if raw is None:
+            return bool(default)
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _parse_sample_rate(self, raw_value):
+        try:
+            value = int(str(raw_value).strip())
+        except (TypeError, ValueError):
+            return None
+        if value < 8000 or value > 192000:
+            return None
+        return value
+
+    def _build_stable_audio_defaults(self, mpv_extra_args):
+        """
+        Build conservative mpv defaults for consistent loudness/pitch:
+        - force speed=1.0 with pitch correction
+        - lock output samplerate (default 48k for BT sinks)
+        - apply dynamic loudness normalization
+        """
+        has_speed = any(arg == "--speed" or arg.startswith("--speed=") for arg in mpv_extra_args)
+        has_pitch = any(
+            arg == "--audio-pitch-correction" or arg.startswith("--audio-pitch-correction=")
+            for arg in mpv_extra_args
+        )
+        has_samplerate = any(
+            arg == "--audio-samplerate" or arg.startswith("--audio-samplerate=")
+            for arg in mpv_extra_args
+        )
+        has_af = any(arg == "--af" or arg.startswith("--af=") for arg in mpv_extra_args)
+
+        stable_args = []
+        if not has_speed:
+            stable_args.append("--speed=1.0")
+        if not has_pitch:
+            stable_args.append("--audio-pitch-correction=yes")
+
+        sample_rate = self._parse_sample_rate(os.environ.get("QURAN_MPV_SAMPLE_RATE", "48000"))
+        if sample_rate and not has_samplerate:
+            stable_args.append(f"--audio-samplerate={sample_rate}")
+
+        if not has_af and self._env_flag("QURAN_MPV_ENABLE_DYNAUDNORM", True):
+            # Conservative dynamic normalization to reduce jumpy verse levels.
+            # Keep params configurable if needed.
+            norm_params = os.environ.get("QURAN_MPV_DYNAUDNORM_PARAMS", "f=150:g=7:p=0.9:m=10").strip()
+            filters = []
+            if norm_params:
+                filters.append(f"dynaudnorm={norm_params}")
+            else:
+                filters.append("dynaudnorm")
+            if sample_rate:
+                filters.append(f"aresample={sample_rate}")
+            stable_args.append(f"--af=lavfi=[{','.join(filters)}]")
+
+        return stable_args
+
     def play_audio(self, audio_url):
         """Play audio using mpv and wait for completion"""
         if not audio_url:
@@ -384,6 +442,7 @@ class QuranChainer:
             mpv_ao = os.environ.get("QURAN_MPV_AO", "").strip()
             mpv_audio_device = os.environ.get("QURAN_MPV_AUDIO_DEVICE", "").strip()
             mpv_extra = os.environ.get("QURAN_MPV_EXTRA_ARGS", "").strip()
+            mpv_extra_args = shlex.split(mpv_extra) if mpv_extra else []
             mpv_volume_raw = os.environ.get("QURAN_MPV_VOLUME", "100").strip()
             try:
                 mpv_volume = float(mpv_volume_raw)
@@ -396,8 +455,10 @@ class QuranChainer:
                 mpv_cmd.append(f"--audio-device={mpv_audio_device}")
             mpv_cmd.append("--mute=no")
             mpv_cmd.append(f"--volume={mpv_volume:g}")
-            if mpv_extra:
-                mpv_cmd.extend(shlex.split(mpv_extra))
+            if self._env_flag("QURAN_MPV_STABLE_AUDIO", True):
+                mpv_cmd.extend(self._build_stable_audio_defaults(mpv_extra_args))
+            if mpv_extra_args:
+                mpv_cmd.extend(mpv_extra_args)
 
             self._prepare_pulse_sink(mpv_ao, mpv_audio_device)
 

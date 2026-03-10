@@ -27,6 +27,10 @@ Environment=VOICE_BT_CARD=bluez_card.FC_A8_9A_F6_FB_DA
 Environment=VOICE_BT_PROFILE=a2dp-sink
 Environment=QURAN_MPV_AO=pulse
 Environment=QURAN_MPV_AUDIO_DEVICE=pulse/bluez_output.FC_A8_9A_F6_FB_DA.1
+Environment=QURAN_MPV_STABLE_AUDIO=1
+Environment=QURAN_MPV_SAMPLE_RATE=48000
+Environment=QURAN_MPV_ENABLE_DYNAUDNORM=1
+Environment=QURAN_MPV_DYNAUDNORM_PARAMS=f=150:g=7:p=0.9:m=10
 ExecStartPre=/usr/bin/test -x /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 ExecStart=/bin/bash /home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay/start_listener.sh
 Restart=always

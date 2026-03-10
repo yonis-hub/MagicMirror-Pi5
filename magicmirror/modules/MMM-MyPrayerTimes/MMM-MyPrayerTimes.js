@@ -39,6 +39,8 @@ Module.register("MMM-MyPrayerTimes", {
 		eveningAdhkarTracks: [],
 		adhkarVolume: 0.85,
 		adhkarCheckInterval: 30 * 1000,
+		audioPlaybackRate: 1.0,
+		preserveAudioPitch: true,
 		// Arbitration settings (avoid overlapping Quran/adhaan/adhkar audio)
 		pauseQuranForAdhan: true,
 		pauseQuranForAdhkar: true,
@@ -183,6 +185,38 @@ Module.register("MMM-MyPrayerTimes", {
 		return Math.min(1, Math.max(0, numeric));
 	},
 
+	prepareAudioElement: function (audio, configuredVolume, fallbackVolume) {
+		if (!audio) {
+			return;
+		}
+
+		const configuredRate = Number(this.config.audioPlaybackRate);
+		const playbackRate = Number.isFinite(configuredRate) && configuredRate > 0 ? configuredRate : 1.0;
+		const preservePitch = this.config.preserveAudioPitch !== false;
+
+		audio.preload = "auto";
+		audio.playbackRate = playbackRate;
+
+		// Browser-specific pitch-preservation flags (best-effort).
+		try {
+			audio.preservesPitch = preservePitch;
+		} catch (error) {
+			// noop
+		}
+		try {
+			audio.mozPreservesPitch = preservePitch;
+		} catch (error) {
+			// noop
+		}
+		try {
+			audio.webkitPreservesPitch = preservePitch;
+		} catch (error) {
+			// noop
+		}
+
+		audio.volume = this.getVolume(configuredVolume, fallbackVolume);
+	},
+
 	requestQuranPause: function (reason, enabledByConfig) {
 		if (!enabledByConfig) {
 			return;
@@ -318,7 +352,7 @@ Module.register("MMM-MyPrayerTimes", {
 			});
 		};
 
-		audio.volume = this.getVolume(this.config.adhanVolume, 0.8);
+		this.prepareAudioElement(audio, this.config.adhanVolume, 0.8);
 		audio.onended = () => finalize();
 		audio.onerror = () => {
 			Log.error(`MMM-MyPrayerTimes: Error while playing Adhan for ${prayerKey}`);
@@ -421,7 +455,7 @@ Module.register("MMM-MyPrayerTimes", {
 
 		const total = tracks.length;
 		const audio = new Audio(track.url);
-		audio.volume = this.getVolume(this.config.adhkarVolume, 0.85);
+		this.prepareAudioElement(audio, this.config.adhkarVolume, 0.85);
 		audio.onended = () => {
 			if (this.adhkarAudio !== audio) {
 				return;
