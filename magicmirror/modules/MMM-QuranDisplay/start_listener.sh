@@ -47,6 +47,8 @@ VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-120%}"
 VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-100%}"
 VOICE_BT_CARD="${VOICE_BT_CARD:-bluez_card.FC_A8_9A_F6_FB_DA}"
 VOICE_BT_PROFILE="${VOICE_BT_PROFILE:-a2dp-sink}"
+VOICE_AUTO_HEAL_SINK="${VOICE_AUTO_HEAL_SINK:-1}"
+VOICE_AUTO_HEAL_INTERVAL_SEC="${VOICE_AUTO_HEAL_INTERVAL_SEC:-5}"
 RUNTIME_UID="$(id -u)"
 RUNTIME_DIR_DEFAULT="/run/user/${RUNTIME_UID}"
 
@@ -63,6 +65,55 @@ if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; th
 fi
 export PULSE_SOURCE="${PULSE_SOURCE:-$VOICE_SOURCE}"
 export PULSE_SINK="${PULSE_SINK:-$VOICE_SINK}"
+export QURAN_PULSE_SINK="${QURAN_PULSE_SINK:-$VOICE_SINK}"
+export QURAN_PULSE_SINK_VOLUME="${QURAN_PULSE_SINK_VOLUME:-$VOICE_SINK_VOLUME}"
+
+AUTO_HEAL_PID=""
+start_audio_heal_loop() {
+    if [ "$VOICE_DEVICE" != "pulse" ] || [ "$VOICE_AUTO_HEAL_SINK" != "1" ] || ! command -v pactl >/dev/null 2>&1; then
+        return
+    fi
+
+    (
+        last_state=""
+        while true; do
+            current_state="offline"
+            if pactl info >/dev/null 2>&1; then
+                if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
+                    pactl set-default-sink "$VOICE_SINK" || true
+                    pactl set-sink-mute "$VOICE_SINK" 0 || true
+                    pactl set-sink-volume "$VOICE_SINK" "$VOICE_SINK_VOLUME" || true
+
+                    while read -r input_id _rest; do
+                        [ -n "$input_id" ] || continue
+                        pactl move-sink-input "$input_id" "$VOICE_SINK" || true
+                    done < <(pactl list short sink-inputs)
+
+                    current_state="ready"
+                else
+                    current_state="missing"
+                fi
+            fi
+
+            if [ "$current_state" != "$last_state" ]; then
+                case "$current_state" in
+                    ready)
+                        log "Audio auto-heal: sink online, routed active streams -> $VOICE_SINK"
+                        ;;
+                    missing)
+                        log "Audio auto-heal: waiting for sink -> $VOICE_SINK"
+                        ;;
+                    *)
+                        log "Audio auto-heal: pulse unavailable, retrying"
+                        ;;
+                esac
+                last_state="$current_state"
+            fi
+            sleep "$VOICE_AUTO_HEAL_INTERVAL_SEC"
+        done
+    ) &
+    AUTO_HEAL_PID=$!
+}
 
 # Prefer shared Pulse capture and pin default source to the intended USB mic.
 if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
@@ -126,6 +177,7 @@ if [ "$#" -eq 0 ]; then
 fi
 
 log "Voice input device: $VOICE_DEVICE"
+start_audio_heal_loop
 log "Starting $LISTENER_SCRIPT..."
 cd "$SCRIPT_DIR"
 touch "$HEARTBEAT_FILE"
@@ -145,5 +197,9 @@ set -e
 
 kill "$HEARTBEAT_PID" >/dev/null 2>&1 || true
 wait "$HEARTBEAT_PID" 2>/dev/null || true
+if [ -n "${AUTO_HEAL_PID:-}" ]; then
+    kill "$AUTO_HEAL_PID" >/dev/null 2>&1 || true
+    wait "$AUTO_HEAL_PID" 2>/dev/null || true
+fi
 
 exit "$PYTHON_EXIT"

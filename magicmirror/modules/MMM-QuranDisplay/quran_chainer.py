@@ -334,42 +334,54 @@ class QuranChainer:
         return self._fetch_surah_from_api(surah_number)
 
     def _prepare_pulse_sink(self, mpv_ao, mpv_audio_device):
-        """Best-effort sink pin/unmute before mpv starts."""
+        """Best-effort sink pin/unmute before mpv starts. Returns True if requested sink is ready."""
         if mpv_ao != "pulse" and not mpv_audio_device.startswith("pulse/"):
-            return
+            return True
         if not shutil.which("pactl"):
-            return
+            return False
 
         sink_name = os.environ.get("QURAN_PULSE_SINK", "").strip()
         if not sink_name and mpv_audio_device.startswith("pulse/"):
             sink_name = mpv_audio_device.split("/", 1)[1].strip()
         if not sink_name:
-            return
+            return True
 
         sink_volume = os.environ.get("QURAN_PULSE_SINK_VOLUME", "100%").strip() or "100%"
+        wait_raw = os.environ.get("QURAN_PULSE_SINK_WAIT_SEC", "8").strip()
         try:
-            sinks_out = subprocess.run(
-                ["pactl", "list", "sinks", "short"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=3
-            )
-            sink_names = []
-            for row in sinks_out.stdout.splitlines():
-                parts = row.split()
-                if len(parts) >= 2:
-                    sink_names.append(parts[1])
-            if sink_name not in sink_names:
-                print(f"  WARNING: pulse sink unavailable: {sink_name}")
-                return
+            wait_sec = max(0, min(60, int(wait_raw)))
+        except ValueError:
+            wait_sec = 8
+        try:
+            for attempt in range(wait_sec + 1):
+                sinks_out = subprocess.run(
+                    ["pactl", "list", "sinks", "short"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+                sink_names = []
+                for row in sinks_out.stdout.splitlines():
+                    parts = row.split()
+                    if len(parts) >= 2:
+                        sink_names.append(parts[1])
 
-            subprocess.run(["pactl", "set-default-sink", sink_name], check=False, timeout=3)
-            subprocess.run(["pactl", "set-sink-mute", sink_name, "0"], check=False, timeout=3)
-            subprocess.run(["pactl", "set-sink-volume", sink_name, sink_volume], check=False, timeout=3)
-            print(f"  pulse sink ensured: {sink_name} volume={sink_volume}")
+                if sink_name in sink_names:
+                    subprocess.run(["pactl", "set-default-sink", sink_name], check=False, timeout=3)
+                    subprocess.run(["pactl", "set-sink-mute", sink_name, "0"], check=False, timeout=3)
+                    subprocess.run(["pactl", "set-sink-volume", sink_name, sink_volume], check=False, timeout=3)
+                    print(f"  pulse sink ensured: {sink_name} volume={sink_volume}")
+                    return True
+
+                if attempt < wait_sec:
+                    time.sleep(1)
+
+            print(f"  WARNING: pulse sink unavailable after {wait_sec}s: {sink_name}")
+            return False
         except Exception as e:
             print(f"  WARNING: failed to prepare pulse sink: {e}")
+            return False
 
     def _env_flag(self, key, default=False):
         raw = os.environ.get(key)
@@ -449,6 +461,15 @@ class QuranChainer:
             except ValueError:
                 mpv_volume = 100.0
 
+            sink_ready = self._prepare_pulse_sink(mpv_ao, mpv_audio_device)
+            if (
+                mpv_audio_device.startswith("pulse/")
+                and not sink_ready
+                and self._env_flag("QURAN_MPV_FALLBACK_TO_DEFAULT_SINK", True)
+            ):
+                print("  desired pulse sink unavailable; using current default sink for this verse")
+                mpv_audio_device = ""
+
             if mpv_ao:
                 mpv_cmd.append(f"--ao={mpv_ao}")
             if mpv_audio_device:
@@ -459,8 +480,6 @@ class QuranChainer:
                 mpv_cmd.extend(self._build_stable_audio_defaults(mpv_extra_args))
             if mpv_extra_args:
                 mpv_cmd.extend(mpv_extra_args)
-
-            self._prepare_pulse_sink(mpv_ao, mpv_audio_device)
 
             mpv_cmd.append(audio_url)
             print(f"  mpv playback command: {' '.join(mpv_cmd)}")
