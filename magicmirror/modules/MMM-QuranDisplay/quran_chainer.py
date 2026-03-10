@@ -348,7 +348,13 @@ class QuranChainer:
         if not sink_name:
             return True
 
-        sink_volume = os.environ.get("QURAN_PULSE_SINK_VOLUME", "100%").strip() or "100%"
+        sink_volume = os.environ.get("QURAN_PULSE_SINK_VOLUME", "50%").strip() or "50%"
+        enforce_sink_volume = str(os.environ.get("QURAN_PULSE_ENFORCE_SINK_VOLUME", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on"
+        }
         wait_raw = os.environ.get("QURAN_PULSE_SINK_WAIT_SEC", "8").strip()
         try:
             wait_sec = max(0, min(60, int(wait_raw)))
@@ -375,8 +381,11 @@ class QuranChainer:
                 if sink_name in sink_names:
                     subprocess.run(["pactl", "set-default-sink", sink_name], check=False, timeout=3)
                     subprocess.run(["pactl", "set-sink-mute", sink_name, "0"], check=False, timeout=3)
-                    subprocess.run(["pactl", "set-sink-volume", sink_name, sink_volume], check=False, timeout=3)
-                    print(f"  pulse sink ensured: {sink_name} volume={sink_volume}")
+                    if enforce_sink_volume:
+                        subprocess.run(["pactl", "set-sink-volume", sink_name, sink_volume], check=False, timeout=3)
+                        print(f"  pulse sink ensured: {sink_name} volume={sink_volume} (enforced)")
+                    else:
+                        print(f"  pulse sink ensured: {sink_name} volume=preserved")
                     return True
 
                 if attempt < wait_sec:

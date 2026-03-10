@@ -313,7 +313,8 @@ module.exports = NodeHelper.create({
 		const safePayload = payload && typeof payload === "object" ? payload : {};
 		const requestId = String(safePayload.requestId || "");
 		const targetSink = String(safePayload.sink || "").trim();
-		const sinkVolume = String(safePayload.sinkVolume || "100%").trim() || "100%";
+		const sinkVolume = String(safePayload.sinkVolume || "50%").trim() || "50%";
+		const enforceSinkVolume = safePayload.enforceSinkVolume === true;
 		const card = String(safePayload.card || "").trim();
 		const profile = String(safePayload.profile || "").trim();
 		const preferredSource = String(safePayload.preferredSource || "").trim();
@@ -365,7 +366,9 @@ module.exports = NodeHelper.create({
 
 						await this.runPactl(["set-default-sink", effectiveSink], 3000);
 						await this.runPactl(["set-sink-mute", effectiveSink, "0"], 3000);
-						await this.runPactl(["set-sink-volume", effectiveSink, sinkVolume], 3000);
+						if (enforceSinkVolume) {
+							await this.runPactl(["set-sink-volume", effectiveSink, sinkVolume], 3000);
+						}
 
 						const sinkInputsResult = await this.runPactl(["list", "sink-inputs", "short"], 3000);
 						if (sinkInputsResult.ok) {

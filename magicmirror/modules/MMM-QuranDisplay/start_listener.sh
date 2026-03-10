@@ -44,7 +44,9 @@ VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=ME6S,DEV=0}"
 VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
 VOICE_REQUIRE_PULSE="${VOICE_REQUIRE_PULSE:-1}"
 VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-120%}"
-VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-100%}"
+VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-50%}"
+VOICE_APPLY_SINK_VOLUME_ON_START="${VOICE_APPLY_SINK_VOLUME_ON_START:-1}"
+VOICE_ENFORCE_SINK_VOLUME="${VOICE_ENFORCE_SINK_VOLUME:-0}"
 VOICE_BT_CARD="${VOICE_BT_CARD:-bluez_card.FC_A8_9A_F6_FB_DA}"
 VOICE_BT_PROFILE="${VOICE_BT_PROFILE:-a2dp-sink}"
 VOICE_AUTO_HEAL_SINK="${VOICE_AUTO_HEAL_SINK:-1}"
@@ -85,7 +87,9 @@ start_audio_heal_loop() {
                 if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
                     pactl set-default-sink "$VOICE_SINK" || true
                     pactl set-sink-mute "$VOICE_SINK" 0 || true
-                    pactl set-sink-volume "$VOICE_SINK" "$VOICE_SINK_VOLUME" || true
+                    if [ "$VOICE_ENFORCE_SINK_VOLUME" = "1" ]; then
+                        pactl set-sink-volume "$VOICE_SINK" "$VOICE_SINK_VOLUME" || true
+                    fi
 
                     while read -r input_id _rest; do
                         [ -n "$input_id" ] || continue
@@ -144,7 +148,10 @@ if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
         if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
             pactl set-default-sink "$VOICE_SINK" || true
             pactl set-sink-mute "$VOICE_SINK" 0 || true
-            pactl set-sink-volume "$VOICE_SINK" "$VOICE_SINK_VOLUME" || true
+            if [ "$VOICE_APPLY_SINK_VOLUME_ON_START" = "1" ]; then
+                pactl set-sink-volume "$VOICE_SINK" "$VOICE_SINK_VOLUME" || true
+                log "Pulse sink start volume set: $VOICE_SINK -> $VOICE_SINK_VOLUME"
+            fi
             log "Pulse sink pinned: $VOICE_SINK"
         else
             log "WARNING: Pulse sink not found: $VOICE_SINK (using current default sink)"

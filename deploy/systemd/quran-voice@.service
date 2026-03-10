@@ -17,7 +17,9 @@ Environment=HEARTBEAT_FILE=/home/%i/MagicMirror-Pi5/magicmirror/modules/MMM-Qura
 Environment=VOICE_DEVICE=pulse
 Environment=VOICE_REQUIRE_PULSE=1
 Environment=VOICE_SINK=bluez_output.FC_A8_9A_F6_FB_DA.1
-Environment=VOICE_SINK_VOLUME=100%
+Environment=VOICE_SINK_VOLUME=50%
+Environment=VOICE_APPLY_SINK_VOLUME_ON_START=1
+Environment=VOICE_ENFORCE_SINK_VOLUME=0
 Environment=VOICE_SOURCE=alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback
 Environment=VOICE_SOURCE_VOLUME=120%
 Environment=VOICE_PULSE_WAIT_SEC=30
@@ -30,7 +32,8 @@ Environment=VOICE_BT_PROFILE=a2dp-sink
 Environment=QURAN_MPV_AO=pulse
 Environment=QURAN_MPV_AUDIO_DEVICE=pulse/bluez_output.FC_A8_9A_F6_FB_DA.1
 Environment=QURAN_PULSE_SINK=bluez_output.FC_A8_9A_F6_FB_DA.1
-Environment=QURAN_PULSE_SINK_VOLUME=100%
+Environment=QURAN_PULSE_SINK_VOLUME=50%
+Environment=QURAN_PULSE_ENFORCE_SINK_VOLUME=0
 Environment=QURAN_PULSE_SINK_WAIT_SEC=8
 Environment=QURAN_PULSE_CARD=bluez_card.FC_A8_9A_F6_FB_DA
 Environment=QURAN_PULSE_CARD_PROFILE=a2dp-sink
