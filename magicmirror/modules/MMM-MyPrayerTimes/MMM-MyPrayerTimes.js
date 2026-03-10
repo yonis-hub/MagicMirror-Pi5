@@ -41,6 +41,13 @@ Module.register("MMM-MyPrayerTimes", {
 		adhkarCheckInterval: 30 * 1000,
 		audioPlaybackRate: 1.0,
 		preserveAudioPitch: true,
+		ensureAudioOutputBeforePlayback: true,
+		audioOutputEnsureTimeoutMs: 1500,
+		audioOutputEnsureMinIntervalMs: 2500,
+		audioOutputSink: "bluez_output.FC_A8_9A_F6_FB_DA.1",
+		audioOutputSinkVolume: "100%",
+		audioOutputCard: "bluez_card.FC_A8_9A_F6_FB_DA",
+		audioOutputProfile: "a2dp-sink",
 		// Arbitration settings (avoid overlapping Quran/adhaan/adhkar audio)
 		pauseQuranForAdhan: true,
 		pauseQuranForAdhkar: true,
@@ -92,6 +99,8 @@ Module.register("MMM-MyPrayerTimes", {
 		};
 
 		this.audioInterruptionReasons = new Set();
+		this.pendingAudioOutputEnsures = {};
+		this.lastAudioOutputEnsureAt = 0;
 
 		this.updateTimer = null;
 		this.adhanCheckTimer = null;
@@ -215,6 +224,60 @@ Module.register("MMM-MyPrayerTimes", {
 		}
 
 		audio.volume = this.getVolume(configuredVolume, fallbackVolume);
+	},
+
+	getAudioOutputEnsurePayload: function (requestId) {
+		return {
+			requestId,
+			sink: String(this.config.audioOutputSink || "").trim(),
+			sinkVolume: String(this.config.audioOutputSinkVolume || "100%").trim() || "100%",
+			card: String(this.config.audioOutputCard || "").trim(),
+			profile: String(this.config.audioOutputProfile || "").trim()
+		};
+	},
+
+	resolveAudioOutputEnsure: function (requestId, ok, reason) {
+		const pending = this.pendingAudioOutputEnsures[requestId];
+		if (!pending) {
+			return;
+		}
+
+		clearTimeout(pending.timer);
+		delete this.pendingAudioOutputEnsures[requestId];
+
+		if (!ok) {
+			Log.warn(`MMM-MyPrayerTimes: Audio output ensure fallback (${String(reason || "unknown")})`);
+		}
+
+		pending.callback();
+	},
+
+	ensureAudioOutputBeforePlay: function (callback) {
+		const onReady = typeof callback === "function" ? callback : () => {};
+		if (!this.config.ensureAudioOutputBeforePlayback) {
+			onReady();
+			return;
+		}
+
+		const nowMs = Date.now();
+		const minIntervalMs = Math.max(0, Number(this.config.audioOutputEnsureMinIntervalMs) || 0);
+		if (this.lastAudioOutputEnsureAt && nowMs - this.lastAudioOutputEnsureAt < minIntervalMs) {
+			onReady();
+			return;
+		}
+
+		const requestId = `${nowMs}-${Math.random().toString(36).slice(2, 8)}`;
+		const timeoutMs = Math.max(250, Number(this.config.audioOutputEnsureTimeoutMs) || 1500);
+		const timer = setTimeout(() => {
+			this.resolveAudioOutputEnsure(requestId, false, "timeout");
+		}, timeoutMs);
+
+		this.pendingAudioOutputEnsures[requestId] = {
+			callback: onReady,
+			timer
+		};
+		this.lastAudioOutputEnsureAt = nowMs;
+		this.sendSocketNotification("ENSURE_AUDIO_OUTPUT", this.getAudioOutputEnsurePayload(requestId));
 	},
 
 	requestQuranPause: function (reason, enabledByConfig) {
@@ -365,9 +428,14 @@ Module.register("MMM-MyPrayerTimes", {
 			prayer: prayerKey || "",
 			reason: "started"
 		});
-		audio.play().catch((error) => {
-			Log.error(`MMM-MyPrayerTimes: Error playing Adhan: ${error}`);
-			finalize();
+		this.ensureAudioOutputBeforePlay(() => {
+			if (this.adhanAudio !== audio) {
+				return;
+			}
+			audio.play().catch((error) => {
+				Log.error(`MMM-MyPrayerTimes: Error playing Adhan: ${error}`);
+				finalize();
+			});
 		});
 	},
 
@@ -487,11 +555,16 @@ Module.register("MMM-MyPrayerTimes", {
 			url: track.url
 		});
 
-		audio.play().catch((error) => {
-			Log.error(`MMM-MyPrayerTimes: Error playing Adhkar track ${index + 1}: ${error}`);
-			if (this.adhkarAudio === audio) {
-				this.playAdhkarTrack(period, index + 1);
+		this.ensureAudioOutputBeforePlay(() => {
+			if (this.adhkarAudio !== audio) {
+				return;
 			}
+			audio.play().catch((error) => {
+				Log.error(`MMM-MyPrayerTimes: Error playing Adhkar track ${index + 1}: ${error}`);
+				if (this.adhkarAudio === audio) {
+					this.playAdhkarTrack(period, index + 1);
+				}
+			});
 		});
 	},
 
@@ -743,6 +816,13 @@ Module.register("MMM-MyPrayerTimes", {
 			Log.info(
 				`MMM-MyPrayerTimes: Loaded adhkar tracks - morning: ${this.adhkarTracks.morning.length}, evening: ${this.adhkarTracks.evening.length}`
 			);
+		} else if (notification === "ENSURE_AUDIO_OUTPUT_DONE") {
+			const safePayload = payload && typeof payload === "object" ? payload : {};
+			const requestId = String(safePayload.requestId || "");
+			if (!requestId) {
+				return;
+			}
+			this.resolveAudioOutputEnsure(requestId, safePayload.ok === true, safePayload.message || "failed");
 		}
 	}
 });

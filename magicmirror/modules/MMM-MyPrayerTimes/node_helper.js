@@ -14,6 +14,7 @@ MIT License
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
 const NodeHelper = require("node_helper");
 
 module.exports = NodeHelper.create({
@@ -147,11 +148,113 @@ module.exports = NodeHelper.create({
 			});
 	},
 
+	runPactl(args, timeoutMs = 3000) {
+		return new Promise((resolve) => {
+			execFile("pactl", args, { timeout: timeoutMs }, (error, stdout, stderr) => {
+				resolve({
+					ok: !error,
+					stdout: stdout || "",
+					stderr: stderr || ""
+				});
+			});
+		});
+	},
+
+	parseNamesFromShortList(output, nameColumnIndex = 1) {
+		const names = [];
+		String(output || "")
+			.split(/\r?\n/)
+			.forEach((line) => {
+				const columns = line.trim().split(/\s+/);
+				if (columns.length > nameColumnIndex) {
+					names.push(columns[nameColumnIndex]);
+				}
+			});
+		return names;
+	},
+
+	parseIdsFromShortList(output, idColumnIndex = 0) {
+		const ids = [];
+		String(output || "")
+			.split(/\r?\n/)
+			.forEach((line) => {
+				const columns = line.trim().split(/\s+/);
+				if (columns.length > idColumnIndex && /^\d+$/.test(columns[idColumnIndex])) {
+					ids.push(columns[idColumnIndex]);
+				}
+			});
+		return ids;
+	},
+
+	async ensureAudioOutput(payload) {
+		const safePayload = payload && typeof payload === "object" ? payload : {};
+		const requestId = String(safePayload.requestId || "");
+		const sink = String(safePayload.sink || "").trim();
+		const sinkVolume = String(safePayload.sinkVolume || "100%").trim() || "100%";
+		const card = String(safePayload.card || "").trim();
+		const profile = String(safePayload.profile || "").trim();
+		let ok = true;
+		let message = "ok";
+		let sinkFound = true;
+
+		try {
+			const infoResult = await this.runPactl(["info"], 2500);
+			if (!infoResult.ok) {
+				ok = false;
+				message = "pactl unavailable";
+			}
+
+			if (ok && card && profile) {
+				await this.runPactl(["set-card-profile", card, profile], 3000);
+			}
+
+			if (ok && sink) {
+				const sinksResult = await this.runPactl(["list", "sinks", "short"], 3000);
+				if (!sinksResult.ok) {
+					ok = false;
+					message = "unable to list sinks";
+				} else {
+					const sinkNames = this.parseNamesFromShortList(sinksResult.stdout, 1);
+					sinkFound = sinkNames.includes(sink);
+					if (!sinkFound) {
+						ok = false;
+						message = `sink not found: ${sink}`;
+					} else {
+						await this.runPactl(["set-default-sink", sink], 3000);
+						await this.runPactl(["set-sink-mute", sink, "0"], 3000);
+						await this.runPactl(["set-sink-volume", sink, sinkVolume], 3000);
+
+						const sinkInputsResult = await this.runPactl(["list", "sink-inputs", "short"], 3000);
+						if (sinkInputsResult.ok) {
+							const inputIds = this.parseIdsFromShortList(sinkInputsResult.stdout, 0);
+							for (const inputId of inputIds) {
+								await this.runPactl(["move-sink-input", inputId, sink], 3000);
+							}
+						}
+					}
+				}
+			}
+		} catch (error) {
+			ok = false;
+			message = error && error.message ? error.message : "audio ensure exception";
+		}
+
+		this.sendSocketNotification("ENSURE_AUDIO_OUTPUT_DONE", {
+			requestId,
+			ok,
+			sink,
+			sinkFound,
+			message
+		});
+	},
+
 	socketNotificationReceived(notification, payload) {
 		if (notification === "GET_MPT") {
 			this.getMPT(payload);
 		} else if (notification === "GET_ADHKAR_TRACKS") {
 			this.getAdhkarTracks(payload);
+		} else if (notification === "ENSURE_AUDIO_OUTPUT") {
+			this.ensureAudioOutput(payload);
 		}
 	}
 });
