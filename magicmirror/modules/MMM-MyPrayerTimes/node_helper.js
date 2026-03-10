@@ -209,14 +209,45 @@ module.exports = NodeHelper.create({
 		const runtimeFromEnv = String(env.XDG_RUNTIME_DIR || "").trim();
 		const uid = typeof process.getuid === "function" ? process.getuid() : null;
 		const runtimeFallback = uid !== null ? `/run/user/${uid}` : "";
-		const runtimeDir = runtimeFromEnv || runtimeFallback;
+		const hasPulseSocket = (runtimeDir) =>
+			Boolean(runtimeDir && fs.existsSync(path.join(runtimeDir, "pulse", "native")));
 
-		if (!runtimeFromEnv && runtimeDir && fs.existsSync(runtimeDir)) {
+		let runtimeDir = runtimeFromEnv;
+		if (!hasPulseSocket(runtimeDir) && hasPulseSocket(runtimeFallback)) {
+			runtimeDir = runtimeFallback;
+		}
+
+		// Under some systemd contexts, the helper can inherit root-centric defaults
+		// even though user audio is available under /run/user/<uid>/pulse/native.
+		if (!hasPulseSocket(runtimeDir)) {
+			try {
+				const runUserDir = "/run/user";
+				if (fs.existsSync(runUserDir)) {
+					const entries = fs
+						.readdirSync(runUserDir, { withFileTypes: true })
+						.filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+						.map((entry) => entry.name)
+						.sort((a, b) => Number(a) - Number(b));
+
+					// Prefer non-root user runtime first.
+					const preferred = entries.find((name) => name !== "0" && hasPulseSocket(path.join(runUserDir, name)));
+					const fallback = entries.find((name) => hasPulseSocket(path.join(runUserDir, name)));
+					const selected = preferred || fallback || "";
+					if (selected) {
+						runtimeDir = path.join(runUserDir, selected);
+					}
+				}
+			} catch (error) {
+				console.warn(`MMM-MyPrayerTimes: Failed to probe /run/user for Pulse runtime: ${error}`);
+			}
+		}
+
+		if (runtimeDir && fs.existsSync(runtimeDir)) {
 			env.XDG_RUNTIME_DIR = runtimeDir;
 		}
 
 		const pulseNativePath = runtimeDir ? path.join(runtimeDir, "pulse", "native") : "";
-		if (!env.PULSE_SERVER && pulseNativePath && fs.existsSync(pulseNativePath)) {
+		if (pulseNativePath && fs.existsSync(pulseNativePath)) {
 			env.PULSE_SERVER = `unix:${pulseNativePath}`;
 		}
 
