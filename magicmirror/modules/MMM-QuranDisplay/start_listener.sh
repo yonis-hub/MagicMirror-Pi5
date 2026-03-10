@@ -79,6 +79,9 @@ start_audio_heal_loop() {
         while true; do
             current_state="offline"
             if pactl info >/dev/null 2>&1; then
+                if pactl list cards short | awk '{print $2}' | grep -Fxq "$VOICE_BT_CARD"; then
+                    pactl set-card-profile "$VOICE_BT_CARD" "$VOICE_BT_PROFILE" || true
+                fi
                 if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
                     pactl set-default-sink "$VOICE_SINK" || true
                     pactl set-sink-mute "$VOICE_SINK" 0 || true
@@ -92,6 +95,12 @@ start_audio_heal_loop() {
                     current_state="ready"
                 else
                     current_state="missing"
+                fi
+
+                if pactl list sources short | awk '{print $2}' | grep -Fxq "$VOICE_SOURCE"; then
+                    pactl set-default-source "$VOICE_SOURCE" || true
+                    pactl set-source-mute "$VOICE_SOURCE" 0 || true
+                    pactl set-source-volume "$VOICE_SOURCE" "$VOICE_SOURCE_VOLUME" || true
                 fi
             fi
 

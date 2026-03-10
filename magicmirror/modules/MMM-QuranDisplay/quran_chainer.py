@@ -341,6 +341,8 @@ class QuranChainer:
             return False
 
         sink_name = os.environ.get("QURAN_PULSE_SINK", "").strip()
+        pulse_card = os.environ.get("QURAN_PULSE_CARD", "").strip()
+        pulse_card_profile = os.environ.get("QURAN_PULSE_CARD_PROFILE", "").strip()
         if not sink_name and mpv_audio_device.startswith("pulse/"):
             sink_name = mpv_audio_device.split("/", 1)[1].strip()
         if not sink_name:
@@ -353,6 +355,9 @@ class QuranChainer:
         except ValueError:
             wait_sec = 8
         try:
+            if pulse_card and pulse_card_profile:
+                subprocess.run(["pactl", "set-card-profile", pulse_card, pulse_card_profile], check=False, timeout=3)
+
             for attempt in range(wait_sec + 1):
                 sinks_out = subprocess.run(
                     ["pactl", "list", "sinks", "short"],
