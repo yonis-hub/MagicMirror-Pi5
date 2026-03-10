@@ -229,10 +229,14 @@ module.exports = NodeHelper.create({
 		const sinkVolume = String(safePayload.sinkVolume || "100%").trim() || "100%";
 		const card = String(safePayload.card || "").trim();
 		const profile = String(safePayload.profile || "").trim();
+		const preferredSource = String(safePayload.preferredSource || "").trim();
+		const muteBluetoothInput = safePayload.muteBluetoothInput !== false;
 		let ok = true;
 		let message = "ok";
 		let sinkFound = true;
 		let effectiveSink = targetSink;
+		let sourcePinned = false;
+		let bluetoothInputMuted = false;
 
 		try {
 			const infoResult = await this.runPactl(["info"], 2500);
@@ -283,6 +287,34 @@ module.exports = NodeHelper.create({
 								await this.runPactl(["move-sink-input", inputId, effectiveSink], 3000);
 							}
 						}
+
+						const sourcesResult = await this.runPactl(["list", "sources", "short"], 3000);
+						if (sourcesResult.ok) {
+							const sourceLines = String(sourcesResult.stdout || "")
+								.split(/\r?\n/)
+								.filter((line) => line.trim().length > 0);
+							const sourceNames = this.parseNamesFromShortList(sourcesResult.stdout, 1);
+
+							if (preferredSource && sourceNames.includes(preferredSource)) {
+								await this.runPactl(["set-default-source", preferredSource], 3000);
+								await this.runPactl(["set-source-mute", preferredSource, "0"], 3000);
+								sourcePinned = true;
+							}
+
+							if (muteBluetoothInput) {
+								for (const line of sourceLines) {
+									const columns = line.trim().split(/\s+/);
+									if (columns.length < 2) {
+										continue;
+									}
+									const sourceName = columns[1];
+									if (/^bluez_input\./.test(sourceName)) {
+										await this.runPactl(["set-source-mute", sourceName, "1"], 3000);
+										bluetoothInputMuted = true;
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -300,7 +332,9 @@ module.exports = NodeHelper.create({
 			ok,
 			sink: effectiveSink || targetSink,
 			sinkFound,
-			message
+			message,
+			sourcePinned,
+			bluetoothInputMuted
 		});
 	},
 

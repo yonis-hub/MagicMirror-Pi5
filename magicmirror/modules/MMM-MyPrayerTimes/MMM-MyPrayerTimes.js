@@ -48,6 +48,8 @@ Module.register("MMM-MyPrayerTimes", {
 		audioOutputSinkVolume: "100%",
 		audioOutputCard: "bluez_card.FC_A8_9A_F6_FB_DA",
 		audioOutputProfile: "a2dp-sink",
+		audioOutputPreferredSource: "alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback",
+		audioOutputMuteBluetoothInput: true,
 		// Arbitration settings (avoid overlapping Quran/adhaan/adhkar audio)
 		pauseQuranForAdhan: true,
 		pauseQuranForAdhkar: true,
@@ -232,7 +234,9 @@ Module.register("MMM-MyPrayerTimes", {
 			sink: String(this.config.audioOutputSink || "").trim(),
 			sinkVolume: String(this.config.audioOutputSinkVolume || "100%").trim() || "100%",
 			card: String(this.config.audioOutputCard || "").trim(),
-			profile: String(this.config.audioOutputProfile || "").trim()
+			profile: String(this.config.audioOutputProfile || "").trim(),
+			preferredSource: String(this.config.audioOutputPreferredSource || "").trim(),
+			muteBluetoothInput: this.config.audioOutputMuteBluetoothInput !== false
 		};
 	},
 
