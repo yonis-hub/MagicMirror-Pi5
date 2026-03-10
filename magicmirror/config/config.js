@@ -144,7 +144,7 @@ let config = {
 			config: {
 				showVerseNumber: true,
 				showSurahName: true,
-				showBismillah: true,
+				showBismillah: false,
 				hideBismillahForSurah9: true,
 				ayahLabelFormat: "compact",
 				animationSpeed: 500,
