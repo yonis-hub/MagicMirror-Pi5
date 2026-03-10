@@ -42,7 +42,7 @@ Module.register("MMM-MyPrayerTimes", {
 		audioPlaybackRate: 1.0,
 		preserveAudioPitch: true,
 		ensureAudioOutputBeforePlayback: true,
-		audioOutputEnsureTimeoutMs: 1500,
+		audioOutputEnsureTimeoutMs: 3500,
 		audioOutputEnsureMinIntervalMs: 2500,
 		audioOutputSink: "bluez_output.FC_A8_9A_F6_FB_DA.1",
 		audioOutputSinkVolume: "100%",

@@ -148,13 +148,33 @@ module.exports = NodeHelper.create({
 			});
 	},
 
+	getPulseEnv() {
+		const env = { ...process.env };
+		const runtimeFromEnv = String(env.XDG_RUNTIME_DIR || "").trim();
+		const uid = typeof process.getuid === "function" ? process.getuid() : null;
+		const runtimeFallback = uid !== null ? `/run/user/${uid}` : "";
+		const runtimeDir = runtimeFromEnv || runtimeFallback;
+
+		if (!runtimeFromEnv && runtimeDir && fs.existsSync(runtimeDir)) {
+			env.XDG_RUNTIME_DIR = runtimeDir;
+		}
+
+		const pulseNativePath = runtimeDir ? path.join(runtimeDir, "pulse", "native") : "";
+		if (!env.PULSE_SERVER && pulseNativePath && fs.existsSync(pulseNativePath)) {
+			env.PULSE_SERVER = `unix:${pulseNativePath}`;
+		}
+
+		return env;
+	},
+
 	runPactl(args, timeoutMs = 3000) {
 		return new Promise((resolve) => {
-			execFile("pactl", args, { timeout: timeoutMs }, (error, stdout, stderr) => {
+			execFile("pactl", args, { timeout: timeoutMs, env: this.getPulseEnv() }, (error, stdout, stderr) => {
 				resolve({
 					ok: !error,
 					stdout: stdout || "",
-					stderr: stderr || ""
+					stderr: stderr || "",
+					code: error && typeof error.code !== "undefined" ? error.code : 0
 				});
 			});
 		});
@@ -186,49 +206,81 @@ module.exports = NodeHelper.create({
 		return ids;
 	},
 
+	resolveSinkName(targetSink, sinkNames) {
+		if (!Array.isArray(sinkNames) || sinkNames.length === 0) {
+			return "";
+		}
+		if (targetSink && sinkNames.includes(targetSink)) {
+			return targetSink;
+		}
+
+		const bluetoothSink = sinkNames.find((name) => /^bluez_output\./.test(name));
+		if (bluetoothSink) {
+			return bluetoothSink;
+		}
+
+		return targetSink || sinkNames[0];
+	},
+
 	async ensureAudioOutput(payload) {
 		const safePayload = payload && typeof payload === "object" ? payload : {};
 		const requestId = String(safePayload.requestId || "");
-		const sink = String(safePayload.sink || "").trim();
+		const targetSink = String(safePayload.sink || "").trim();
 		const sinkVolume = String(safePayload.sinkVolume || "100%").trim() || "100%";
 		const card = String(safePayload.card || "").trim();
 		const profile = String(safePayload.profile || "").trim();
 		let ok = true;
 		let message = "ok";
 		let sinkFound = true;
+		let effectiveSink = targetSink;
 
 		try {
 			const infoResult = await this.runPactl(["info"], 2500);
 			if (!infoResult.ok) {
 				ok = false;
-				message = "pactl unavailable";
+				message = `pactl unavailable (${String(infoResult.code || "")}) ${String(infoResult.stderr || "").trim()}`.trim();
+				console.warn(`MMM-MyPrayerTimes: ${message}`);
 			}
 
 			if (ok && card && profile) {
-				await this.runPactl(["set-card-profile", card, profile], 3000);
+				const profileResult = await this.runPactl(["set-card-profile", card, profile], 3000);
+				if (!profileResult.ok) {
+					console.warn(
+						`MMM-MyPrayerTimes: set-card-profile failed (${card} -> ${profile}): ${String(profileResult.stderr || "").trim()}`
+					);
+				}
 			}
 
-			if (ok && sink) {
+			if (ok) {
 				const sinksResult = await this.runPactl(["list", "sinks", "short"], 3000);
 				if (!sinksResult.ok) {
 					ok = false;
-					message = "unable to list sinks";
+					message = `unable to list sinks: ${String(sinksResult.stderr || "").trim()}`.trim();
+					console.warn(`MMM-MyPrayerTimes: ${message}`);
 				} else {
 					const sinkNames = this.parseNamesFromShortList(sinksResult.stdout, 1);
-					sinkFound = sinkNames.includes(sink);
-					if (!sinkFound) {
+					effectiveSink = this.resolveSinkName(targetSink, sinkNames);
+					sinkFound = effectiveSink ? sinkNames.includes(effectiveSink) : false;
+
+					if (!sinkFound || !effectiveSink) {
 						ok = false;
-						message = `sink not found: ${sink}`;
+						message = targetSink ? `sink not found: ${targetSink}` : "no sinks available";
+						console.warn(`MMM-MyPrayerTimes: ${message}`);
 					} else {
-						await this.runPactl(["set-default-sink", sink], 3000);
-						await this.runPactl(["set-sink-mute", sink, "0"], 3000);
-						await this.runPactl(["set-sink-volume", sink, sinkVolume], 3000);
+						if (targetSink && effectiveSink !== targetSink) {
+							message = `requested sink unavailable; using ${effectiveSink}`;
+							console.warn(`MMM-MyPrayerTimes: ${message}`);
+						}
+
+						await this.runPactl(["set-default-sink", effectiveSink], 3000);
+						await this.runPactl(["set-sink-mute", effectiveSink, "0"], 3000);
+						await this.runPactl(["set-sink-volume", effectiveSink, sinkVolume], 3000);
 
 						const sinkInputsResult = await this.runPactl(["list", "sink-inputs", "short"], 3000);
 						if (sinkInputsResult.ok) {
 							const inputIds = this.parseIdsFromShortList(sinkInputsResult.stdout, 0);
 							for (const inputId of inputIds) {
-								await this.runPactl(["move-sink-input", inputId, sink], 3000);
+								await this.runPactl(["move-sink-input", inputId, effectiveSink], 3000);
 							}
 						}
 					}
@@ -239,10 +291,14 @@ module.exports = NodeHelper.create({
 			message = error && error.message ? error.message : "audio ensure exception";
 		}
 
+		if (ok) {
+			console.log(`MMM-MyPrayerTimes: Audio output ensured on sink ${effectiveSink || targetSink}`);
+		}
+
 		this.sendSocketNotification("ENSURE_AUDIO_OUTPUT_DONE", {
 			requestId,
 			ok,
-			sink,
+			sink: effectiveSink || targetSink,
 			sinkFound,
 			message
 		});
