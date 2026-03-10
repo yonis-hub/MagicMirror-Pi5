@@ -39,6 +39,7 @@ Module.register("MMM-MyPrayerTimes", {
 		eveningAdhkarTracks: [],
 		adhkarVolume: 0.85,
 		adhkarCheckInterval: 30 * 1000,
+		adhkarFallbackToSourceUrl: true,
 		audioPlaybackRate: 1.0,
 		preserveAudioPitch: true,
 		ensureAudioOutputBeforePlayback: true,
@@ -226,6 +227,44 @@ Module.register("MMM-MyPrayerTimes", {
 		}
 
 		audio.volume = this.getVolume(configuredVolume, fallbackVolume);
+	},
+
+	setAudioOutputSink: function (audio) {
+		const sinkId = String(this.config.audioOutputSink || "").trim();
+		if (!audio || !sinkId || typeof audio.setSinkId !== "function") {
+			return Promise.resolve(false);
+		}
+
+		return audio
+			.setSinkId(sinkId)
+			.then(() => true)
+			.catch((error) => {
+				Log.warn(`MMM-MyPrayerTimes: Failed to set sink '${sinkId}' on audio element: ${error}`);
+				return false;
+			});
+	},
+
+	playAudioElement: function (audio, options) {
+		const safeOptions = options && typeof options === "object" ? options : {};
+		const isCurrent = typeof safeOptions.isCurrent === "function" ? safeOptions.isCurrent : () => true;
+		const label = String(safeOptions.label || "audio");
+		const onPlayError = typeof safeOptions.onPlayError === "function" ? safeOptions.onPlayError : () => {};
+
+		this.ensureAudioOutputBeforePlay(() => {
+			if (!isCurrent()) {
+				return;
+			}
+
+			this.setAudioOutputSink(audio).finally(() => {
+				if (!isCurrent()) {
+					return;
+				}
+				audio.play().catch((error) => {
+					Log.error(`MMM-MyPrayerTimes: Error playing ${label}: ${error}`);
+					onPlayError(error);
+				});
+			});
+		});
 	},
 
 	getAudioOutputEnsurePayload: function (requestId) {
@@ -432,14 +471,12 @@ Module.register("MMM-MyPrayerTimes", {
 			prayer: prayerKey || "",
 			reason: "started"
 		});
-		this.ensureAudioOutputBeforePlay(() => {
-			if (this.adhanAudio !== audio) {
-				return;
-			}
-			audio.play().catch((error) => {
-				Log.error(`MMM-MyPrayerTimes: Error playing Adhan: ${error}`);
+		this.playAudioElement(audio, {
+			label: `Adhan for ${prayerKey || "unknown prayer"}`,
+			isCurrent: () => this.adhanAudio === audio,
+			onPlayError: () => {
 				finalize();
-			});
+			}
 		});
 	},
 
@@ -520,56 +557,88 @@ Module.register("MMM-MyPrayerTimes", {
 			return;
 		}
 
-		if (this.adhkarAudio) {
-			this.adhkarAudio.pause();
-			this.adhkarAudio = null;
-		}
-
 		const total = tracks.length;
-		const audio = new Audio(track.url);
-		this.prepareAudioElement(audio, this.config.adhkarVolume, 0.85);
-		audio.onended = () => {
-			if (this.adhkarAudio !== audio) {
-				return;
-			}
-			this.playAdhkarTrack(period, index + 1);
-		};
-		audio.onerror = () => {
-			if (this.adhkarAudio !== audio) {
-				return;
-			}
-			Log.error(`MMM-MyPrayerTimes: Failed to play Adhkar track ${index + 1} (${track.url})`);
-			this.playAdhkarTrack(period, index + 1);
-		};
+		const primaryUrl = String(track.url || "").trim();
+		const fallbackUrl = String(track.sourceUrl || "").trim();
+		const allowSourceFallback =
+			this.config.adhkarFallbackToSourceUrl !== false &&
+			Boolean(fallbackUrl) &&
+			fallbackUrl !== primaryUrl;
 
-		this.adhkarAudio = audio;
-		this.adhkarPlayback = {
-			isPlaying: true,
-			period,
-			index,
-			total
-		};
-		this.sendAdhkarStatus({
-			isPlaying: true,
-			period,
-			index: index + 1,
-			total,
-			title: track.title || `${period} adhkar ${index + 1}`,
-			titleArabic: track.titleArabic || "",
-			url: track.url
-		});
-
-		this.ensureAudioOutputBeforePlay(() => {
-			if (this.adhkarAudio !== audio) {
+		const playWithUrl = (url, usedFallback) => {
+			if (!url) {
+				this.playAdhkarTrack(period, index + 1);
 				return;
 			}
-			audio.play().catch((error) => {
-				Log.error(`MMM-MyPrayerTimes: Error playing Adhkar track ${index + 1}: ${error}`);
-				if (this.adhkarAudio === audio) {
+
+			if (this.adhkarAudio) {
+				this.adhkarAudio.pause();
+				this.adhkarAudio = null;
+			}
+
+			const audio = new Audio(url);
+			this.prepareAudioElement(audio, this.config.adhkarVolume, 0.85);
+			audio.onended = () => {
+				if (this.adhkarAudio !== audio) {
+					return;
+				}
+				this.playAdhkarTrack(period, index + 1);
+			};
+			audio.onerror = () => {
+				if (this.adhkarAudio !== audio) {
+					return;
+				}
+
+				if (!usedFallback && allowSourceFallback) {
+					Log.warn(
+						`MMM-MyPrayerTimes: Local Adhkar track failed (${primaryUrl}). Retrying source URL for track ${index + 1}.`
+					);
+					playWithUrl(fallbackUrl, true);
+					return;
+				}
+
+				Log.error(`MMM-MyPrayerTimes: Failed to play Adhkar track ${index + 1} (${url})`);
+				this.playAdhkarTrack(period, index + 1);
+			};
+
+			this.adhkarAudio = audio;
+			this.adhkarPlayback = {
+				isPlaying: true,
+				period,
+				index,
+				total
+			};
+			this.sendAdhkarStatus({
+				isPlaying: true,
+				period,
+				index: index + 1,
+				total,
+				title: track.title || `${period} adhkar ${index + 1}`,
+				titleArabic: track.titleArabic || "",
+				url,
+				source: usedFallback ? "sourceUrl" : "local"
+			});
+
+			this.playAudioElement(audio, {
+				label: `Adhkar track ${index + 1}`,
+				isCurrent: () => this.adhkarAudio === audio,
+				onPlayError: () => {
+					if (this.adhkarAudio !== audio) {
+						return;
+					}
+					if (!usedFallback && allowSourceFallback) {
+						Log.warn(
+							`MMM-MyPrayerTimes: Playback promise rejected for local track ${index + 1}. Retrying source URL.`
+						);
+						playWithUrl(fallbackUrl, true);
+						return;
+					}
 					this.playAdhkarTrack(period, index + 1);
 				}
 			});
-		});
+		};
+
+		playWithUrl(primaryUrl, false);
 	},
 
 	finishAdhkarPlayback: function (reason) {

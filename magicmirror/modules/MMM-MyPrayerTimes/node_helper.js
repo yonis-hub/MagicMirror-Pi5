@@ -33,6 +33,7 @@ module.exports = NodeHelper.create({
 		}
 
 		const urlRaw = String(track.url || "").trim();
+		const sourceUrlRaw = String(track.sourceUrl || "").trim();
 		if (!urlRaw) {
 			return null;
 		}
@@ -42,10 +43,13 @@ module.exports = NodeHelper.create({
 			normalizedUrl = `modules/MMM-MyPrayerTimes/${urlRaw.replace(/^[\\/]+/, "")}`;
 		}
 
+		const normalizedSourceUrl = /^https?:\/\//i.test(sourceUrlRaw) ? sourceUrlRaw : "";
+
 		return {
 			url: normalizedUrl,
 			title: String(track.title || "").trim() || this.getDefaultTrackTitle(period, index),
-			titleArabic: String(track.titleArabic || "").trim()
+			titleArabic: String(track.titleArabic || "").trim(),
+			sourceUrl: normalizedSourceUrl
 		};
 	},
 
@@ -75,8 +79,58 @@ module.exports = NodeHelper.create({
 		return files.map((fileName, idx) => ({
 			url: `modules/MMM-MyPrayerTimes/adhkar/${period}/${fileName}`,
 			title: this.getDefaultTrackTitle(period, idx + 1),
-			titleArabic: ""
+			titleArabic: "",
+			sourceUrl: ""
 		}));
+	},
+
+	resolveLocalModulePathFromUrl(url) {
+		const normalizedUrl = String(url || "").trim();
+		const modulePrefix = "modules/MMM-MyPrayerTimes/";
+		if (!normalizedUrl.startsWith(modulePrefix)) {
+			return "";
+		}
+
+		const relative = normalizedUrl.slice(modulePrefix.length).replace(/[\\/]+/g, path.sep);
+		return path.join(__dirname, relative);
+	},
+
+	auditTrackFiles(period, tracks) {
+		if (!Array.isArray(tracks) || tracks.length === 0) {
+			console.warn(`MMM-MyPrayerTimes: No ${period} adhkar tracks available.`);
+			return;
+		}
+
+		let localTrackCount = 0;
+		let missingCount = 0;
+		let zeroByteCount = 0;
+
+		tracks.forEach((track) => {
+			const localPath = this.resolveLocalModulePathFromUrl(track && track.url);
+			if (!localPath) {
+				return;
+			}
+
+			localTrackCount += 1;
+
+			try {
+				const stats = fs.statSync(localPath);
+				if (!stats.isFile() || stats.size <= 0) {
+					zeroByteCount += 1;
+				}
+			} catch (error) {
+				missingCount += 1;
+			}
+		});
+
+		if (missingCount > 0 || zeroByteCount > 0) {
+			console.warn(
+				`MMM-MyPrayerTimes: ${period} adhkar audit found issues (missing: ${missingCount}, empty: ${zeroByteCount}, local tracks: ${localTrackCount}).`
+			);
+			return;
+		}
+
+		console.log(`MMM-MyPrayerTimes: ${period} adhkar audit passed (${localTrackCount} local tracks).`);
 	},
 
 	getAdhkarTracks(payload) {
@@ -116,6 +170,8 @@ module.exports = NodeHelper.create({
 
 		const morning = resolveTracks("morning", safePayload.morningAdhkarTracks);
 		const evening = resolveTracks("evening", safePayload.eveningAdhkarTracks);
+		this.auditTrackFiles("morning", morning);
+		this.auditTrackFiles("evening", evening);
 
 		this.sendSocketNotification("ADHKAR_TRACKS", { morning, evening });
 	},
