@@ -307,6 +307,24 @@ COMMON_REPLACEMENTS = {
     "oh pause": "mo pause",
     "oh resume": "mo resume",
     "oh surah": "mo surah",
+    "play to": "play 2",
+    "play too": "play 2",
+    "play tu": "play 2",
+    "surah to": "surah 2",
+    "surah too": "surah 2",
+    "surah tu": "surah 2",
+    "recite to": "recite 2",
+    "recite too": "recite 2",
+    "read to": "read 2",
+    "read too": "read 2",
+    "take a break": "pause",
+    "hold on": "pause",
+    "go on": "resume",
+    "carry on": "resume",
+    "keep going": "resume",
+    "turn it off": "stop",
+    "stop it": "stop",
+    "be quiet": "stop",
     "sir": "surah",
     "sarah": "surah",
     "circle": "surah",
@@ -332,6 +350,11 @@ COMMON_REPLACEMENTS = {
     "mirae": "mo",
     "move": "mo",
     "s2p": "stop",
+    "paws": "pause",
+    "pose": "pause",
+    "stap": "stop",
+    "stob": "stop",
+    "stock": "stop",
 }
 
 PHRASE_REPLACEMENTS = {k: v for k, v in COMMON_REPLACEMENTS.items() if " " in k}
@@ -343,12 +366,15 @@ WORD_REPLACEMENT_PATTERN = re.compile(
 WAKE_WORDS = {"mo"}
 
 STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
-PAUSE_KEYWORDS = {"pause", "hold", "wait"}
+PAUSE_KEYWORDS = {"pause", "hold", "wait", "break"}
 RESUME_KEYWORDS = {"resume", "continue", "unpause"}
 PLAY_KEYWORDS = {"play", "recite", "read", "start"}
 SEARCH_KEYWORDS = {"search", "find", "look"}
 COMMAND_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS | PLAY_KEYWORDS | SEARCH_KEYWORDS
 CONTROL_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS
+STOP_PHRASES = {"turn it off", "stop it", "be quiet"}
+PAUSE_PHRASES = {"take a break", "hold on"}
+RESUME_PHRASES = {"go on", "carry on", "keep going"}
 
 EMBEDDING_DIR = Path(__file__).parent / "embeddings"
 EMBEDDING_VECTOR_PATH = EMBEDDING_DIR / "verse_embeddings.npy"
@@ -495,6 +521,13 @@ def contains_any_token(text, keywords):
     if not text:
         return False
     return bool(set(tokenize_words(text)).intersection(keywords))
+
+
+def contains_phrase(text, phrases):
+    if not text:
+        return False
+    lowered = text.lower()
+    return any(_contains_phrase(lowered, phrase) for phrase in phrases)
 
 
 def contains_fuzzy_token(text, keywords, cutoff=0.78):
@@ -1131,7 +1164,19 @@ class OllamaVoiceListener:
         return sent
 
     def has_control_intent_hint(self, text):
-        return contains_any_token(text, CONTROL_KEYWORDS) or contains_fuzzy_token(text, CONTROL_KEYWORDS, cutoff=0.76)
+        return (
+            contains_any_token(text, CONTROL_KEYWORDS)
+            or contains_phrase(text, STOP_PHRASES | PAUSE_PHRASES | RESUME_PHRASES)
+            or contains_fuzzy_token(text, CONTROL_KEYWORDS, cutoff=0.74)
+        )
+
+    def has_command_hint(self, text):
+        return (
+            contains_any_token(text, COMMAND_KEYWORDS)
+            or contains_phrase(text, STOP_PHRASES | PAUSE_PHRASES | RESUME_PHRASES)
+            or contains_fuzzy_token(text, COMMAND_KEYWORDS, cutoff=0.74)
+            or bool(extract_surah_number(text))
+        )
 
     def pause_chainer(self):
         if self.send_chainer_command("PAUSE"):
@@ -1495,15 +1540,27 @@ class OllamaVoiceListener:
         if require_wake and not wake_present:
             return (None, None, create_intent())
 
-        if contains_any_token(command_text, STOP_KEYWORDS) or contains_fuzzy_token(command_text, STOP_KEYWORDS):
+        if (
+            contains_any_token(command_text, STOP_KEYWORDS)
+            or contains_phrase(command_text, STOP_PHRASES)
+            or contains_fuzzy_token(command_text, STOP_KEYWORDS, cutoff=0.74)
+        ):
             confidence = 0.7 if wake_present else 0.6
             return ("stop", None, create_intent(action="stop", confidence=confidence))
 
-        if contains_any_token(command_text, PAUSE_KEYWORDS) or contains_fuzzy_token(command_text, PAUSE_KEYWORDS):
+        if (
+            contains_any_token(command_text, PAUSE_KEYWORDS)
+            or contains_phrase(command_text, PAUSE_PHRASES)
+            or contains_fuzzy_token(command_text, PAUSE_KEYWORDS, cutoff=0.74)
+        ):
             confidence = 0.75 if wake_present else 0.65
             return ("pause", None, create_intent(action="pause", confidence=confidence))
 
-        if contains_any_token(command_text, RESUME_KEYWORDS) or contains_fuzzy_token(command_text, RESUME_KEYWORDS):
+        if (
+            contains_any_token(command_text, RESUME_KEYWORDS)
+            or contains_phrase(command_text, RESUME_PHRASES)
+            or contains_fuzzy_token(command_text, RESUME_KEYWORDS, cutoff=0.74)
+        ):
             confidence = 0.75 if wake_present else 0.65
             return ("resume", None, create_intent(action="resume", confidence=confidence))
 
@@ -1512,7 +1569,7 @@ class OllamaVoiceListener:
         if surah_number and (wake_present or not require_wake):
             return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
 
-        if contains_any_token(command_text, PLAY_KEYWORDS):
+        if contains_any_token(command_text, PLAY_KEYWORDS) or contains_fuzzy_token(command_text, PLAY_KEYWORDS, cutoff=0.72):
             if surah_number:
                 return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.7))
 
@@ -1521,7 +1578,7 @@ class OllamaVoiceListener:
 
             return ("play", 1, create_intent(action="play", surah=1, confidence=0.45))
 
-        if contains_any_token(command_text, SEARCH_KEYWORDS):
+        if contains_any_token(command_text, SEARCH_KEYWORDS) or contains_fuzzy_token(command_text, SEARCH_KEYWORDS, cutoff=0.74):
             topic = self.detect_topic_from_text(command_text)
             if topic:
                 return ("search", topic, create_intent(action="search", topic=topic, confidence=0.6))
@@ -1738,10 +1795,7 @@ class OllamaVoiceListener:
                     wake_detected = self.detect_wake_word(text_fixed)
                     command_candidate = self.remove_wake_words(text_fixed) if wake_detected else text_fixed
                     followup_active = self.within_followup_window()
-                    command_hint_present = (
-                        contains_any_token(command_candidate, COMMAND_KEYWORDS)
-                        or bool(extract_surah_number(command_candidate))
-                    )
+                    command_hint_present = self.has_command_hint(command_candidate)
                     print(f"  Wake words detected: {wake_detected} (follow-up active: {followup_active})")
 
                     should_handle = False
@@ -1814,7 +1868,7 @@ class OllamaVoiceListener:
                         )
 
                         if self.confirm_command(command_text):
-                            print("  Command confirmed.")
+                            print("  Command captured. Parsing intent...")
                             command_processing_started_at = time.perf_counter()
                             self.process_command(command_text, raw_text=command_raw_text)
                             command_processing_ms = (time.perf_counter() - command_processing_started_at) * 1000
