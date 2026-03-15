@@ -50,7 +50,7 @@ Module.register("MMM-MyPrayerTimes", {
 		audioOutputEnforceSinkVolume: false,
 		audioOutputCard: "bluez_card.FC_A8_9A_F6_FB_DA",
 		audioOutputProfile: "a2dp-sink",
-		audioOutputPreferredSource: "alsa_input.usb-ME6S_MS_N-B_R-UN_ME6S-00.mono-fallback",
+		audioOutputPreferredSource: "alsa_input.usb-W1_W1_202505231443190-02.mono-fallback",
 		audioOutputMuteBluetoothInput: true,
 		// Arbitration settings (avoid overlapping Quran/adhaan/adhkar audio)
 		pauseQuranForAdhan: true,
