@@ -70,8 +70,12 @@ Temporary Items
 !/modules/MMM-MyScoreboard/**
 !/modules/MMM-BismillahBanner
 !/modules/MMM-BismillahBanner/**
+!/modules/MMM-FaceIdentity
+!/modules/MMM-FaceIdentity/**
 /modules/MMM-QuranDisplay/__pycache__/
 /modules/MMM-QuranDisplay/**/*.pyc
+/modules/MMM-FaceIdentity/__pycache__/
+/modules/MMM-FaceIdentity/**/*.pyc
 
 # Ignore changes to the custom css files.
 /css/custom.css

@@ -43,7 +43,11 @@ Module.register("compliments", {
 		morningEndTime: 12,
 		afternoonStartTime: 12,
 		afternoonEndTime: 18,
-		random: true
+		random: true,
+		identityNotification: "FACE_IDENTITY_UPDATE",
+		identityFallback: "unknown",
+		identityDisplayNames: {},
+		identityProfiles: {}
 	},
 	lastIndexUsed: -1,
 	// Set currentweather from module
@@ -64,6 +68,7 @@ Module.register("compliments", {
 		Log.info(`Starting module: ${this.name}`);
 
 		this.lastComplimentIndex = -1;
+		this.currentIdentity = this.config.identityFallback || "unknown";
 
 		if (this.config.remoteFile !== null) {
 			const response = await this.loadComplimentFile();
@@ -75,6 +80,58 @@ Module.register("compliments", {
 		setInterval(() => {
 			this.updateDom(this.config.fadeSpeed);
 		}, this.config.updateInterval);
+	},
+
+	getIdentityProfile: function () {
+		const profiles = this.config.identityProfiles;
+		if (!profiles || typeof profiles !== "object") {
+			return {};
+		}
+
+		const activeIdentity = String(this.currentIdentity || this.config.identityFallback || "unknown");
+		const profile = profiles[activeIdentity];
+		if (!profile || typeof profile !== "object") {
+			return {};
+		}
+
+		return profile;
+	},
+
+	appendCompliments: function (target, source, key) {
+		if (!source || !Array.isArray(source[key])) {
+			return;
+		}
+
+		Array.prototype.push.apply(target, source[key]);
+	},
+
+	appendSpecialDayCompliments: function (target, source, date) {
+		if (!source || typeof source !== "object") {
+			return;
+		}
+
+		for (let entry in source) {
+			if (Array.isArray(source[entry]) && new RegExp(entry).test(date)) {
+				Array.prototype.push.apply(target, source[entry]);
+			}
+		}
+	},
+
+	getIdentityDisplayName: function () {
+		const names = this.config.identityDisplayNames;
+		if (!names || typeof names !== "object") {
+			return "";
+		}
+
+		const activeIdentity = String(this.currentIdentity || this.config.identityFallback || "unknown");
+		return names[activeIdentity] || "";
+	},
+
+	formatCompliment: function (text) {
+		const displayName = this.getIdentityDisplayName();
+		return String(text || "")
+			.replace(/\{name\}/gi, displayName)
+			.replace(/\{identity\}/gi, String(this.currentIdentity || this.config.identityFallback || "unknown"));
 	},
 
 	/**
@@ -111,31 +168,33 @@ Module.register("compliments", {
 	complimentArray: function () {
 		const hour = moment().hour();
 		const date = moment().format("YYYY-MM-DD");
+		const identityProfile = this.getIdentityProfile();
 		let compliments = [];
+		const hasComplimentKey = (source, key) => source && Array.isArray(source[key]) && source[key].length > 0;
 
 		// Add time of day compliments
-		if (hour >= this.config.morningStartTime && hour < this.config.morningEndTime && this.config.compliments.hasOwnProperty("morning")) {
-			compliments = [...this.config.compliments.morning];
-		} else if (hour >= this.config.afternoonStartTime && hour < this.config.afternoonEndTime && this.config.compliments.hasOwnProperty("afternoon")) {
-			compliments = [...this.config.compliments.afternoon];
-		} else if (this.config.compliments.hasOwnProperty("evening")) {
-			compliments = [...this.config.compliments.evening];
+		if (hour >= this.config.morningStartTime && hour < this.config.morningEndTime && (hasComplimentKey(identityProfile, "morning") || hasComplimentKey(this.config.compliments, "morning"))) {
+			this.appendCompliments(compliments, identityProfile, "morning");
+			this.appendCompliments(compliments, this.config.compliments, "morning");
+		} else if (hour >= this.config.afternoonStartTime && hour < this.config.afternoonEndTime && (hasComplimentKey(identityProfile, "afternoon") || hasComplimentKey(this.config.compliments, "afternoon"))) {
+			this.appendCompliments(compliments, identityProfile, "afternoon");
+			this.appendCompliments(compliments, this.config.compliments, "afternoon");
+		} else if (hasComplimentKey(identityProfile, "evening") || hasComplimentKey(this.config.compliments, "evening")) {
+			this.appendCompliments(compliments, identityProfile, "evening");
+			this.appendCompliments(compliments, this.config.compliments, "evening");
 		}
 
 		// Add compliments based on weather
-		if (this.currentWeatherType in this.config.compliments) {
-			Array.prototype.push.apply(compliments, this.config.compliments[this.currentWeatherType]);
-		}
+		this.appendCompliments(compliments, identityProfile, this.currentWeatherType);
+		this.appendCompliments(compliments, this.config.compliments, this.currentWeatherType);
 
 		// Add compliments for anytime
-		Array.prototype.push.apply(compliments, this.config.compliments.anytime);
+		this.appendCompliments(compliments, identityProfile, "anytime");
+		this.appendCompliments(compliments, this.config.compliments, "anytime");
 
 		// Add compliments for special days
-		for (let entry in this.config.compliments) {
-			if (new RegExp(entry).test(date)) {
-				Array.prototype.push.apply(compliments, this.config.compliments[entry]);
-			}
-		}
+		this.appendSpecialDayCompliments(compliments, identityProfile, date);
+		this.appendSpecialDayCompliments(compliments, this.config.compliments, date);
 
 		return compliments;
 	},
@@ -172,7 +231,7 @@ Module.register("compliments", {
 			index = this.lastIndexUsed >= compliments.length - 1 ? 0 : ++this.lastIndexUsed;
 		}
 
-		return compliments[index] || "";
+		return this.formatCompliment(compliments[index] || "");
 	},
 
 	// Override dom generator.
@@ -207,6 +266,13 @@ Module.register("compliments", {
 	notificationReceived: function (notification, payload, sender) {
 		if (notification === "CURRENTWEATHER_TYPE") {
 			this.currentWeatherType = payload.type;
+		} else if (notification === this.config.identityNotification) {
+			const nextIdentity = payload && payload.identity ? String(payload.identity) : this.config.identityFallback || "unknown";
+			if (nextIdentity !== this.currentIdentity) {
+				this.currentIdentity = nextIdentity;
+				this.lastComplimentIndex = -1;
+				this.updateDom(500);
+			}
 		}
 	}
 });

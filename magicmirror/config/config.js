@@ -103,8 +103,87 @@ let config = {
 			}
 		},
 		{
+			module: "MMM-FaceIdentity",
+			position: "fullscreen_below",
+			classes: "hidden",
+			config: {
+				cameraIndex: 0,
+				frameWidth: 320,
+				frameHeight: 240,
+				scanIntervalMs: 2500,
+				requiredMatches: 2,
+				recallHoldMs: 25000,
+				unknownHoldMs: 8000,
+				matchThreshold: 0.46,
+				labels: ["hyonis", "wife"],
+				dataFile: "data/encodings.json",
+				pythonBinary: "python3"
+			}
+		},
+		{
 			module: "compliments",
-			position: "bottom_bar"
+			position: "bottom_bar",
+			config: {
+				identityDisplayNames: {
+					hyonis: "Hyonis",
+					wife: "Marwada",
+					both: "Hyonis iyo Marwada"
+				},
+				identityProfiles: {
+					hyonis: {
+						morning: [
+							"Subax wanaagsan, {name}.",
+							"{name}, maanta waxaad leedahay tamar fiican.",
+							"{name}, Ilaahay ha kuu barakeeyo maalintaada."
+						],
+						afternoon: [
+							"{name}, sii wad dadaalka quruxda badan.",
+							"{name}, nasasho yar qaado haddii aad u baahan tahay."
+						],
+						evening: [
+							"{name}, alxamdulillaah maanta si fiican baad u martay.",
+							"{name}, habeen deggan ha kuu noqdo."
+						],
+						anytime: [
+							"{name}, degganaantaadu waxay qurxisaa guriga.",
+							"{name}, dadaalkaaga waa la dareemaa."
+						]
+					},
+					wife: {
+						morning: [
+							"Subax wanaagsan, {name}.",
+							"{name}, dhoolla-caddeyntaadu waa iftiin.",
+							"{name}, Ilaahay ha kuu barakeeyo saaka."
+						],
+						afternoon: [
+							"{name}, galabtaadu ha noqoto mid fudud oo qurux badan.",
+							"{name}, waad mudan tahay kalsooni iyo nasasho."
+						],
+						evening: [
+							"{name}, habeen barako leh ha kuu noqdo.",
+							"{name}, maanta waxaad keentay degganaan iyo iftiin."
+						],
+						anytime: [
+							"{name}, joogitaankaagu guriga wuu dejiyaa.",
+							"{name}, qalbigaagu waa naxariis."
+						]
+					},
+					both: {
+						morning: [
+							"Subax wanaagsan, {name}.",
+							"Ilaahay ha idiinka dhigo maanta maalin khayr leh."
+						],
+						evening: [
+							"{name}, habeen deggan oo barako leh ha idiin noqdo.",
+							"Alxamdulillaah, wadajirkiinnu waa nimco."
+						],
+						anytime: [
+							"{name}, gurigiinnu wuxuu leeyahay degganaan qurux badan.",
+							"{name}, isku duubnidiinnu waa barako."
+						]
+					}
+				}
+			}
 		},
 		{
 			module: "weather",
