@@ -201,7 +201,7 @@ let config = {
 		},
 		{
 			module: "MMM-FaceIdentity",
-			position: "top_right",
+			position: "bottom_right",
 			config: {
 				showPreview: true,
 				previewLabel: "Recognition",
