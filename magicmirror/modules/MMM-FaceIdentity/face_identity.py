@@ -98,14 +98,44 @@ def get_profiles_mtime(data_file: Path) -> float:
         return 0.0
 
 
-def open_camera(camera_index: int, camera_device: str, width: int, height: int):
-    source = camera_device if camera_device else camera_index
-    camera = cv2.VideoCapture(source)
+def configure_camera(camera, width: int, height: int) -> None:
     if width > 0:
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     if height > 0:
         camera.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    return camera
+
+
+def open_camera(camera_index: int, camera_device: str, width: int, height: int):
+    attempts = []
+    candidates = []
+
+    if camera_device:
+        candidates.append(("device", camera_device, cv2.CAP_ANY))
+        if hasattr(cv2, "CAP_V4L2"):
+            candidates.append(("device-v4l2", camera_device, cv2.CAP_V4L2))
+    else:
+        if hasattr(cv2, "CAP_V4L2"):
+            candidates.append(("index-v4l2", camera_index, cv2.CAP_V4L2))
+        candidates.append(("index", camera_index, cv2.CAP_ANY))
+        candidates.append(("path", f"/dev/video{camera_index}", cv2.CAP_ANY))
+        if hasattr(cv2, "CAP_V4L2"):
+            candidates.append(("path-v4l2", f"/dev/video{camera_index}", cv2.CAP_V4L2))
+
+    for label, source, backend in candidates:
+        try:
+            camera = cv2.VideoCapture(source, backend)
+        except TypeError:
+            camera = cv2.VideoCapture(source)
+        configure_camera(camera, width, height)
+        attempts.append(f"{label}:{source}")
+        if camera and camera.isOpened():
+            ok, _frame = camera.read()
+            if ok:
+                return camera, attempts
+        if camera:
+            camera.release()
+
+    return None, attempts
 
 
 def detect_identities(
@@ -348,7 +378,7 @@ def main() -> int:
     else:
         log("No local face encodings found yet; staying in generic compliments mode.", level="warn")
 
-    camera = open_camera(args.camera_index, args.camera_device, args.frame_width, args.frame_height)
+    camera, camera_attempts = open_camera(args.camera_index, args.camera_device, args.frame_width, args.frame_height)
     if not camera or not camera.isOpened():
         emit(
             "identity",
@@ -360,7 +390,7 @@ def main() -> int:
             available=False,
             configured=configured,
             secureLocalOnly=True,
-            error="Unable to open local webcam.",
+            error=f"Unable to open local webcam. Tried: {', '.join(camera_attempts) if camera_attempts else 'none'}",
             updatedAt=int(time.time() * 1000)
         )
         return 1
