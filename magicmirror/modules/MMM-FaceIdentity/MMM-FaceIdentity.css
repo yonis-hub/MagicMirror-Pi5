@@ -1,5 +1,7 @@
 .mmm-face-identity {
 	width: var(--face-preview-width, 300px);
+	position: relative;
+	right: var(--face-preview-offset-x, 0px);
 }
 
 .mmm-face-identity .face-preview-card {

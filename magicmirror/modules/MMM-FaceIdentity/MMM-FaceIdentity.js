@@ -11,6 +11,7 @@ Module.register("MMM-FaceIdentity", {
 		showPreview: false,
 		previewWidth: 220,
 		previewHeight: 124,
+		previewOffsetX: 0,
 		previewIntervalMs: 2500,
 		previewQuality: 60,
 		previewMirror: false,
@@ -73,6 +74,8 @@ Module.register("MMM-FaceIdentity", {
 	getDom: function () {
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-face-identity";
+		wrapper.style.setProperty("--face-preview-width", `${Number(this.config.previewWidth) || 220}px`);
+		wrapper.style.setProperty("--face-preview-offset-x", `${Number(this.config.previewOffsetX) || 0}px`);
 
 		if (!this.config.showPreview) {
 			wrapper.style.display = "none";
@@ -88,7 +91,6 @@ Module.register("MMM-FaceIdentity", {
 
 		const card = document.createElement("div");
 		card.className = "face-preview-card";
-		card.style.setProperty("--face-preview-width", `${Number(this.config.previewWidth) || 220}px`);
 
 		const header = document.createElement("div");
 		header.className = "face-preview-header";

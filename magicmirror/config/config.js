@@ -207,6 +207,7 @@ let config = {
 				previewLabel: "Recognition",
 				previewWidth: 375,
 				previewHeight: 213,
+				previewOffsetX: 110,
 				previewIntervalMs: 2500,
 				previewQuality: 70,
 				previewMirror: true,
