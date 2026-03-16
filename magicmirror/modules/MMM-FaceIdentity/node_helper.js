@@ -83,6 +83,10 @@ module.exports = NodeHelper.create({
 			String(Number(this.config.previewIntervalMs) || Number(this.config.scanIntervalMs) || 2500),
 			"--preview-quality",
 			String(Number(this.config.previewQuality) || 60),
+			"--cover-brightness-threshold",
+			String(Number(this.config.coverBrightnessThreshold) || 18),
+			"--cover-stddev-threshold",
+			String(Number(this.config.coverStddevThreshold) || 12),
 			"--detector-model",
 			String(this.config.detectorModel || "hog")
 		];

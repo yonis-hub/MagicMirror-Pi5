@@ -181,6 +181,18 @@ def detect_identities(
     return detections, best_confidence, len(locations)
 
 
+def analyze_frame_cover_state(
+    frame: np.ndarray,
+    brightness_threshold: float,
+    stddev_threshold: float
+) -> Tuple[bool, float, float]:
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    mean_brightness = float(np.mean(gray))
+    stddev_brightness = float(np.std(gray))
+    is_covered = mean_brightness <= brightness_threshold and stddev_brightness <= stddev_threshold
+    return is_covered, mean_brightness, stddev_brightness
+
+
 def collapse_identity(labels: Sequence[str]) -> str:
     label_set = {label for label in labels if label and label != "unknown"}
     if len(label_set) >= 2:
@@ -341,6 +353,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--preview-interval-ms", type=int, default=2500)
     parser.add_argument("--preview-quality", type=int, default=60)
     parser.add_argument("--preview-mirror", action="store_true")
+    parser.add_argument("--cover-brightness-threshold", type=float, default=18.0)
+    parser.add_argument("--cover-stddev-threshold", type=float, default=12.0)
     parser.add_argument("--scan-interval-ms", type=int, default=2500)
     parser.add_argument("--required-matches", type=int, default=2)
     parser.add_argument("--recall-hold-ms", type=int, default=25000)
@@ -459,6 +473,12 @@ def main() -> int:
                 time.sleep(max(args.scan_interval_ms / 1000.0, 1.0))
                 continue
 
+            camera_covered, frame_mean, frame_stddev = analyze_frame_cover_state(
+                frame=frame,
+                brightness_threshold=args.cover_brightness_threshold,
+                stddev_threshold=args.cover_stddev_threshold
+            )
+
             detections, confidence, face_count = detect_identities(
                 frame=frame,
                 profiles=profiles,
@@ -491,6 +511,7 @@ def main() -> int:
                 "configured": configured,
                 "secureLocalOnly": True,
                 "error": "",
+                "cameraCovered": camera_covered,
                 "updatedAt": int(loop_started * 1000)
             }
 
@@ -507,10 +528,14 @@ def main() -> int:
             elif args.debug:
                 log(
                     "No identity change "
-                    f"(stable={stable_identity}, detected={detected_identity}, faces={face_count}, confidence={payload['confidence']})"
+                    f"(stable={stable_identity}, detected={detected_identity}, faces={face_count}, confidence={payload['confidence']}, covered={camera_covered}, mean={frame_mean:.1f}, std={frame_stddev:.1f})"
                 )
 
-            preview_due = args.emit_preview and ((loop_started - last_preview_at) * 1000 >= max(args.preview_interval_ms, 200))
+            preview_due = (
+                args.emit_preview
+                and not camera_covered
+                and ((loop_started - last_preview_at) * 1000 >= max(args.preview_interval_ms, 200))
+            )
             if preview_due:
                 preview_b64 = annotate_preview(
                     frame=frame,

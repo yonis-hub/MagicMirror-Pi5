@@ -17,6 +17,9 @@ Module.register("MMM-FaceIdentity", {
 		previewLabel: "Camera",
 		showPreviewIdentity: true,
 		identityDisplayNames: {},
+		hidePreviewWhenCovered: true,
+		coverBrightnessThreshold: 18,
+		coverStddevThreshold: 12,
 		cameraIndex: 0,
 		cameraDevice: "",
 		frameWidth: 320,
@@ -50,6 +53,7 @@ Module.register("MMM-FaceIdentity", {
 			configured: false,
 			secureLocalOnly: true,
 			error: "",
+			cameraCovered: false,
 			updatedAt: Date.now()
 		};
 		this.previewState = {
@@ -71,6 +75,12 @@ Module.register("MMM-FaceIdentity", {
 		wrapper.className = "mmm-face-identity";
 
 		if (!this.config.showPreview) {
+			wrapper.style.display = "none";
+			wrapper.setAttribute("aria-hidden", "true");
+			return wrapper;
+		}
+
+		if (this.config.hidePreviewWhenCovered && this.identityState.cameraCovered) {
 			wrapper.style.display = "none";
 			wrapper.setAttribute("aria-hidden", "true");
 			return wrapper;
@@ -139,6 +149,7 @@ Module.register("MMM-FaceIdentity", {
 				configured: Boolean(payload && payload.configured),
 				secureLocalOnly: payload && payload.secureLocalOnly !== false,
 				error: payload && payload.error ? String(payload.error) : "",
+				cameraCovered: Boolean(payload && payload.cameraCovered),
 				updatedAt: payload && Number.isFinite(Number(payload.updatedAt)) ? Number(payload.updatedAt) : Date.now()
 			};
 			this.broadcastIdentityState();
