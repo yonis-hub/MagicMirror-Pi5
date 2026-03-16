@@ -205,8 +205,8 @@ let config = {
 			config: {
 				showPreview: true,
 				previewLabel: "Recognition",
-				previewWidth: 300,
-				previewHeight: 170,
+				previewWidth: 375,
+				previewHeight: 213,
 				previewIntervalMs: 2500,
 				previewQuality: 70,
 				previewMirror: true,
