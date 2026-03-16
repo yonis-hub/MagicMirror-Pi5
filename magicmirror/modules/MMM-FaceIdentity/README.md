@@ -18,8 +18,8 @@ This module only sends a local MagicMirror notification:
 
 Possible identities:
 
-- `hyonis`
-- `wife`
+- `yonis`
+- `hodan`
 - `both`
 - `unknown`
 
@@ -27,8 +27,11 @@ Possible identities:
 
 ```bash
 cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-FaceIdentity
-sudo apt install python3-opencv python3-pip cmake libatlas-base-dev
-pip3 install face_recognition numpy
+sudo apt install python3-opencv python3-venv python3-full python3-dev build-essential cmake libopenblas-dev liblapack-dev
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip wheel
+pip install numpy face_recognition
 ```
 
 ## Enroll Face Profiles
@@ -37,14 +40,14 @@ No raw webcam images are stored. Each run captures live samples and saves only e
 
 ```bash
 cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-FaceIdentity
-python3 enroll_face.py --label hyonis --samples 6
-python3 enroll_face.py --label wife --samples 6
+python3 enroll_face.py --label yonis --samples 6
+python3 enroll_face.py --label hodan --samples 6
 ```
 
 If you want to replace a profile instead of appending:
 
 ```bash
-python3 enroll_face.py --label hyonis --samples 6 --replace
+python3 enroll_face.py --label yonis --samples 6 --replace
 ```
 
 ## Config Example
@@ -63,9 +66,10 @@ python3 enroll_face.py --label hyonis --samples 6 --replace
     matchThreshold: 0.46,
     frameWidth: 320,
     frameHeight: 240,
-    labels: ["hyonis", "wife"],
+    labels: ["yonis", "hodan"],
     dataFile: "data/encodings.json",
-    pythonBinary: "python3"
+    pythonBinary: "python3",
+    venvBinary: "venv/bin/python3"
   }
 }
 ```
@@ -75,3 +79,4 @@ python3 enroll_face.py --label hyonis --samples 6 --replace
 - Keep the webcam private by leaving MagicMirror bound to localhost or your existing whitelist.
 - Use steady lighting for better recognition.
 - If neither face is confidently recognized, compliments stay in generic mode.
+- On Debian 13, use the local `venv` above instead of `pip3 install` system-wide.

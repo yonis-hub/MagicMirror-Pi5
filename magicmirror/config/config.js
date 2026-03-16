@@ -115,9 +115,10 @@ let config = {
 				recallHoldMs: 25000,
 				unknownHoldMs: 8000,
 				matchThreshold: 0.46,
-				labels: ["hyonis", "wife"],
+				labels: ["yonis", "hodan"],
 				dataFile: "data/encodings.json",
-				pythonBinary: "python3"
+				pythonBinary: "python3",
+				venvBinary: "venv/bin/python3"
 			}
 		},
 		{
@@ -125,12 +126,12 @@ let config = {
 			position: "bottom_bar",
 			config: {
 				identityDisplayNames: {
-					hyonis: "Hyonis",
-					wife: "Marwada",
-					both: "Hyonis iyo Marwada"
+					yonis: "Yonis",
+					hodan: "Hodan",
+					both: "Yonis iyo Hodan"
 				},
 				identityProfiles: {
-					hyonis: {
+					yonis: {
 						morning: [
 							"Subax wanaagsan, {name}.",
 							"{name}, maanta waxaad leedahay tamar fiican.",
@@ -149,7 +150,7 @@ let config = {
 							"{name}, dadaalkaaga waa la dareemaa."
 						]
 					},
-					wife: {
+					hodan: {
 						morning: [
 							"Subax wanaagsan, {name}.",
 							"{name}, dhoolla-caddeyntaadu waa iftiin.",

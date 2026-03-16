@@ -17,10 +17,10 @@ Module.register("MMM-FaceIdentity", {
 		recallHoldMs: 25000,
 		unknownHoldMs: 8000,
 		matchThreshold: 0.46,
-		labels: ["hyonis", "wife"],
+		labels: ["yonis", "hodan"],
 		dataFile: "data/encodings.json",
 		pythonBinary: "python3",
-		venvBinary: "",
+		venvBinary: "venv/bin/python3",
 		detectorModel: "hog",
 		debug: false
 	},
