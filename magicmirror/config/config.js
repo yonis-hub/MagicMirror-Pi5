@@ -103,25 +103,6 @@ let config = {
 			}
 		},
 		{
-			module: "MMM-FaceIdentity",
-			position: "fullscreen_below",
-			classes: "hidden",
-			config: {
-				cameraIndex: 0,
-				frameWidth: 320,
-				frameHeight: 240,
-				scanIntervalMs: 2500,
-				requiredMatches: 2,
-				recallHoldMs: 25000,
-				unknownHoldMs: 8000,
-				matchThreshold: 0.46,
-				labels: ["yonis", "hodan"],
-				dataFile: "data/encodings.json",
-				pythonBinary: "python3",
-				venvBinary: "venv/bin/python3"
-			}
-		},
-		{
 			module: "compliments",
 			position: "bottom_bar",
 			config: {
@@ -216,6 +197,37 @@ let config = {
 				locationID: "6058560", // London, Ontario, Canada
 				apiKey: "83b14ba81eb9656f4afafb0637abf5e5",
 				updateInterval: 600000 // Update every 10 minutes
+			}
+		},
+		{
+			module: "MMM-FaceIdentity",
+			position: "top_right",
+			config: {
+				showPreview: true,
+				previewLabel: "Recognition",
+				previewWidth: 220,
+				previewHeight: 124,
+				previewIntervalMs: 2500,
+				previewQuality: 62,
+				previewMirror: false,
+				showPreviewIdentity: true,
+				identityDisplayNames: {
+					yonis: "Yonis",
+					hodan: "Hodan",
+					both: "Yonis + Hodan"
+				},
+				cameraIndex: 0,
+				frameWidth: 320,
+				frameHeight: 240,
+				scanIntervalMs: 2500,
+				requiredMatches: 2,
+				recallHoldMs: 25000,
+				unknownHoldMs: 8000,
+				matchThreshold: 0.46,
+				labels: ["yonis", "hodan"],
+				dataFile: "data/encodings.json",
+				pythonBinary: "python3",
+				venvBinary: "venv/bin/python3"
 			}
 		},
 		{

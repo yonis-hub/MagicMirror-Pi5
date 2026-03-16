@@ -75,6 +75,14 @@ module.exports = NodeHelper.create({
 			String(Number(this.config.frameWidth) || 320),
 			"--frame-height",
 			String(Number(this.config.frameHeight) || 240),
+			"--preview-width",
+			String(Number(this.config.previewWidth) || 220),
+			"--preview-height",
+			String(Number(this.config.previewHeight) || 124),
+			"--preview-interval-ms",
+			String(Number(this.config.previewIntervalMs) || Number(this.config.scanIntervalMs) || 2500),
+			"--preview-quality",
+			String(Number(this.config.previewQuality) || 60),
 			"--detector-model",
 			String(this.config.detectorModel || "hog")
 		];
@@ -91,6 +99,14 @@ module.exports = NodeHelper.create({
 
 		if (this.config.debug) {
 			args.push("--debug");
+		}
+
+		if (this.config.showPreview) {
+			args.push("--emit-preview");
+		}
+
+		if (this.config.previewMirror) {
+			args.push("--preview-mirror");
 		}
 
 		return args;
@@ -178,6 +194,11 @@ module.exports = NodeHelper.create({
 
 		if (parsed.event === "identity") {
 			this.sendSocketNotification("FACE_IDENTITY_STATE", parsed);
+			return;
+		}
+
+		if (parsed.event === "preview") {
+			this.sendSocketNotification("FACE_IDENTITY_PREVIEW", parsed);
 			return;
 		}
 

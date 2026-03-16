@@ -16,6 +16,8 @@ This module only sends a local MagicMirror notification:
 
 - `FACE_IDENTITY_UPDATE`
 
+If preview is enabled, the module also sends local in-process preview frames over MagicMirror socket notifications only. It still does not expose a camera URL or stream endpoint.
+
 Possible identities:
 
 - `yonis`
@@ -55,9 +57,15 @@ python3 enroll_face.py --label yonis --samples 6 --replace
 ```js
 {
   module: "MMM-FaceIdentity",
-  position: "fullscreen_below",
-  classes: "hidden",
+  position: "top_right",
   config: {
+    showPreview: true,
+    previewLabel: "Recognition",
+    previewWidth: 220,
+    previewHeight: 124,
+    previewIntervalMs: 2500,
+    previewQuality: 62,
+    previewMirror: false,
     cameraIndex: 0,
     scanIntervalMs: 2500,
     requiredMatches: 2,
