@@ -205,11 +205,11 @@ let config = {
 			config: {
 				showPreview: true,
 				previewLabel: "Recognition",
-				previewWidth: 220,
-				previewHeight: 124,
+				previewWidth: 300,
+				previewHeight: 170,
 				previewIntervalMs: 2500,
-				previewQuality: 62,
-				previewMirror: false,
+				previewQuality: 70,
+				previewMirror: true,
 				showPreviewIdentity: true,
 				identityDisplayNames: {
 					yonis: "Yonis",

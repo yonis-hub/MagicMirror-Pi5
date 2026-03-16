@@ -209,6 +209,33 @@ def draw_corner_box(image: np.ndarray, left: int, top: int, right: int, bottom: 
     cv2.line(image, (right, bottom), (right, bottom - corner), color, thickness)
 
 
+def draw_hud_label(
+    image: np.ndarray,
+    text: str,
+    x: int,
+    y: int,
+    glow_color: Tuple[int, int, int],
+    border_color: Tuple[int, int, int]
+) -> None:
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale = 0.5
+    thickness = 1
+    text_size, baseline = cv2.getTextSize(text, font, scale, thickness)
+    bg_left = max(x - 10, 0)
+    bg_top = max(y - text_size[1] - 10, 0)
+    bg_right = min(x + text_size[0] + 10, image.shape[1] - 1)
+    bg_bottom = min(y + baseline + 6, image.shape[0] - 1)
+
+    overlay = image.copy()
+    cv2.rectangle(overlay, (bg_left, bg_top), (bg_right, bg_bottom), (5, 22, 14), -1)
+    cv2.addWeighted(overlay, 0.72, image, 0.28, 0, image)
+    cv2.rectangle(image, (bg_left, bg_top), (bg_right, bg_bottom), border_color, 1)
+
+    # faint glow under text for a smoother HUD look
+    cv2.putText(image, text, (x, y), font, scale, border_color, 3, cv2.LINE_AA)
+    cv2.putText(image, text, (x, y), font, scale, glow_color, thickness, cv2.LINE_AA)
+
+
 def annotate_preview(
     frame: np.ndarray,
     detections: Sequence[dict],
@@ -221,38 +248,36 @@ def annotate_preview(
     annotated = frame.copy()
     hud_green = (88, 255, 166)
     dim_green = (44, 154, 108)
+    soft_glow = (170, 255, 220)
+
+    overlay = annotated.copy()
+    cv2.rectangle(overlay, (0, 0), (annotated.shape[1] - 1, annotated.shape[0] - 1), (5, 26, 15), -1)
+    cv2.addWeighted(overlay, 0.08, annotated, 0.92, 0, annotated)
 
     for detection in detections:
         top, right, bottom, left = detection.get("location", [0, 0, 0, 0])
         label = str(detection.get("label", "unknown")).upper()
         confidence = float(detection.get("confidence", 0.0))
+        cv2.rectangle(annotated, (left, top), (right, bottom), dim_green, 1)
         draw_corner_box(annotated, left, top, right, bottom, hud_green)
 
         label_text = label
         if label != "UNKNOWN":
             label_text = f"{label} {int(round(confidence * 100))}%"
 
-        text_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         text_x = max(left, 8)
-        text_y = max(top - 10, text_size[1] + 12)
-        bg_left = max(text_x - 8, 0)
-        bg_top = max(text_y - text_size[1] - 8, 0)
-        bg_right = min(text_x + text_size[0] + 8, annotated.shape[1] - 1)
-        bg_bottom = min(text_y + baseline + 4, annotated.shape[0] - 1)
-        cv2.rectangle(annotated, (bg_left, bg_top), (bg_right, bg_bottom), (0, 0, 0), -1)
-        cv2.rectangle(annotated, (bg_left, bg_top), (bg_right, bg_bottom), dim_green, 1)
-        cv2.putText(annotated, label_text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, hud_green, 1, cv2.LINE_AA)
+        text_y = max(top - 12, 22)
+        draw_hud_label(annotated, label_text, text_x, text_y, soft_glow, hud_green)
 
-    cv2.putText(annotated, "LOCAL ONLY", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, hud_green, 1, cv2.LINE_AA)
-    cv2.putText(
+    cv2.putText(annotated, "LOCAL ONLY", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.52, hud_green, 1, cv2.LINE_AA)
+    cv2.putText(annotated, "FACE ID ACTIVE", (annotated.shape[1] - 128, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.42, dim_green, 1, cv2.LINE_AA)
+    draw_hud_label(
         annotated,
         f"IDENTITY {identity.upper()}",
-        (10, annotated.shape[0] - 14),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.45,
-        hud_green,
-        1,
-        cv2.LINE_AA
+        10,
+        annotated.shape[0] - 14,
+        soft_glow,
+        hud_green
     )
 
     if preview_mirror:
