@@ -38,3 +38,4 @@ __pycache__/
 mic_test.wav
 voice_listener.log
 magicmirror/modules/MMM-QuranDisplay/logs/
+.claude/
