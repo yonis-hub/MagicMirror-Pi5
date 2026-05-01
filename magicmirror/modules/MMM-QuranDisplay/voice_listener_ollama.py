@@ -271,6 +271,32 @@ SURAH_NAMES = {
     "nas": 114, "mankind": 114, "people": 114, "an nas": 114,
 }
 
+SURAH_DISPLAY_NAMES = {
+    1: "Al-Fatiha", 2: "Al-Baqarah", 3: "Ali Imran", 4: "An-Nisa", 5: "Al-Maidah",
+    6: "Al-Anam", 7: "Al-Araf", 8: "Al-Anfal", 9: "At-Tawbah", 10: "Yunus",
+    11: "Hud", 12: "Yusuf", 13: "Ar-Rad", 14: "Ibrahim", 15: "Al-Hijr",
+    16: "An-Nahl", 17: "Al-Isra", 18: "Al-Kahf", 19: "Maryam", 20: "Ta-Ha",
+    21: "Al-Anbiya", 22: "Al-Hajj", 23: "Al-Muminun", 24: "An-Nur", 25: "Al-Furqan",
+    26: "Ash-Shuara", 27: "An-Naml", 28: "Al-Qasas", 29: "Al-Ankabut", 30: "Ar-Rum",
+    31: "Luqman", 32: "As-Sajdah", 33: "Al-Ahzab", 34: "Saba", 35: "Fatir",
+    36: "Ya-Sin", 37: "As-Saffat", 38: "Sad", 39: "Az-Zumar", 40: "Ghafir",
+    41: "Fussilat", 42: "Ash-Shura", 43: "Az-Zukhruf", 44: "Ad-Dukhan", 45: "Al-Jathiyah",
+    46: "Al-Ahqaf", 47: "Muhammad", 48: "Al-Fath", 49: "Al-Hujurat", 50: "Qaf",
+    51: "Adh-Dhariyat", 52: "At-Tur", 53: "An-Najm", 54: "Al-Qamar", 55: "Ar-Rahman",
+    56: "Al-Waqiah", 57: "Al-Hadid", 58: "Al-Mujadila", 59: "Al-Hashr", 60: "Al-Mumtahanah",
+    61: "As-Saf", 62: "Al-Jumuah", 63: "Al-Munafiqun", 64: "At-Taghabun", 65: "At-Talaq",
+    66: "At-Tahrim", 67: "Al-Mulk", 68: "Al-Qalam", 69: "Al-Haqqah", 70: "Al-Maarij",
+    71: "Nuh", 72: "Al-Jinn", 73: "Al-Muzzammil", 74: "Al-Muddaththir", 75: "Al-Qiyamah",
+    76: "Al-Insan", 77: "Al-Mursalat", 78: "An-Naba", 79: "An-Naziat", 80: "Abasa",
+    81: "At-Takwir", 82: "Al-Infitar", 83: "Al-Mutaffifin", 84: "Al-Inshiqaq", 85: "Al-Buruj",
+    86: "At-Tariq", 87: "Al-Ala", 88: "Al-Ghashiyah", 89: "Al-Fajr", 90: "Al-Balad",
+    91: "Ash-Shams", 92: "Al-Layl", 93: "Ad-Duha", 94: "Ash-Sharh", 95: "At-Tin",
+    96: "Al-Alaq", 97: "Al-Qadr", 98: "Al-Bayyinah", 99: "Az-Zalzalah", 100: "Al-Adiyat",
+    101: "Al-Qariah", 102: "At-Takathur", 103: "Al-Asr", 104: "Al-Humazah", 105: "Al-Fil",
+    106: "Quraysh", 107: "Al-Maun", 108: "Al-Kawthar", 109: "Al-Kafirun", 110: "An-Nasr",
+    111: "Al-Masad", 112: "Al-Ikhlas", 113: "Al-Falaq", 114: "An-Nas",
+}
+
 NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -451,10 +477,10 @@ MAX_HISTORY = 5
 FOLLOWUP_WINDOW_SECONDS = max(0.0, float(os.getenv("VOICE_FOLLOWUP_WINDOW_SEC", "2")))
 DEFAULT_CONFIDENCE = 0.65
 DEFAULT_PARSER_MODE = "local"
-DEFAULT_STT_MODEL = "tiny"
-DEFAULT_STT_LANGUAGE = "auto"
-DEFAULT_WAKE_WINDOW_SEC = 2.5
-DEFAULT_COMMAND_WINDOW_SEC = 3.5
+DEFAULT_STT_MODEL = "base.en"
+DEFAULT_STT_LANGUAGE = "en"
+DEFAULT_WAKE_WINDOW_SEC = 1.5
+DEFAULT_COMMAND_WINDOW_SEC = 2.5
 DEFAULT_MEMORY_CHECK_INTERVAL_SEC = 60
 FUZZY_SURAH_THRESHOLD = 0.82
 DEFAULT_SILENCE_MAX_AMP = 60
@@ -709,7 +735,7 @@ class OllamaVoiceListener:
         mirror_url="http://localhost:8080",
         ollama_url=OLLAMA_URL,
         enable_beeps=False,
-        enable_voice=False,
+        enable_voice=True,
         parser_mode=DEFAULT_PARSER_MODE,
         stt_model=DEFAULT_STT_MODEL,
         stt_language=DEFAULT_STT_LANGUAGE,
@@ -762,7 +788,9 @@ class OllamaVoiceListener:
         self.stt_prompt = (
             "Voice command for Quran recitation. "
             f"Wake words: {wake_words_prompt}. "
-            "Keywords: play recite pause resume continue stop surah fatiha yasin rahman mulk baqarah ikhlas nas."
+            "Actions: play recite pause resume continue stop. "
+            "Common surahs: fatiha baqarah imran nisa maidah anam araf anfal tawbah yunus hud yusuf ibrahim hijr nahl isra kahf maryam taha anbiya hajj muminun nur furqan shuara naml qasas ankabut rum luqman sajdah ahzab saba fatir yasin saffat sad zumar ghafir fussilat shura zukhruf dukhan jathiyah ahqaf muhammad fath hujurat qaf dhariyat tur najm qamar rahman waqiah hadid mujadila hashr mumtahanah saf jumuah munafiqun taghabun talaq tahrim mulk qalam haqqah maarij nuh jinn muzzammil muddaththir qiyamah insan mursalat naba naziat abasa takwir infitar mutaffifin inshiqaq buruj tariq ala ghashiyah fajr balad shams layl duha sharh tin alaq qadr bayyinah zalzalah adiyat qariah takathur asr humazah fil quraysh maun kawthar kafirun nasr masad ikhlas falaq nas. "
+            "Quran vocabulary: surah ayah verse recite bismillah ayatul kursi mercy patience guidance protection."
         )
 
         # Print audio device information
@@ -984,20 +1012,21 @@ class OllamaVoiceListener:
         if not intent:
             return
         action = intent.get("action")
+        surah_num = intent.get("surah")
+        surah_name = SURAH_DISPLAY_NAMES.get(surah_num, f"Surah {surah_num}") if surah_num else None
         if action == "play":
-            message = f"Playing Surah {intent.get('surah')}"
+            message = f"Playing {surah_name}, right away."
         elif action == "play_verse":
-            surah = intent.get("surah")
             verse = intent.get("verse_start")
-            message = f"Playing Surah {surah}, verse {verse}"
+            message = f"Playing {surah_name} from verse {verse}."
         elif action == "pause":
-            message = "Pausing recitation"
+            message = "Pausing recitation."
         elif action == "resume":
-            message = "Resuming recitation"
+            message = "Resuming recitation."
         elif action == "stop":
-            message = "Stopping playback"
+            message = "Stopping playback."
         else:
-            message = "Didn't understand that command"
+            message = "Command not recognized."
 
         print(f"🎧 {message}")
         if self.enable_voice:
@@ -1007,15 +1036,29 @@ class OllamaVoiceListener:
         if not self.enable_voice or not text:
             return
         try:
-            if self.tts_engine is None:
-                import pyttsx3
-                self.tts_engine = pyttsx3.init()
-                self.tts_engine.setProperty("rate", 175)
-            self.tts_engine.say(text)
-            self.tts_engine.runAndWait()
+            # espeak-ng: fast, no init overhead, available on all Pi/Raspbian installs
+            # -s 145 = speech rate, -p 40 = pitch (slightly lower = less robotic),
+            # -a 80 = amplitude, -g 8 = word gap (slight pause between words)
+            subprocess.run(
+                ["espeak-ng", "-s", "145", "-p", "40", "-a", "80", "-g", "8", text],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10
+            )
+        except FileNotFoundError:
+            # Fallback to pyttsx3 if espeak-ng not installed
+            try:
+                if self.tts_engine is None:
+                    import pyttsx3
+                    self.tts_engine = pyttsx3.init()
+                    self.tts_engine.setProperty("rate", 150)
+                self.tts_engine.say(text)
+                self.tts_engine.runAndWait()
+            except Exception as e:
+                print(f"TTS error: {e}")
+                self.enable_voice = False
         except Exception as e:
             print(f"TTS error: {e}")
-            self.enable_voice = False
 
     def _parse_command(self, command_text):
         local_result = self.parse_fallback(command_text, require_wake=False)
@@ -1410,7 +1453,7 @@ class OllamaVoiceListener:
             language = self.stt_language if self.stt_language else None
             segments, info = self.whisper.transcribe(
                 audio_file,
-                beam_size=4,
+                beam_size=5,
                 language=language,
                 vad_filter=True,
                 vad_parameters={"min_silence_duration_ms": 250},
@@ -1458,7 +1501,7 @@ class OllamaVoiceListener:
                     "stream": False,
                     "options": {"temperature": 0.1}
                 },
-                timeout=45
+                timeout=8
             )
 
             if response.status_code == 200:
@@ -1858,8 +1901,6 @@ class OllamaVoiceListener:
                             continue
 
                         self.send_transcript_status(command_text, phase="captured", raw_text=command_raw_text)
-                        if self.enable_voice:
-                            self.speak(f"I heard: {command_text}. Hold on.")
 
                         print(
                             "  Timing ms: "
@@ -1912,7 +1953,8 @@ def main():
     parser.add_argument("--device", default="pulse", help="ALSA/Pulse input device")
     parser.add_argument("--mirror-url", default="http://localhost:8080", help="MagicMirror base URL")
     parser.add_argument("--enable-beeps", action="store_true", help="Enable confirmation beeps")
-    parser.add_argument("--enable-voice", action="store_true", help="Enable TTS acknowledgements")
+    parser.add_argument("--enable-voice", action="store_true", default=True, help="Enable TTS acknowledgements (on by default)")
+    parser.add_argument("--no-voice", action="store_false", dest="enable_voice", help="Disable TTS acknowledgements")
     parser.add_argument(
         "--parser-mode",
         choices=["local", "hybrid", "ollama"],
