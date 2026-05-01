@@ -190,10 +190,10 @@ if [ "$#" -eq 0 ]; then
     set -- \
         --device "$VOICE_DEVICE" \
         --parser-mode hybrid \
-        --stt-model tiny \
-        --stt-language auto \
-        --wake-window-sec 2.0 \
-        --command-window-sec 3.0
+        --stt-model base.en \
+        --stt-language en \
+        --wake-window-sec 1.5 \
+        --command-window-sec 2.5
 fi
 
 log "Voice input device: $VOICE_DEVICE"
