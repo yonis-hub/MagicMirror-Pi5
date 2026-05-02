@@ -1,0 +1,23 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Mark large binary files to improve diff/clone performance
+*.mp3 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.svg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Quran data files (very large, skip diff)
+quran_data/** binary
+adhkar/** binary
+
+# Custom module assets
+magicmirror/modules/**/audio/** binary
+magicmirror/modules/**/logos/** binary
