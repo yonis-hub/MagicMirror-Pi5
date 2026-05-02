@@ -30,6 +30,12 @@ __pycache__/
 .env
 .env.local
 
+# Python virtual environments
+venv/
+.venv/
+**/venv/
+**/.venv/
+
 # Temporary files
 *.tmp
 *.temp
