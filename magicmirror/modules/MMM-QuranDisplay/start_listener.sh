@@ -187,13 +187,15 @@ fi
 
 if [ "$#" -eq 0 ]; then
     # Tuned defaults for always-on wall mirror mode.
+    # tiny = fastest STT (good enough for short commands)
+    # local = no Ollama lag (instant response)
     set -- \
         --device "$VOICE_DEVICE" \
-        --parser-mode hybrid \
-        --stt-model base.en \
+        --parser-mode local \
+        --stt-model tiny \
         --stt-language en \
         --wake-window-sec 1.5 \
-        --command-window-sec 2.5
+        --command-window-sec 2.0
 fi
 
 log "Voice input device: $VOICE_DEVICE"
