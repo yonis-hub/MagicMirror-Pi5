@@ -238,6 +238,16 @@ sudo fuser -k 8080/tcp
 cd magicmirror && npm run server
 ```
 
+### Commit Message Guidelines
+Keep subject lines concise (max 72 characters). Use prefixes like:
+- `Add:` — new features/modules
+- `Fix:` — bug fixes
+- `Update:` — config/script changes
+- `Refactor:` — code restructuring
+- `Docs:` — documentation only
+
+Example: `Fix: reduce voice listener latency on Pi 5`
+
 --- l
 
 ## 📝 Troubleshooting
