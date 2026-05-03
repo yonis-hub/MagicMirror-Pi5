@@ -719,7 +719,7 @@ def check_server_ready():
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:1b-Q4_K_M"  # Quantized model for efficiency
+OLLAMA_MODEL = "llama3.2:1b"  # Fast, good reasoning for Pi 5
 
 # System prompt for Ollama
 SYSTEM_PROMPT = """You are a conversational intent parser for Mo, a Quran reciter.
