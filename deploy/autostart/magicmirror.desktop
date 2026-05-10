@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MagicMirror
+Comment=Launch MagicMirror inside the labwc graphical session
+Exec=/bin/bash -lc "cd $HOME/MagicMirror-Pi5/magicmirror && /usr/bin/npm run start"
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
