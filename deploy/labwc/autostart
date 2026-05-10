@@ -28,7 +28,7 @@
   # --kiosk: fullscreen, no chrome
   # --noerrdialogs / --disable-infobars / --no-first-run: clean startup
   # --disable-features=Translate: no popups
-  /usr/bin/lwrespawn /usr/bin/chromium-browser \
+  /usr/bin/lwrespawn /usr/bin/chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
