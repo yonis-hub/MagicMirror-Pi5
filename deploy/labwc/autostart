@@ -1,24 +1,12 @@
 #!/bin/sh
-# labwc autostart for MagicMirror Pi 5
-# This file replaces the system default at /etc/xdg/labwc/autostart and adds
-# MagicMirror, launched as a direct child of labwc (so it can attach to the
-# Wayland compositor and create visible windows).
+# User-level labwc autostart additions.
+# Pi OS's system default (/etc/xdg/labwc/autostart) is loaded separately by
+# labwc and handles panels, file manager desktop, kanshi, and XDG autostart.
+# This file ONLY adds MagicMirror so we don't duplicate the desktop env.
 
-# --- Pi OS defaults (do not remove; the desktop/panel rely on these) ---
-/usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
-/usr/bin/lwrespawn /usr/bin/wf-panel-pi &
-/usr/bin/kanshi &
-/usr/bin/lxsession-xdg-autostart
-
-# --- MagicMirror ---
-# Wait a few seconds so the panel/desktop are up before MM grabs focus.
-# Launched via lwrespawn for automatic restart on crash.
-# Log to /tmp so we can inspect on next boot if anything fails.
+# Wait briefly for panel/desktop to settle, then launch MM via lwrespawn for
+# crash recovery. Log to /tmp so we can inspect failures.
 (
-  sleep 5
-  exec /usr/bin/lwrespawn /bin/bash -lc '
-    export ELECTRON_OZONE_PLATFORM_HINT=auto
-    cd "$HOME/MagicMirror-Pi5/magicmirror" || exit 1
-    exec /usr/bin/npm run start
-  ' >> /tmp/mm-autostart.log 2>&1
+  sleep 8
+  exec /usr/bin/lwrespawn /bin/sh -c 'cd "$HOME/MagicMirror-Pi5/magicmirror" && exec /usr/bin/npm run start' >> /tmp/mm-autostart.log 2>&1
 ) &
