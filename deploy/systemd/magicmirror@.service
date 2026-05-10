@@ -10,9 +10,12 @@ Type=simple
 User=%i
 WorkingDirectory=/home/%i/MagicMirror-Pi5/magicmirror
 Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XAUTHORITY=/home/%i/.Xauthority
+Environment=XDG_SESSION_TYPE=wayland
 Environment=NODE_ENV=production
 ExecStartPre=/usr/bin/test -d /home/%i/MagicMirror-Pi5/magicmirror
-ExecStart=/bin/bash -lc 'export XDG_RUNTIME_DIR="/run/user/$(id -u)"; if [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"; fi; exec /usr/bin/npm run start'
+ExecStart=/bin/bash -lc 'export XDG_RUNTIME_DIR="/run/user/$(id -u)"; for i in $(seq 1 60); do [ -S "$XDG_RUNTIME_DIR/wayland-0" ] && break; sleep 1; done; if [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"; fi; exec /usr/bin/npm run start'
 Restart=always
 RestartSec=5
 TimeoutStartSec=120
