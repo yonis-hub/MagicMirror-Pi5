@@ -175,7 +175,7 @@ let config = {
 				type: "current",
 				location: "London, Ontario",
 				locationID: "6058560", // London, Ontario, Canada
-				apiKey: process.env.OPENWEATHER_API_KEY || "YOUR_OPENWEATHER_API_KEY_HERE",
+				apiKey: "${OPENWEATHER_API_KEY}",
 				updateInterval: 600000, // Update every 10 minutes
 				convertTemperature: true,
 				showWindDirection: true,
@@ -195,7 +195,7 @@ let config = {
 				type: "forecast",
 				location: "London, Ontario",
 				locationID: "6058560", // London, Ontario, Canada
-				apiKey: process.env.OPENWEATHER_API_KEY || "YOUR_OPENWEATHER_API_KEY_HERE",
+				apiKey: "${OPENWEATHER_API_KEY}",
 				updateInterval: 600000 // Update every 10 minutes
 			}
 		},
