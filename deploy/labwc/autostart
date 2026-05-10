@@ -1,12 +1,40 @@
 #!/bin/sh
-# User-level labwc autostart additions.
+# User-level labwc autostart for MagicMirror Pi 5.
 # Pi OS's system default (/etc/xdg/labwc/autostart) is loaded separately by
 # labwc and handles panels, file manager desktop, kanshi, and XDG autostart.
-# This file ONLY adds MagicMirror so we don't duplicate the desktop env.
+# This file only adds MagicMirror.
+#
+# Approach: MagicMirror runs in server-only mode (no Electron), and Chromium
+# in kiosk mode displays the UI. Electron does not render visible windows on
+# Pi 5 / labwc Wayland; Chromium does.
 
-# Wait briefly for panel/desktop to settle, then launch MM via lwrespawn for
-# crash recovery. Log to /tmp so we can inspect failures.
 (
-  sleep 8
-  exec /usr/bin/lwrespawn /bin/sh -c 'cd "$HOME/MagicMirror-Pi5/magicmirror" && exec /usr/bin/npm run start' >> /tmp/mm-autostart.log 2>&1
+  # Wait for the desktop session to settle
+  sleep 5
+
+  # Start MagicMirror server (no Electron). lwrespawn restarts it on crash.
+  cd "$HOME/MagicMirror-Pi5/magicmirror" || exit 1
+  /usr/bin/lwrespawn /usr/bin/node serveronly >> /tmp/mm-server.log 2>&1 &
+
+  # Wait up to 60s for the server to respond on port 8080
+  for i in $(seq 1 60); do
+    if /usr/bin/curl -sf -o /dev/null http://localhost:8080; then
+      break
+    fi
+    sleep 1
+  done
+
+  # Launch Chromium in kiosk mode pointing at the local MagicMirror server.
+  # --kiosk: fullscreen, no chrome
+  # --noerrdialogs / --disable-infobars / --no-first-run: clean startup
+  # --disable-features=Translate: no popups
+  /usr/bin/lwrespawn /usr/bin/chromium-browser \
+    --kiosk \
+    --noerrdialogs \
+    --disable-infobars \
+    --no-first-run \
+    --disable-features=Translate \
+    --disable-pinch \
+    --overscroll-history-navigation=0 \
+    http://localhost:8080 >> /tmp/mm-kiosk.log 2>&1 &
 ) &
