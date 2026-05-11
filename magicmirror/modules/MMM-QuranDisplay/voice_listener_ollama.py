@@ -2201,6 +2201,15 @@ class OllamaVoiceListener:
                     print("  🔇 Wake fired within TTS cooldown — ignoring (self-trigger)")
                     continue
 
+                # External-mute flag (e.g. set by MagicMirror during adhan).
+                if os.path.exists("/tmp/mm-voice-muted"):
+                    try:
+                        reason = open("/tmp/mm-voice-muted").read().strip() or "external"
+                    except Exception:
+                        reason = "external"
+                    print(f"  🕌 Wake fired but voice is muted ({reason}) — ignoring")
+                    continue
+
                 print("  🟢 Wake fired")
                 self.send_transcript_status(self.primary_wake_word, phase="wake", raw_text=self.primary_wake_word)
 

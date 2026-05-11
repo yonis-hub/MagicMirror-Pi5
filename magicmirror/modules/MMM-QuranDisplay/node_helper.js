@@ -5,9 +5,12 @@
  */
 
 const { spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const NodeHelper = require("node_helper");
+
+const VOICE_MUTE_FLAG = "/tmp/mm-voice-muted";
 
 module.exports = NodeHelper.create({
 	start: function () {
@@ -67,6 +70,25 @@ module.exports = NodeHelper.create({
 			const { isProcessing } = req.body;
 			this.sendSocketNotification("PROCESSING_STATUS", { isProcessing });
 			res.status(200).json({ status: "success" });
+		});
+
+		// API endpoint to mute/unmute the voice listener. Writes a flag
+		// file (/tmp/mm-voice-muted) that voice_listener_ollama.py checks
+		// before processing wake events. Used to suppress wake triggers
+		// during adhan playback so the AI doesn't take requests then.
+		this.expressApp.post("/api/quran/voice-mute", (req, res) => {
+			const muted = !!(req.body && req.body.muted);
+			const reason = (req.body && req.body.reason) || "external";
+			try {
+				if (muted) {
+					fs.writeFileSync(VOICE_MUTE_FLAG, `${reason}\n`);
+				} else if (fs.existsSync(VOICE_MUTE_FLAG)) {
+					fs.unlinkSync(VOICE_MUTE_FLAG);
+				}
+				res.status(200).json({ status: "success", muted, reason });
+			} catch (err) {
+				res.status(500).json({ status: "error", error: String(err) });
+			}
 		});
 
 		// API endpoint for latest recognized transcript/phrase

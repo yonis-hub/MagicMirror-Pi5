@@ -422,6 +422,21 @@ Module.register("MMM-QuranDisplay", {
 				reason: payload && payload.reason ? String(payload.reason) : ""
 			};
 			this.updateDom(0);
+			// Mute the voice listener for the duration of the adhan so wake
+			// triggers don't get processed during prayer call.
+			this.setVoiceMute(this.adhanStatus.isPlaying, `adhan:${this.adhanStatus.prayer || "unknown"}`);
+		}
+	},
+
+	setVoiceMute: function (muted, reason) {
+		try {
+			fetch("/api/quran/voice-mute", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ muted: !!muted, reason: reason || "external" })
+			}).catch(() => { /* ignore network errors */ });
+		} catch (e) {
+			// Browser may not have fetch in older builds; silently ignore.
 		}
 	}
 });
