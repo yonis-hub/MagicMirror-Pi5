@@ -71,6 +71,12 @@ export PULSE_SOURCE="${PULSE_SOURCE:-$VOICE_SOURCE}"
 export PULSE_SINK="${PULSE_SINK:-$VOICE_SINK}"
 export QURAN_PULSE_SINK="${QURAN_PULSE_SINK:-$VOICE_SINK}"
 export QURAN_PULSE_SINK_VOLUME="${QURAN_PULSE_SINK_VOLUME:-$VOICE_SINK_VOLUME}"
+# Constant recitation playback volume — mpv tops out at 100 (unboosted).
+# Lower this number = quieter Quran playback regardless of system sink level.
+export QURAN_MPV_VOLUME="${QURAN_MPV_VOLUME:-25}"
+# Disable dynaudnorm by default — it normalizes quiet ayahs *up*, which
+# was the audible loudness spikes during recitation. Set to 1 to re-enable.
+export QURAN_MPV_ENABLE_DYNAUDNORM="${QURAN_MPV_ENABLE_DYNAUDNORM:-0}"
 export VOICE_SILENCE_MAX_AMP
 export VOICE_SILENCE_RMS_AMP
 
