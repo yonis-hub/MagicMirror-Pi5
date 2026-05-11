@@ -2,6 +2,9 @@
 node_modules/
 package-lock.json
 
+# Reciter audio packs (too large for GitHub — transfer to Pi via scp/rsync)
+quran_data/_reciters/
+
 # MagicMirror specific
 magicmirror/node_modules/
 magicmirror/modules/*/node_modules/
