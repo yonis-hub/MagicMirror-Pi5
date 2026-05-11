@@ -52,7 +52,7 @@ SURAH_INDEX_FILENAME = "surah_index.json"
 
 
 class QuranChainer:
-    def __init__(self, mirror_url="http://localhost:8080"):
+    def __init__(self, mirror_url="http://localhost:8080", reciter=None):
         self.mirror_url = mirror_url
         self.is_paused = False
         self.is_stopped = False
@@ -65,7 +65,10 @@ class QuranChainer:
         metadata_api_raw = os.environ.get("QURAN_ALLOW_METADATA_API", "0")
         self.allow_metadata_api = str(metadata_api_raw).strip().lower() in {"1", "true", "yes", "on"}
         self.surah_index = self._load_surah_index()
+        self.reciter_manifest = self._load_reciter_manifest()
+        self.reciter_key, self.reciter = self._resolve_reciter(reciter)
         print(f"Using Quran data directory: {self.quran_data_dir}")
+        print(f"Using reciter: {self.reciter.get('name', self.reciter_key)} (layout={self.reciter.get('layout')})")
         if self.surah_index:
             print(f"Loaded local surah metadata index ({len(self.surah_index)} entries)")
         elif self.allow_metadata_api:
@@ -91,6 +94,61 @@ class QuranChainer:
         if len(parents) > 3:
             return parents[3]
         return script_dir
+
+    def _reciter_manifest_path(self):
+        return Path(__file__).resolve().parent / "reciters.json"
+
+    def _load_reciter_manifest(self):
+        path = self._reciter_manifest_path()
+        if not path.exists():
+            # Backwards-compat: no manifest -> single reciter assumed
+            return {
+                "default": "alafasy",
+                "current": "alafasy",
+                "reciters": {
+                    "alafasy": {
+                        "name": "Mishary Alafasy",
+                        "layout": "verse",
+                        "audio_dir": "quran_data",
+                        "audio_pattern": "{surah:03d}/{verse:03d}.mp3",
+                        "aliases": ["alafasy", "default"],
+                    }
+                },
+            }
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"Warning: could not read reciters manifest at {path}: {e}")
+            return {"default": "alafasy", "current": "alafasy", "reciters": {}}
+
+    def _resolve_reciter(self, requested):
+        reciters = self.reciter_manifest.get("reciters", {})
+        chosen = requested or self.reciter_manifest.get("current") or self.reciter_manifest.get("default") or "alafasy"
+        if chosen in reciters:
+            return chosen, reciters[chosen]
+        # Try matching by alias (case-insensitive)
+        normalized = chosen.lower().strip() if isinstance(chosen, str) else ""
+        for key, info in reciters.items():
+            if key.lower() == normalized:
+                return key, info
+            for alias in info.get("aliases", []):
+                if alias.lower() == normalized:
+                    return key, info
+        # Fall through to default
+        default_key = self.reciter_manifest.get("default", "alafasy")
+        return default_key, reciters.get(default_key, {"name": default_key, "layout": "verse", "audio_dir": "quran_data", "audio_pattern": "{surah:03d}/{verse:03d}.mp3"})
+
+    def _reciter_audio_dir(self):
+        rel = self.reciter.get("audio_dir", "quran_data")
+        return (self.repo_root / rel).resolve()
+
+    def _reciter_audio_path(self, surah_number, verse_number=None):
+        pattern = self.reciter.get("audio_pattern", "{surah:03d}/{verse:03d}.mp3")
+        try:
+            rel = pattern.format(surah=int(surah_number), verse=int(verse_number) if verse_number else 0)
+        except (KeyError, ValueError):
+            rel = pattern
+        return (self._reciter_audio_dir() / rel).resolve()
 
     def _stdin_listener(self):
         """Listen for control commands from parent process stdin."""
@@ -265,8 +323,15 @@ class QuranChainer:
             if isinstance(ayah_number, str) and ayah_number.isdigit():
                 ayah_number = int(ayah_number)
 
-            audio_path = surah_dir / f"{verse_num:03}.mp3"
-            local_audio = str(audio_path.resolve()) if audio_path.exists() else None
+            # Resolve audio path via the active reciter (per-verse only).
+            # For per-surah reciters (layout=="surah"), play_surah() short-
+            # circuits to a single-file playback below, so this branch is
+            # only used when layout=="verse".
+            if self.reciter.get("layout", "verse") == "verse":
+                audio_path = self._reciter_audio_path(surah_number, verse_num)
+            else:
+                audio_path = surah_dir / f"{verse_num:03}.mp3"
+            local_audio = str(audio_path) if audio_path.exists() else None
 
             verses.append({
                 "number": verse_num,
@@ -545,7 +610,8 @@ class QuranChainer:
             return False
 
     def play_surah(self, surah_number, start_verse=1):
-        """Play an entire surah verse by verse"""
+        """Play an entire surah. Verse-by-verse for verse-layout reciters,
+        single-file for surah-layout reciters."""
         data = self.fetch_surah(surah_number)
 
         if not data:
@@ -558,7 +624,12 @@ class QuranChainer:
         print(f"\n▶ Playing: {surah_info['arabicName']} - {surah_info['englishName']}")
         print(f"  {surah_info['englishNameTranslation']}")
         print(f"  Total verses: {surah_info['totalVerses']}")
+        print(f"  Reciter: {self.reciter.get('name', self.reciter_key)}")
         print(f"  Starting from verse: {start_verse}\n")
+
+        # For per-surah reciters, skip verse iteration and play the whole file.
+        if self.reciter.get("layout") == "surah":
+            return self._play_whole_surah(surah_number, surah_info, verses, start_verse)
 
         # Filter verses based on start_verse
         verses_to_play = [v for v in verses if v["number"] >= start_verse]
@@ -579,7 +650,8 @@ class QuranChainer:
                 surah_info={
                     "arabicName": surah_info["arabicName"],
                     "englishName": surah_info["englishName"],
-                    "totalVerses": surah_info["totalVerses"]
+                    "totalVerses": surah_info["totalVerses"],
+                    "reciter": self.reciter.get("name", self.reciter_key),
                 },
                 is_playing=True
             )
@@ -599,6 +671,46 @@ class QuranChainer:
                 time.sleep(0.5)
 
         # Finished
+        self._update_playback_status(False)
+        print("\n✓ Playback complete")
+        return True
+
+    def _play_whole_surah(self, surah_number, surah_info, verses, start_verse=1):
+        """Play a single MP3 representing the whole surah (per-surah reciter layout)."""
+        audio_path = self._reciter_audio_path(surah_number)
+        if not audio_path.exists():
+            print(f"  No audio file at {audio_path} — falling back to per-verse if available")
+            # Fall back: try to use the default reciter's verse-by-verse path
+            fallback_key = self.reciter_manifest.get("default", "alafasy")
+            fallback_info = self.reciter_manifest.get("reciters", {}).get(fallback_key)
+            if fallback_info and fallback_key != self.reciter_key:
+                self.reciter_key = fallback_key
+                self.reciter = fallback_info
+                return self.play_surah(surah_number, start_verse)
+            print("  No fallback available; aborting.")
+            return False
+
+        # Show a 'whole surah' display: arabic surah name + reciter name on the wall,
+        # without per-verse highlighting (we don't have segment timestamps).
+        first_verse = next((v for v in verses if v["number"] >= start_verse), verses[0] if verses else None)
+        if first_verse:
+            self._update_verse_display(
+                arabic=first_verse["arabic"],
+                translation=first_verse["translation"],
+                surah=surah_number,
+                verse=first_verse["number"],
+                surah_info={
+                    "arabicName": surah_info["arabicName"],
+                    "englishName": surah_info["englishName"],
+                    "totalVerses": surah_info["totalVerses"],
+                    "reciter": self.reciter.get("name", self.reciter_key),
+                },
+                is_playing=True,
+            )
+
+        print(f"  [Whole-surah] Playing {audio_path.name} ({self.reciter.get('name', self.reciter_key)})...")
+        self.play_audio(str(audio_path))
+
         self._update_playback_status(False)
         print("\n✓ Playback complete")
         return True
@@ -629,6 +741,7 @@ def main():
     parser.add_argument("--surah", "-s", required=True, help="Surah number or name (e.g., 1 or fatiha)")
     parser.add_argument("--start-verse", "-v", type=int, default=1, help="Starting verse number")
     parser.add_argument("--mirror-url", "-m", default="http://localhost:8080", help="MagicMirror URL")
+    parser.add_argument("--reciter", "-r", default=None, help="Reciter key or alias (overrides reciters.json current). E.g. 'alafasy' or 'noreen-sedeeq'")
 
     args = parser.parse_args()
 
@@ -638,7 +751,7 @@ def main():
         print("Valid range: 1-114 or surah name (e.g., fatiha, baqara, yasin)")
         sys.exit(1)
 
-    chainer = QuranChainer(mirror_url=args.mirror_url)
+    chainer = QuranChainer(mirror_url=args.mirror_url, reciter=args.reciter)
     chainer.play_surah(surah_number, args.start_verse)
 
 

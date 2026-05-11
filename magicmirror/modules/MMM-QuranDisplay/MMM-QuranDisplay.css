@@ -46,6 +46,14 @@
   margin-top: 3px;
 }
 
+.mmm-quran-display .surah-reciter {
+  color: #c8b56c;
+  font-size: 0.8em;
+  letter-spacing: 0.6px;
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
 .mmm-quran-display .adhkar-now-playing {
   margin-bottom: 10px;
   padding: 8px 10px;

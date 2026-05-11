@@ -1200,6 +1200,9 @@ class OllamaVoiceListener:
         command = [sys.executable, "quran_chainer.py", "--surah", str(surah)]
         if verse_start is not None:
             command.extend(["--start-verse", str(verse_start)])
+        active = self._current_reciter_key()
+        if active:
+            command.extend(["--reciter", active])
         print(f"  Launching chainer: {' '.join(command)}")
         self.current_process = subprocess.Popen(
             command,
@@ -1207,6 +1210,84 @@ class OllamaVoiceListener:
             stdin=subprocess.PIPE,
             text=True
         )
+
+    # ---------- Reciter switching (per-session, persisted in reciters.json) ----------
+    def _reciters_manifest_path(self):
+        return self.script_dir / "reciters.json"
+
+    def _load_reciters_manifest(self):
+        path = self._reciters_manifest_path()
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"  Could not read reciters manifest: {e}")
+            return None
+
+    def _save_reciters_manifest(self, manifest):
+        try:
+            self._reciters_manifest_path().write_text(
+                json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            return True
+        except Exception as e:
+            print(f"  Could not write reciters manifest: {e}")
+            return False
+
+    def _current_reciter_key(self):
+        manifest = self._load_reciters_manifest()
+        if not manifest:
+            return None
+        return manifest.get("current") or manifest.get("default")
+
+    def _match_reciter_switch(self, command_text):
+        """If `command_text` matches a reciter-switch phrase, return the
+        target reciter key, otherwise None."""
+        if not command_text:
+            return None
+        lowered = command_text.lower().strip().rstrip(".!?")
+        manifest = self._load_reciters_manifest()
+        if not manifest:
+            return None
+
+        # Heuristic switch markers: "switch", "use", "change to", "set reciter".
+        switch_markers = ("switch reciter", "switch to", "change reciter", "change to",
+                          "use reciter", "use ", "set reciter", "set to", "go to reciter",
+                          "play with", "recite with")
+        # Even without a marker, a bare reciter name uttered alone counts.
+        has_marker = any(marker in lowered for marker in switch_markers)
+        for key, info in manifest.get("reciters", {}).items():
+            aliases = [key.lower()] + [a.lower() for a in info.get("aliases", [])]
+            for alias in aliases:
+                if not alias:
+                    continue
+                # Full-text match (e.g. "noreen sedeeq")
+                if alias == lowered:
+                    return key
+                # Marker + alias substring (e.g. "use 2nd reciter")
+                if has_marker and alias in lowered:
+                    return key
+        return None
+
+    def _switch_reciter(self, target_key):
+        manifest = self._load_reciters_manifest()
+        if not manifest or target_key not in manifest.get("reciters", {}):
+            return False
+        previous = manifest.get("current")
+        manifest["current"] = target_key
+        if not self._save_reciters_manifest(manifest):
+            return False
+        info = manifest["reciters"][target_key]
+        nice_name = info.get("name", target_key)
+        print(f"  🎙 Switched reciter: {previous} -> {target_key} ({nice_name})")
+        if self.enable_voice:
+            self.speak(f"Switching to {nice_name}.")
+        # If playback is active, stop it so the next play uses the new reciter.
+        if self.current_process and self.current_process.poll() is None:
+            self.stop_playback()
+        return True
 
     def send_chainer_command(self, command):
         if not self.current_process or self.current_process.poll() is not None:
@@ -1360,6 +1441,14 @@ class OllamaVoiceListener:
         self.send_processing_status(True)
         self.send_listening_status(False)
         try:
+            # Reciter-switch check (runs before the general intent parser so
+            # phrases like "use second reciter" / "noreen sedeeq" / "switch
+            # reciter" don't get misclassified).
+            target_reciter = self._match_reciter_switch(command_text)
+            if target_reciter:
+                self._switch_reciter(target_reciter)
+                return
+
             parse_started_at = time.perf_counter()
             slots = extract_slots(command_text)
             result = self._parse_command(command_text)

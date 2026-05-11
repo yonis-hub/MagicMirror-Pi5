@@ -1,0 +1,20 @@
+{
+  "default": "alafasy",
+  "current": "alafasy",
+  "reciters": {
+    "alafasy": {
+      "name": "Mishary Alafasy",
+      "aliases": ["alafasy", "default", "first", "1st", "first reciter", "default reciter", "main reciter", "mishary"],
+      "layout": "verse",
+      "audio_dir": "quran_data",
+      "audio_pattern": "{surah:03d}/{verse:03d}.mp3"
+    },
+    "noreen-sedeeq": {
+      "name": "Sheikha Noreen Mohammad Siddiq",
+      "aliases": ["noreen", "noureen", "nourine", "norine", "sedeeq", "siddiq", "siddik", "noreen sedeeq", "noreen siddiq", "noureen sedeeq", "second", "2nd", "second reciter", "2nd reciter"],
+      "layout": "surah",
+      "audio_dir": "quran_data/_reciters/noreen-sedeeq",
+      "audio_pattern": "{surah:03d}.mp3"
+    }
+  }
+}

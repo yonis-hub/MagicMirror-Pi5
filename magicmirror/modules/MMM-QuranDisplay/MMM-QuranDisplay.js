@@ -331,6 +331,13 @@ Module.register("MMM-QuranDisplay", {
 			wrapper.appendChild(infoDiv);
 		}
 
+		if (this.surahInfo?.reciter) {
+			const reciterDiv = document.createElement("div");
+			reciterDiv.className = "surah-reciter";
+			reciterDiv.textContent = `Recited by ${this.surahInfo.reciter}`;
+			wrapper.appendChild(reciterDiv);
+		}
+
 		if (this.isPlaying) {
 			const playingDiv = document.createElement("div");
 			playingDiv.className = "playing-indicator";
