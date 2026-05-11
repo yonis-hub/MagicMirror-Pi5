@@ -42,9 +42,14 @@ class WakeDetector:
     def __init__(
         self,
         model_dir: Path = DEFAULT_MODEL_DIR,
-        threshold: float = 0.65,
+        threshold: float = None,
         device: str = "pulse",
     ):
+        if threshold is None:
+            try:
+                threshold = float(os.environ.get("OWW_THRESHOLD", "0.5"))
+            except ValueError:
+                threshold = 0.5
         self.model_dir = Path(model_dir)
         self.threshold = threshold
         self.device = device
@@ -141,6 +146,9 @@ class WakeDetector:
                 if now < cooldown_until:
                     continue
                 triggered = max(scores.values()) if scores else 0.0
+                # Log near-misses too so the threshold can be tuned from logs
+                if triggered >= self.threshold * 0.5:
+                    print(f"  [OWW] score={triggered:.2f} (threshold={self.threshold:.2f})")
                 if triggered >= self.threshold:
                     cooldown_until = now + 1.5  # avoid double-triggering
                     self._wake_q.put(triggered)
