@@ -13,6 +13,7 @@ Requirements:
 import argparse
 import difflib
 import math
+import random
 import subprocess
 import sys
 import os
@@ -425,6 +426,14 @@ WORD_REPLACEMENT_PATTERN = re.compile(
 ) if WORD_REPLACEMENTS else None
 
 WAKE_WORDS = {"hey mo"}
+
+WAKE_ACKNOWLEDGEMENTS = (
+    "Yes?",
+    "I'm listening.",
+    "Go ahead.",
+    "What's up?",
+    "Yeah?",
+)
 
 STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
 PAUSE_KEYWORDS = {"pause", "hold", "wait", "break"}
@@ -1512,7 +1521,14 @@ class OllamaVoiceListener:
             text = " ".join(segment.text for segment in segments)
             language_detected = getattr(info, "language", "unknown")
             language_prob = getattr(info, "language_probability", 0.0)
-            print(f"  Whisper language={language_detected} prob={language_prob:.2f}")
+            if segments:
+                avg_no_speech = sum(getattr(s, "no_speech_prob", 0.0) for s in segments) / len(segments)
+            else:
+                avg_no_speech = 1.0
+            print(f"  Whisper language={language_detected} prob={language_prob:.2f} no_speech={avg_no_speech:.2f}")
+            if avg_no_speech > 0.6:
+                print("  Audio flagged as likely non-speech (TV/music/noise), discarding")
+                return ""
             return text.strip()
         except Exception as e:
             print(f"Whisper error: {e}")
@@ -1900,6 +1916,14 @@ class OllamaVoiceListener:
                             print("  Wake word and command detected in same utterance.")
                         else:
                             print("  Wake word detected. Waiting for command phrase...")
+                            playback_active = (
+                                self.current_process is not None
+                                and self.current_process.poll() is None
+                            )
+                            if playback_active:
+                                self.send_chainer_command("PAUSE")
+                            if self.enable_voice:
+                                self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
                     elif followup_active and command_hint_present:
                         should_handle = True
                         immediate_text = command_candidate
