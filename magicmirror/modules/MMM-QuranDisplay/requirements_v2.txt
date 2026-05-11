@@ -1,0 +1,17 @@
+# Overkill voice stack — Phase 1-3 additions on top of existing requirements.
+# Install with:
+#   bash setup_voice_v2.sh
+# or manually:
+#   source venv/bin/activate
+#   pip install -r requirements_v2.txt
+
+# Phase 1 — better wake detection and command capture
+openwakeword>=0.6.0          # continuous neural wake word (replaces Whisper-based wake)
+silero-vad>=5.0              # voice activity detection so command capture ends naturally
+
+# Phase 2 — better STT + TTS (Whisper small.en handled by faster-whisper already)
+piper-tts>=1.2.0             # local neural TTS, much more natural than espeak-ng
+
+# Phase 3 — speaker ID + noise reduction
+resemblyzer>=0.1.4           # voiceprint of you so TV/other voices don't trigger
+noisereduce>=3.0.0           # spectral noise reduction on command audio

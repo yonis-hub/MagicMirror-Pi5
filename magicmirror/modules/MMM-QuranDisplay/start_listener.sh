@@ -187,15 +187,26 @@ fi
 
 if [ "$#" -eq 0 ]; then
     # Tuned defaults for always-on wall mirror mode.
-    # base.en = much better accuracy than tiny, still fast on Pi 5 (~140MB, ~2x latency)
-    # local = no Ollama lag (instant response)
+    # v2 stack: openWakeWord + silero-VAD + Piper TTS + Resemblyzer + noisereduce.
+    # Each component falls back to v1 behaviour individually if its model isn't
+    # installed yet, so this is safe to keep on once setup_voice_v2.sh has run.
+    # small.en = best Whisper accuracy that fits comfortably on Pi 5 (~480MB).
     set -- \
         --device "$VOICE_DEVICE" \
-        --parser-mode local \
-        --stt-model base.en \
+        --parser-mode hybrid \
+        --stt-model small.en \
         --stt-language en \
         --wake-window-sec 1.5 \
-        --command-window-sec 2.0
+        --command-window-sec 3.0 \
+        --use-piper \
+        --use-vad \
+        --use-oww \
+        --denoise
+    # --speaker-id is intentionally off until the user runs enroll_voice.py
+    # (enabling it without an enrolled voiceprint would lock everyone out).
+    if [ -f "$SCRIPT_DIR/voiceprint.npy" ]; then
+        set -- "$@" --speaker-id
+    fi
 fi
 
 log "Voice input device: $VOICE_DEVICE"

@@ -800,7 +800,12 @@ class OllamaVoiceListener:
         command_window_sec=DEFAULT_COMMAND_WINDOW_SEC,
         wake_words=None,
         silence_max_amp=DEFAULT_SILENCE_MAX_AMP,
-        silence_rms_amp=DEFAULT_SILENCE_RMS_AMP
+        silence_rms_amp=DEFAULT_SILENCE_RMS_AMP,
+        use_piper=False,
+        use_vad=False,
+        use_oww=False,
+        speaker_id=False,
+        denoise=False
     ):
         self.device = device
         self.mirror_url = mirror_url
@@ -865,6 +870,48 @@ class OllamaVoiceListener:
             self.whisper = WhisperModel(self.stt_model, device="opencl", compute_type="int8")
         except Exception:
             self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
+
+        # ---- Voice v2 components (all optional; failure -> fallback to v1) ----
+        self.piper_tts = None
+        self.vad = None
+        self.oww_detector = None
+        self.speaker_verifier = None
+        self.denoiser = None
+        if use_piper:
+            try:
+                from voice_v2.tts import PiperTTS
+                self.piper_tts = PiperTTS()
+                print("  ✅ Piper TTS loaded")
+            except Exception as e:
+                print(f"  ⚠️  Piper TTS unavailable: {e}")
+        if use_vad:
+            try:
+                from voice_v2.vad import SileroVAD
+                self.vad = SileroVAD()
+                print("  ✅ silero-VAD loaded")
+            except Exception as e:
+                print(f"  ⚠️  silero-VAD unavailable: {e}")
+        if use_oww:
+            try:
+                from voice_v2.wake import WakeDetector
+                self.oww_detector = WakeDetector(device=self.device)
+                print("  ✅ openWakeWord loaded")
+            except Exception as e:
+                print(f"  ⚠️  openWakeWord unavailable: {e}")
+        if speaker_id:
+            try:
+                from voice_v2.speaker import SpeakerVerifier
+                self.speaker_verifier = SpeakerVerifier()
+                print("  ✅ speaker verifier loaded")
+            except Exception as e:
+                print(f"  ⚠️  speaker verifier unavailable: {e}")
+        if denoise:
+            try:
+                from voice_v2.denoise import Denoiser
+                self.denoiser = Denoiser()
+                print("  ✅ denoiser loaded")
+            except Exception as e:
+                print(f"  ⚠️  denoiser unavailable: {e}")
 
     def within_followup_window(self):
         return time.time() < self.followup_deadline
@@ -1092,6 +1139,11 @@ class OllamaVoiceListener:
     def speak(self, text):
         if not self.enable_voice or not text:
             return
+        # Phase 2: try Piper neural TTS first (more natural voice)
+        if self.piper_tts is not None:
+            if self.piper_tts.speak(text):
+                return
+            # fall through to espeak on Piper failure
         try:
             # espeak-ng: fast, no init overhead, available on all Pi/Raspbian installs
             # -s 145 = speech rate, -p 40 = pitch (slightly lower = less robotic),
@@ -2012,6 +2064,122 @@ class OllamaVoiceListener:
         self.send_transcript_status("", phase="idle")
         self.stop_playback()
 
+    def listen_loop_v2(self):
+        """v2 listen loop: openWakeWord + silero-VAD + Piper + speaker verify.
+
+        Falls back to v1 listen_loop if openWakeWord didn't initialise.
+        """
+        if self.oww_detector is None:
+            print("⚠️  openWakeWord not available — falling back to v1 listen_loop")
+            return self.listen_loop()
+
+        print(f"\n[v2] Listening continuously (say '{self.primary_wake_word}')")
+        self.oww_detector.start()
+        self.send_listening_status(True)
+
+        try:
+            while self.is_running:
+                self._memory_tick()
+                if not self.oww_detector.wait_for_wake(timeout=1.0):
+                    continue
+
+                print("  🟢 Wake fired")
+                self.send_transcript_status(self.primary_wake_word, phase="wake", raw_text=self.primary_wake_word)
+
+                playback_active = (
+                    self.current_process is not None
+                    and self.current_process.poll() is None
+                )
+                if playback_active:
+                    self.send_chainer_command("PAUSE")
+
+                # Pause OWW so we don't double-capture during command record / TTS
+                self.oww_detector.stop()
+
+                if self.enable_voice:
+                    self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
+
+                # Capture the command (VAD if available, otherwise fixed window)
+                audio_file = None
+                if self.vad is not None:
+                    print("  Recording command (VAD-trimmed)...")
+                    self.send_recording_status(True)
+                    audio_file = self.vad.record_command(
+                        max_duration_sec=8.0,
+                        silence_tail_ms=700,
+                        speech_start_timeout_sec=3.0,
+                    )
+                    self.send_recording_status(False)
+                else:
+                    audio_file = self.record_audio(self.command_window_sec, show_recording=True)
+
+                if not audio_file:
+                    print("  No command audio captured (silence / timeout)")
+                    self.oww_detector.start()
+                    continue
+
+                # Speaker verification (drop unknown voices)
+                if self.speaker_verifier is not None:
+                    ok, sim = self.speaker_verifier.verify_wav(audio_file)
+                    print(f"  [SpeakerID] similarity={sim:.2f} match={ok}")
+                    if not ok:
+                        print("  🚫 Voice not enrolled user — ignoring")
+                        try:
+                            os.unlink(audio_file)
+                        except Exception:
+                            pass
+                        self.oww_detector.start()
+                        continue
+
+                # Denoise before transcription for cleaner Whisper output
+                source_to_unlink = audio_file
+                if self.denoiser is not None:
+                    cleaned = self.denoiser.clean_wav(audio_file)
+                    if cleaned != audio_file:
+                        source_to_unlink = cleaned
+                        try:
+                            os.unlink(audio_file)
+                        except Exception:
+                            pass
+                        audio_file = cleaned
+
+                # Transcribe
+                text = self.transcribe_whisper(audio_file)
+                if not text:
+                    print("  Empty transcription")
+                    self.oww_detector.start()
+                    continue
+
+                print(f"  Raw: '{text}'")
+                command_text = self.normalize_speech(text)
+                command_text = self.remove_wake_words(command_text)
+                print(f"  Processing: '{command_text}'")
+
+                if command_text and self.confirm_command(command_text):
+                    self.send_transcript_status(command_text, phase="captured", raw_text=text)
+                    self.process_command(command_text, raw_text=text)
+
+                # Resume continuous wake detection
+                self.oww_detector.start()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self.oww_detector.stop()
+            self.send_processing_status(False)
+            self.send_recording_status(False)
+            self.send_listening_status(False)
+            self.stop_playback()
+
+    def _memory_tick(self):
+        """Periodic memory check (shared between v1 and v2 loops)."""
+        now = time.time()
+        if now - self._last_memory_check >= DEFAULT_MEMORY_CHECK_INTERVAL_SEC:
+            self._last_memory_check = now
+            try:
+                self.check_memory()
+            except Exception as e:
+                print(f"  Memory check error: {e}")
+
 
 def signal_handler(sig, frame):
     print("\n\nShutting down...")
@@ -2072,6 +2240,22 @@ def main():
         default=int(os.getenv("VOICE_SILENCE_RMS_AMP", DEFAULT_SILENCE_RMS_AMP)),
         help="RMS int16 amplitude below which audio may be treated as silent"
     )
+    # ---- Phase 1-3 voice v2 flags ----
+    parser.add_argument("--use-piper", action="store_true",
+                        default=os.getenv("VOICE_USE_PIPER", "0") == "1",
+                        help="Use Piper neural TTS instead of espeak-ng")
+    parser.add_argument("--use-vad", action="store_true",
+                        default=os.getenv("VOICE_USE_VAD", "0") == "1",
+                        help="Use silero-VAD for variable-length command capture")
+    parser.add_argument("--use-oww", action="store_true",
+                        default=os.getenv("VOICE_USE_OWW", "0") == "1",
+                        help="Use openWakeWord for continuous wake detection")
+    parser.add_argument("--speaker-id", action="store_true",
+                        default=os.getenv("VOICE_SPEAKER_ID", "0") == "1",
+                        help="Require Resemblyzer speaker match (enroll first)")
+    parser.add_argument("--denoise", action="store_true",
+                        default=os.getenv("VOICE_DENOISE", "0") == "1",
+                        help="Run noisereduce on command audio before STT")
 
     args = parser.parse_args()
 
@@ -2087,9 +2271,17 @@ def main():
         command_window_sec=args.command_window_sec,
         wake_words=args.wake_words,
         silence_max_amp=args.silence_max_amp,
-        silence_rms_amp=args.silence_rms_amp
+        silence_rms_amp=args.silence_rms_amp,
+        use_piper=args.use_piper,
+        use_vad=args.use_vad,
+        use_oww=args.use_oww,
+        speaker_id=args.speaker_id,
+        denoise=args.denoise,
     )
-    listener.listen_loop()
+    if args.use_oww:
+        listener.listen_loop_v2()
+    else:
+        listener.listen_loop()
 
 
 if __name__ == "__main__":
