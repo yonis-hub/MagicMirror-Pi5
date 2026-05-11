@@ -187,12 +187,12 @@ fi
 
 if [ "$#" -eq 0 ]; then
     # Tuned defaults for always-on wall mirror mode.
-    # tiny = fastest STT (good enough for short commands)
+    # base.en = much better accuracy than tiny, still fast on Pi 5 (~140MB, ~2x latency)
     # local = no Ollama lag (instant response)
     set -- \
         --device "$VOICE_DEVICE" \
         --parser-mode local \
-        --stt-model tiny \
+        --stt-model base.en \
         --stt-language en \
         --wake-window-sec 1.5 \
         --command-window-sec 2.0
