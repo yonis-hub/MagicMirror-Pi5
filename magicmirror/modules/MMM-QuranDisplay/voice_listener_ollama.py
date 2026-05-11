@@ -425,7 +425,7 @@ WORD_REPLACEMENT_PATTERN = re.compile(
     r"\b(" + "|".join(map(re.escape, WORD_REPLACEMENTS.keys())) + r")\b"
 ) if WORD_REPLACEMENTS else None
 
-WAKE_WORDS = {"hey mo"}
+WAKE_WORDS = {"hey jarvis"}
 
 WAKE_ACKNOWLEDGEMENTS = (
     "Yes?",
@@ -833,7 +833,7 @@ class OllamaVoiceListener:
         self.wake_window_sec = max(1.0, float(wake_window_sec))
         self.command_window_sec = max(1.0, float(command_window_sec))
         self.wake_words = parse_wake_words(wake_words)
-        self.primary_wake_word = sorted(self.wake_words)[0] if self.wake_words else "mo"
+        self.primary_wake_word = sorted(self.wake_words)[0] if self.wake_words else "hey jarvis"
         self.wake_words_display = ", ".join(sorted(self.wake_words))
         self.silence_max_amp = max(0, int(silence_max_amp))
         self.silence_rms_amp = max(0, int(silence_rms_amp))
@@ -2245,7 +2245,7 @@ def main():
     parser.add_argument(
         "--wake-words",
         default=",".join(sorted(WAKE_WORDS)),
-        help="Comma-separated wake words (default includes common 'Mo' variants)"
+        help="Comma-separated wake words (defaults to 'hey jarvis' to match the built-in openWakeWord model)"
     )
     parser.add_argument(
         "--silence-max-amp",
