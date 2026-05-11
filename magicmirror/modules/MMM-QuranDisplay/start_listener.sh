@@ -204,7 +204,9 @@ if [ "$#" -eq 0 ]; then
         --denoise
     # --speaker-id is intentionally off until the user runs enroll_voice.py
     # (enabling it without an enrolled voiceprint would lock everyone out).
-    if [ -f "$SCRIPT_DIR/voiceprint.npy" ]; then
+    if [ -f "$SCRIPT_DIR/voiceprint.npy" ] || \
+       ( [ -d "$SCRIPT_DIR/voiceprints" ] && \
+         [ -n "$(ls -A "$SCRIPT_DIR/voiceprints"/*.npy 2>/dev/null)" ] ); then
         set -- "$@" --speaker-id
     fi
 fi

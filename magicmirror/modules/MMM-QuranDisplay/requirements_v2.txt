@@ -6,7 +6,10 @@
 #   pip install -r requirements_v2.txt
 
 # Phase 1 — better wake detection and command capture
-openwakeword>=0.6.0          # continuous neural wake word (replaces Whisper-based wake)
+# NOTE: openwakeword pulls tflite-runtime as a hard dep, which has no wheel
+# for Python 3.13 on aarch64. We install it separately with --no-deps in
+# setup_voice_v2.sh and rely on onnxruntime (already a dep) for inference.
+# openwakeword>=0.6.0        # installed via setup script
 silero-vad>=5.0              # voice activity detection so command capture ends naturally
 
 # Phase 2 — better STT + TTS (Whisper small.en handled by faster-whisper already)

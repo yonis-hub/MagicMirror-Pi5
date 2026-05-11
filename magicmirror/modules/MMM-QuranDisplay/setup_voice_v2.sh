@@ -36,6 +36,11 @@ log "Installing v2 Python deps (may take several minutes on first run)..."
 pip install --upgrade pip wheel
 pip install -r requirements_v2.txt
 
+# openwakeword has tflite-runtime as a hard dep, which has no wheel for
+# Python 3.13 / aarch64. We use ONNX inference anyway, so install --no-deps.
+log "Installing openwakeword (--no-deps, ONNX-only inference)..."
+pip install --no-deps "openwakeword>=0.6.0"
+
 # --- Download Piper voice (Phase 2) ---
 mkdir -p "$VOICES_DIR"
 ONNX_PATH="$VOICES_DIR/${PIPER_VOICE}.onnx"
