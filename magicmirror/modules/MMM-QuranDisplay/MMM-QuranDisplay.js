@@ -231,7 +231,7 @@ Module.register("MMM-QuranDisplay", {
 		if (this.isRecording) {
 			return "Recording command...";
 		}
-		return 'Say "Mo, play Surah 1"';
+		return 'Say "Hey Jarvis, play Surah 1"';
 	},
 
 	getTranscriptPhaseLabel: function () {
