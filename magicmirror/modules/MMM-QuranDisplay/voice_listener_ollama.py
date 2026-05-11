@@ -851,6 +851,7 @@ class OllamaVoiceListener:
         self.stt_prompt = (
             "Voice command for Quran recitation. "
             f"Wake words: {wake_words_prompt}. "
+            "Switch reciter use second reciter first reciter default reciter Noreen Sedeeq Alafasy Mishary. "
             "Actions: play recite pause resume continue stop. "
             "Common surahs: fatiha baqarah imran nisa maidah anam araf anfal tawbah yunus hud yusuf ibrahim hijr nahl isra kahf maryam taha anbiya hajj muminun nur furqan shuara naml qasas ankabut rum luqman sajdah ahzab saba fatir yasin saffat sad zumar ghafir fussilat shura zukhruf dukhan jathiyah ahqaf muhammad fath hujurat qaf dhariyat tur najm qamar rahman waqiah hadid mujadila hashr mumtahanah saf jumuah munafiqun taghabun talaq tahrim mulk qalam haqqah maarij nuh jinn muzzammil muddaththir qiyamah insan mursalat naba naziat abasa takwir infitar mutaffifin inshiqaq buruj tariq ala ghashiyah fajr balad shams layl duha sharh tin alaq qadr bayyinah zalzalah adiyat qariah takathur asr humazah fil quraysh maun kawthar kafirun nasr masad ikhlas falaq nas. "
             "Quran vocabulary: surah ayah verse recite bismillah ayatul kursi mercy patience guidance protection."
@@ -1253,11 +1254,12 @@ class OllamaVoiceListener:
             return None
 
         # Heuristic switch markers: "switch", "use", "change to", "set reciter".
-        switch_markers = ("switch reciter", "switch to", "change reciter", "change to",
-                          "use reciter", "use ", "set reciter", "set to", "go to reciter",
-                          "play with", "recite with")
-        # Even without a marker, a bare reciter name uttered alone counts.
+        switch_markers = ("switch reciter", "switch to", "switch the", "switch",
+                          "change reciter", "change to", "change the",
+                          "use reciter", "use ", "set reciter", "set to",
+                          "go to reciter", "play with", "recite with")
         has_marker = any(marker in lowered for marker in switch_markers)
+
         for key, info in manifest.get("reciters", {}).items():
             aliases = [key.lower()] + [a.lower() for a in info.get("aliases", [])]
             for alias in aliases:
@@ -1268,6 +1270,24 @@ class OllamaVoiceListener:
                     return key
                 # Marker + alias substring (e.g. "use 2nd reciter")
                 if has_marker and alias in lowered:
+                    return key
+
+        # Fallback: bare "switch / change reciter" with no clear target —
+        # toggle to the other (non-current) reciter. Whisper mangles 'reciter'
+        # often, so we also tolerate mishears that start with 'switch' and
+        # contain anything reciter-ish.
+        toggle_phrases = ("switch reciter", "change reciter", "switch the reciter",
+                          "switch", "change", "toggle reciter", "next reciter",
+                          "other reciter", "another reciter")
+        reciter_homophones = ("reciter", "siren", "side", "side out", "satar",
+                              "rester", "sister", "sider")
+        looks_like_toggle = any(p in lowered for p in toggle_phrases) and (
+            any(h in lowered for h in reciter_homophones) or lowered.startswith("switch")
+        )
+        if looks_like_toggle:
+            current = manifest.get("current") or manifest.get("default")
+            for key in manifest.get("reciters", {}):
+                if key != current:
                     return key
         return None
 
