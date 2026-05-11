@@ -846,6 +846,7 @@ class OllamaVoiceListener:
         self._last_memory_check = 0.0
         self._last_command_signature = None
         self._last_command_ts = 0.0
+        self._tts_finished_at = 0.0  # used to suppress self-wake right after our own TTS
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
@@ -1142,6 +1143,7 @@ class OllamaVoiceListener:
         # Phase 2: try Piper neural TTS first (more natural voice)
         if self.piper_tts is not None:
             if self.piper_tts.speak(text):
+                self._tts_finished_at = time.monotonic()
                 return
             # fall through to espeak on Piper failure
         try:
@@ -1154,6 +1156,7 @@ class OllamaVoiceListener:
                 stderr=subprocess.DEVNULL,
                 timeout=10
             )
+            self._tts_finished_at = time.monotonic()
         except FileNotFoundError:
             # Fallback to pyttsx3 if espeak-ng not installed
             try:
@@ -2081,6 +2084,12 @@ class OllamaVoiceListener:
             while self.is_running:
                 self._memory_tick()
                 if not self.oww_detector.wait_for_wake(timeout=1.0):
+                    continue
+
+                # Suppress wake fires that arrive within 1.5s of our own TTS
+                # finishing — those are almost always Mo hearing itself.
+                if time.monotonic() - self._tts_finished_at < 1.5:
+                    print("  🔇 Wake fired within TTS cooldown — ignoring (self-trigger)")
                     continue
 
                 print("  🟢 Wake fired")

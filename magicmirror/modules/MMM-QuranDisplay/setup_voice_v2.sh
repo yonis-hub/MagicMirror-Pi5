@@ -34,6 +34,17 @@ source "$VENV_DIR/bin/activate"
 # --- Install Python deps ---
 log "Installing v2 Python deps (may take several minutes on first run)..."
 pip install --upgrade pip wheel
+
+# silero-vad needs a working torch + torchaudio. On Pi 5 / Python 3.13
+# the default piwheels build of torchaudio sometimes ships a binary that
+# fails to load against the Pi's libc. Force the CPU build from PyTorch's
+# official index first so torchaudio matches torch.
+log "Installing CPU torch + torchaudio (aarch64-compatible)..."
+pip install --upgrade --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.org/simple \
+    torch torchaudio || \
+    pip install --upgrade torch torchaudio
+
 pip install -r requirements_v2.txt
 
 # openwakeword has tflite-runtime as a hard dep, which has no wheel for
