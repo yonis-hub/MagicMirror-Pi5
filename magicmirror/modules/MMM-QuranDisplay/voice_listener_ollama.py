@@ -2090,13 +2090,14 @@ class OllamaVoiceListener:
                     self.current_process is not None
                     and self.current_process.poll() is None
                 )
-                if playback_active:
-                    self.send_chainer_command("PAUSE")
 
                 # Pause OWW so we don't double-capture during command record / TTS
                 self.oww_detector.stop()
 
-                if self.enable_voice:
+                # Only ack out loud when nothing is playing — otherwise we'd
+                # talk over the recitation. We'll ack after verification if
+                # the wake turns out to be the user.
+                if self.enable_voice and not playback_active:
                     self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
 
                 # Capture the command (VAD if available, otherwise fixed window)
@@ -2118,18 +2119,27 @@ class OllamaVoiceListener:
                     self.oww_detector.start()
                     continue
 
-                # Speaker verification (drop unknown voices)
+                # Speaker verification BEFORE we touch playback state — a
+                # false trigger from the recitation itself must not pause
+                # the recitation.
                 if self.speaker_verifier is not None:
                     ok, sim = self.speaker_verifier.verify_wav(audio_file)
                     print(f"  [SpeakerID] similarity={sim:.2f} match={ok}")
                     if not ok:
-                        print("  🚫 Voice not enrolled user — ignoring")
+                        print("  🚫 Voice not enrolled user — ignoring (playback untouched)")
                         try:
                             os.unlink(audio_file)
                         except Exception:
                             pass
                         self.oww_detector.start()
                         continue
+
+                # Speaker verified — now we can safely interrupt playback
+                # and give a delayed audible ack.
+                if playback_active:
+                    self.send_chainer_command("PAUSE")
+                    if self.enable_voice:
+                        self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
 
                 # Denoise before transcription for cleaner Whisper output
                 source_to_unlink = audio_file

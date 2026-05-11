@@ -42,7 +42,7 @@ class WakeDetector:
     def __init__(
         self,
         model_dir: Path = DEFAULT_MODEL_DIR,
-        threshold: float = 0.5,
+        threshold: float = 0.65,
         device: str = "pulse",
     ):
         self.model_dir = Path(model_dir)

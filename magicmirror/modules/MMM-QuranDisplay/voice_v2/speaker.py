@@ -46,7 +46,7 @@ class SpeakerVerifier:
     def __init__(
         self,
         voiceprints_dir: Path = DEFAULT_VOICEPRINTS_DIR,
-        threshold: float = 0.65,
+        threshold: float = 0.55,
     ):
         self.voiceprints_dir = Path(voiceprints_dir)
         self.threshold = threshold
