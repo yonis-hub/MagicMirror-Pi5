@@ -424,7 +424,7 @@ WORD_REPLACEMENT_PATTERN = re.compile(
     r"\b(" + "|".join(map(re.escape, WORD_REPLACEMENTS.keys())) + r")\b"
 ) if WORD_REPLACEMENTS else None
 
-WAKE_WORDS = {"mo"}
+WAKE_WORDS = {"hey mo"}
 
 STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
 PAUSE_KEYWORDS = {"pause", "hold", "wait", "break"}
@@ -621,15 +621,28 @@ def parse_wake_words(raw_wake_words):
 
 
 def has_wake_word(text, wake_words=None):
-    return contains_any_token(text, wake_words or WAKE_WORDS)
+    if not text:
+        return False
+    wake_set = wake_words or WAKE_WORDS
+    phrase_wakes = {w for w in wake_set if " " in w}
+    if phrase_wakes and contains_phrase(text, phrase_wakes):
+        return True
+    word_wakes = {w for w in wake_set if " " not in w}
+    return bool(word_wakes) and contains_any_token(text, word_wakes)
 
 
 def strip_wake_words(text, wake_words=None):
     if not text:
         return ""
     wake_set = wake_words or WAKE_WORDS
-    filtered = [token for token in tokenize_words(text) if token not in wake_set]
-    return " ".join(filtered).strip()
+    result = text
+    phrase_wakes = sorted((w for w in wake_set if " " in w), key=len, reverse=True)
+    for phrase in phrase_wakes:
+        result = re.sub(r"\b" + re.escape(phrase) + r"\b", " ", result, flags=re.IGNORECASE)
+    word_wakes = {w for w in wake_set if " " not in w}
+    if word_wakes:
+        result = " ".join(t for t in tokenize_words(result) if t not in word_wakes)
+    return " ".join(result.split()).strip()
 
 def normalize_surah(value):
     """Convert Ollama JSON surah field into an integer 1-114."""
