@@ -1733,6 +1733,21 @@ class OllamaVoiceListener:
             self.extend_followup_window()
 
             if action == "play" and value:
+                # If a chainer is currently paused and the user just said
+                # "play" (no specific surah) — or asked for the same surah
+                # that's paused — resume instead of starting fresh. Without
+                # this, voice "play" after "pause" tears down the paused
+                # chainer and restarts surah 1 from zero.
+                paused_alive = (
+                    self._chainer_paused
+                    and self.current_process is not None
+                    and self.current_process.poll() is None
+                )
+                explicit_surah = (intent.get("confidence", 0.0) or 0.0) >= 0.5
+                if paused_alive and (not explicit_surah or value == self.last_played_surah):
+                    self._remember_command(signature)
+                    self.resume_chainer()
+                    return
                 self._remember_command(signature)
                 self.play_confirmation()
                 self.stop_playback()
