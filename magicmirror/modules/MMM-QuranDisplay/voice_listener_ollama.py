@@ -12,6 +12,7 @@ Requirements:
 
 import argparse
 import difflib
+import functools
 import math
 import random
 import subprocess
@@ -298,20 +299,92 @@ SURAH_DISPLAY_NAMES = {
     111: "Al-Masad", 112: "Al-Ikhlas", 113: "Al-Falaq", 114: "An-Nas",
 }
 
-NUMBER_WORDS = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+_ONES = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
     "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
     "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
-    "nineteen": 19, "twenty": 20, "twenty-one": 21, "twentyone": 21,
-    "twenty-two": 22, "twentytwo": 22, "twenty-three": 23, "twentythree": 23,
-    "thirty": 30, "thirty-six": 36, "thirtysix": 36,
-    "forty": 40, "forty-six": 46, "fortysix": 46,
-    "fifty": 50, "fifty-five": 55, "fiftyfive": 55,
-    "sixty": 60, "sixty-seven": 67, "sixtyseven": 67,
-    "seventy": 70, "seventy-two": 72, "seventytwo": 72,
-    "eighty": 80, "ninety": 90, "hundred": 100,
+    "nineteen": 19,
 }
+_TENS = {
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+}
+# Ordinals → matching cardinal. Covers irregular forms (first, second…) and
+# regular -th endings (twentieth, thirtieth, …, hundredth).
+_ORDINALS = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+    "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+    "eleventh": 11, "twelfth": 12, "thirteenth": 13, "fourteenth": 14,
+    "fifteenth": 15, "sixteenth": 16, "seventeenth": 17, "eighteenth": 18,
+    "nineteenth": 19, "twentieth": 20, "thirtieth": 30, "fortieth": 40,
+    "fiftieth": 50, "sixtieth": 60, "seventieth": 70, "eightieth": 80,
+    "ninetieth": 90, "hundredth": 100,
+}
+# Backwards-compat alias so existing call sites keep working. NUMBER_WORDS
+# now maps every cardinal and ordinal we recognise as a *single* token.
+NUMBER_WORDS = {**_ONES, **_TENS, **_ORDINALS, "hundred": 100}
+# Hyphenated forms ("twenty-one", "fifty-third") and split forms
+# ("twenty one", "fifty third") are handled compositionally by
+# parse_number_words() — we don't need to enumerate them here.
+
+
+def parse_number_words(text):
+    """Return the first integer found in `text` interpreting English number
+    words compositionally. Handles digits ('9'), single words ('nine',
+    'twentieth'), hyphenated forms ('twenty-three'), and compounds with
+    'and' ('one hundred and fourteen', 'fifty-third').
+    Returns int or None.
+    """
+    if not text:
+        return None
+    lowered = re.sub(r"[\-,]", " ", text.lower())
+    raw_tokens = re.findall(r"[a-z0-9]+", lowered)
+
+    # Quick path: any bare digit-only token.
+    for tok in raw_tokens:
+        if tok.isdigit():
+            return int(tok)
+
+    i = 0
+    while i < len(raw_tokens):
+        # Try to consume a number phrase starting here.
+        total = 0
+        consumed = 0
+        # Optional hundreds component
+        if i + 1 < len(raw_tokens) and raw_tokens[i] in _ONES and raw_tokens[i + 1] in ("hundred", "hundredth"):
+            total += _ONES[raw_tokens[i]] * 100
+            consumed = 2
+            # Skip "and" if present
+            if i + consumed < len(raw_tokens) and raw_tokens[i + consumed] == "and":
+                consumed += 1
+        elif raw_tokens[i] in ("hundred", "hundredth"):
+            total += 100
+            consumed = 1
+            if i + consumed < len(raw_tokens) and raw_tokens[i + consumed] == "and":
+                consumed += 1
+        # Tens + optional ones / ordinal
+        j = i + consumed
+        if j < len(raw_tokens) and raw_tokens[j] in _TENS:
+            total += _TENS[raw_tokens[j]]
+            consumed += 1
+            j += 1
+            if j < len(raw_tokens) and raw_tokens[j] in _ONES and raw_tokens[j] != "zero":
+                total += _ONES[raw_tokens[j]]
+                consumed += 1
+            elif j < len(raw_tokens) and raw_tokens[j] in _ORDINALS and _ORDINALS[raw_tokens[j]] < 10:
+                total += _ORDINALS[raw_tokens[j]]
+                consumed += 1
+        elif j < len(raw_tokens) and raw_tokens[j] in _ONES:
+            total += _ONES[raw_tokens[j]]
+            consumed += 1
+        elif j < len(raw_tokens) and raw_tokens[j] in _ORDINALS:
+            total += _ORDINALS[raw_tokens[j]]
+            consumed += 1
+        if consumed and total > 0:
+            return total
+        i += 1
+    return None
 
 COMMON_REPLACEMENTS = {
     # --- VOICE TRAINING / PRONUNCIATION FIXES ---
@@ -438,13 +511,42 @@ WAKE_ACKNOWLEDGEMENTS = (
 STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
 PAUSE_KEYWORDS = {"pause", "hold", "wait", "break"}
 RESUME_KEYWORDS = {"resume", "continue", "unpause"}
-PLAY_KEYWORDS = {"play", "recite", "read", "start"}
-SEARCH_KEYWORDS = {"search", "find", "look"}
+PLAY_KEYWORDS = {
+    # Direct verbs
+    "play", "recite", "read", "start", "begin", "open", "load", "queue",
+    # Listening verbs
+    "listen", "hear",
+    # Casual / colloquial single words ("gimme", "wanna")
+    "gimme", "wanna", "lemme",
+    # "go to N" style
+    "goto", "switch",
+}
+PLAY_PHRASES = {
+    "put on", "put it on", "let me hear", "let's hear", "i want to hear",
+    "i wanna hear", "i would like to hear", "id like to hear",
+    "give me", "show me", "play me", "load up", "fire up",
+    "i want", "i wanna", "i would like",
+    "go to surah", "go to chapter", "go to number", "jump to",
+    "throw on", "throw it on",
+}
+SEARCH_KEYWORDS = {"search", "find", "look", "lookup"}
 COMMAND_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS | PLAY_KEYWORDS | SEARCH_KEYWORDS
 CONTROL_KEYWORDS = STOP_KEYWORDS | PAUSE_KEYWORDS | RESUME_KEYWORDS
-STOP_PHRASES = {"turn it off", "stop it", "be quiet"}
-PAUSE_PHRASES = {"take a break", "hold on"}
-RESUME_PHRASES = {"go on", "carry on", "keep going"}
+STOP_PHRASES = {
+    "turn it off", "stop it", "be quiet", "shut up", "shut it off",
+    "knock it off", "that's enough", "thats enough", "enough already",
+    "cut it", "kill it", "kill the audio", "kill the recitation",
+    "turn off", "switch off",
+}
+PAUSE_PHRASES = {
+    "take a break", "hold on", "hang on", "one moment", "give me a moment",
+    "wait a sec", "wait a second", "pause it", "freeze", "halt for now",
+}
+RESUME_PHRASES = {
+    "go on", "carry on", "keep going", "pick it back up", "pick up where",
+    "resume it", "start again", "continue please", "keep playing",
+    "let's continue", "lets continue",
+}
 
 EMBEDDING_DIR = Path(__file__).parent / "embeddings"
 EMBEDDING_VECTOR_PATH = EMBEDDING_DIR / "verse_embeddings.npy"
@@ -576,21 +678,39 @@ def extract_slots(text):
             slots["numbers"].append(int(token))
     return slots
 
-def tokenize_words(text):
-    """Split text into lowercase words without punctuation."""
+_TOKEN_TRIM_CHARS = ".,!?\"':;()[]{}"
+
+
+@functools.lru_cache(maxsize=256)
+def _tokenize_words_cached(text):
+    """Internal cached tokenizer. Tuple return so it's hashable for further caching."""
     if not text:
-        return []
-    tokens = []
+        return ()
+    out = []
     for word in text.split():
-        cleaned = word.strip(".,!?\"':;()[]{}")
+        cleaned = word.strip(_TOKEN_TRIM_CHARS)
         if cleaned:
-            tokens.append(cleaned.lower())
-    return tokens
+            out.append(cleaned.lower())
+    return tuple(out)
+
+
+def tokenize_words(text):
+    """Split text into lowercase words without punctuation. Cached."""
+    return list(_tokenize_words_cached(text or ""))
+
 
 def contains_any_token(text, keywords):
     if not text:
         return False
-    return bool(set(tokenize_words(text)).intersection(keywords))
+    tokens = _tokenize_words_cached(text)
+    if not tokens:
+        return False
+    return any(t in keywords for t in tokens)
+
+
+@functools.lru_cache(maxsize=64)
+def _compile_phrase_pattern(phrase):
+    return re.compile(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)")
 
 
 def contains_phrase(text, phrases):
@@ -673,11 +793,21 @@ def normalize_surah(value):
     return SURAH_NAMES.get(text)
 
 SURAH_ALIASES_SORTED = sorted(SURAH_NAMES.items(), key=lambda item: len(item[0]), reverse=True)
+
+# Pre-compiled alternation of every surah alias, longest-first so multi-word
+# aliases ("al baqarah") match before single-word ones ("baqarah"). This lets
+# extract_surah_number() resolve the surah from a phrase in a *single* regex
+# search instead of N=114+ phrase-checks each compiling their own regex.
+_SURAH_ALIAS_TO_NUMBER = dict(SURAH_NAMES)
+_SURAH_ALIAS_PATTERN = re.compile(
+    r"(?<!\w)(" + "|".join(re.escape(a) for a, _ in SURAH_ALIASES_SORTED) + r")(?!\w)"
+)
 SURAH_ALIAS_LIST = [alias for alias, _ in SURAH_ALIASES_SORTED]
 
 def _contains_phrase(text, phrase):
-    pattern = r"(?<!\w)" + re.escape(phrase) + r"(?!\w)"
-    return re.search(pattern, text) is not None
+    # Pre-compiled regex via LRU cache; subsequent calls with the same phrase
+    # skip re.compile entirely.
+    return _compile_phrase_pattern(phrase).search(text) is not None
 
 def _fuzzy_surah_lookup(tokens, threshold=FUZZY_SURAH_THRESHOLD):
     if not tokens:
@@ -697,37 +827,54 @@ def _fuzzy_surah_lookup(tokens, threshold=FUZZY_SURAH_THRESHOLD):
             return SURAH_NAMES[matches[0]]
     return None
 
+_SURAH_PREFIX_RE = re.compile(
+    r"\b(?:surah|sura|chapter|number|num|no\.?)\s+(\d{1,3})\b",
+    re.IGNORECASE,
+)
+
+
 def extract_surah_number(text):
-    """Extract a surah number from free-form text."""
+    """Extract a surah number from free-form text.
+
+    Resolution order (each step is a cheap short-circuit):
+      1. Exact known surah-name alias  ("al fatiha", "baqarah")
+      2. Explicit numeric reference     ("surah 9", "chapter 9", "number 9")
+      3. Bare digits                    ("9")
+      4. Composed English number words  ("ninety nine", "one hundred fourteen")
+      5. Fuzzy alias match              (misheard 'al-baqara' -> 'al baqra')
+    """
     if not text:
         return None
 
     lowered = re.sub(r"\s+", " ", text.lower().strip())
 
-    # 1) Exact alias phrase match (deterministic, highest confidence).
-    for alias, number in SURAH_ALIASES_SORTED:
-        if _contains_phrase(lowered, alias):
-            return number
+    # 1) Exact alias phrase match — single regex search across all 114 names.
+    alias_hit = _SURAH_ALIAS_PATTERN.search(lowered)
+    if alias_hit:
+        return _SURAH_ALIAS_TO_NUMBER[alias_hit.group(1)]
 
-    # 2) Explicit numeric reference like "surah 55".
-    numeric_surah_match = re.search(r"\bsurah\s+(\d{1,3})\b", lowered)
-    if numeric_surah_match:
-        number = int(numeric_surah_match.group(1))
+    # 2) Explicit numeric reference like "surah 55" / "chapter 55" / "number 55".
+    m = _SURAH_PREFIX_RE.search(lowered)
+    if m:
+        number = int(m.group(1))
         if 1 <= number <= 114:
             return number
 
-    # 3) Number words / numeric tokens in utterance.
-    tokens = tokenize_words(lowered)
-    for token in tokens:
-        if token.isdigit():
-            num = int(token)
-            if 1 <= num <= 114:
-                return num
-        if token in NUMBER_WORDS:
-            return NUMBER_WORDS[token]
+    # 3) Any bare digit in the utterance — common case ("play 9", "put 19 on").
+    digit_match = re.search(r"\b(\d{1,3})\b", lowered)
+    if digit_match:
+        number = int(digit_match.group(1))
+        if 1 <= number <= 114:
+            return number
 
-    # 4) Fuzzy match for misheard aliases (threshold fixed for determinism).
-    return _fuzzy_surah_lookup(tokens)
+    # 4) Composed English number words ("twenty four", "one hundred fourteen",
+    #    "ninth", "fifty third"). One call, no per-token loop.
+    composed = parse_number_words(lowered)
+    if composed and 1 <= composed <= 114:
+        return composed
+
+    # 5) Fuzzy match for misheard aliases (threshold fixed for determinism).
+    return _fuzzy_surah_lookup(tokenize_words(lowered))
 
 def check_server_ready():
     for _ in range(10):
@@ -1840,9 +1987,14 @@ class OllamaVoiceListener:
         if surah_number and (wake_present or not require_wake):
             return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
 
-        if contains_any_token(command_text, PLAY_KEYWORDS) or contains_fuzzy_token(command_text, PLAY_KEYWORDS, cutoff=0.72):
+        play_intent = (
+            contains_any_token(command_text, PLAY_KEYWORDS)
+            or contains_phrase(command_text, PLAY_PHRASES)
+            or contains_fuzzy_token(command_text, PLAY_KEYWORDS, cutoff=0.72)
+        )
+        if play_intent:
             if surah_number:
-                return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.7))
+                return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
 
             if any(token in {"quran", "koran", "quron"} for token in words):
                 return ("play", 1, create_intent(action="play", surah=1, confidence=0.5))
