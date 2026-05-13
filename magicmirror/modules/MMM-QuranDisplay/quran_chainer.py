@@ -254,12 +254,16 @@ class QuranChainer:
         """Update playback status indicator"""
         return self._send_to_mirror("status", {"isPlaying": is_playing})
 
-    def _send_playback_info(self, total_sec):
+    def _send_playback_info(self, total_sec, offset_sec=0.0):
         """Tell the mirror: a new track is starting, its duration is N seconds.
-        UI uses this to drive the progress arc and time readout."""
+        UI uses this to drive the progress arc and time readout. When the
+        playback is seeking into the audio (resume after stop), pass
+        offset_sec so the UI's elapsed counter starts at that offset
+        instead of zero."""
+        offset = float(offset_sec or 0.0)
         return self._send_to_mirror("playback-info", {
             "totalSec": float(total_sec or 0),
-            "startedAt": int(time.time() * 1000),
+            "startedAt": int((time.time() - max(offset, 0.0)) * 1000),
         })
 
     def _probe_duration(self, audio_path):
@@ -697,7 +701,8 @@ class QuranChainer:
         # Reset so it doesn't accidentally re-apply later.
         self.start_position_sec = 0.0
 
-        self._send_playback_info(total_duration)
+        # offset passes through so UI arc starts at offset/total, not at 0.
+        self._send_playback_info(total_duration, offset_sec=offset)
 
         # Filter verses based on start_verse
         verses_to_play = [v for v in verses if v["number"] >= start_verse]
@@ -786,6 +791,10 @@ class QuranChainer:
         # Resume offset (set by --start-position-sec).
         offset = float(getattr(self, "start_position_sec", 0.0) or 0.0)
         offset = max(0.0, min(offset, max(duration_sec - 1.0, 0.0)))
+        # Re-send playback info now that we know the offset, so the UI arc
+        # starts at offset / total instead of resetting to 0.
+        if offset > 0.5:
+            self._send_playback_info(duration_sec, offset_sec=offset)
         print(f"  [Whole-surah] Playing {audio_path.name} "
               f"({self.reciter.get('name', self.reciter_key)}) "
               f"duration={duration_sec:.0f}s start={offset:.1f}s ...")
