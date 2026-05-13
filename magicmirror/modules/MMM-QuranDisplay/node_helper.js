@@ -87,7 +87,7 @@ module.exports = NodeHelper.create({
 		// polls so the same control surface affects voice-started playback.
 		this.expressApp.post("/api/quran/control", (req, res) => {
 			const action = String((req.body && req.body.action) || "").toLowerCase();
-			const allowed = new Set(["pause", "resume", "stop", "next", "previous", "toggle", "replay"]);
+			const allowed = new Set(["pause", "resume", "stop", "next", "previous", "toggle", "replay", "sleep"]);
 			if (!allowed.has(action)) {
 				return res.status(400).json({ status: "error", error: "unknown action" });
 			}

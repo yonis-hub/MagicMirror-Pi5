@@ -508,6 +508,37 @@ WAKE_ACKNOWLEDGEMENTS = (
     "Yeah?",
 )
 
+SLEEP_ACKNOWLEDGEMENTS = (
+    "Going to sleep.",
+    "Goodnight.",
+    "Talk later.",
+    "Standing by.",
+)
+
+# Multi-word phrases that mean "stop talking to me until I wake you again".
+SLEEP_PHRASES = (
+    "go to sleep",
+    "go sleep",
+    "goto sleep",
+    "good night",
+    "goodnight",
+    "talk to you later",
+    "leave me alone",
+    "stop listening",
+    "quiet mode",
+    "sleep mode",
+    "i'm done",
+    "im done",
+    "we are done",
+    "that's all",
+    "thats all",
+    "thanks bye",
+    "thank you bye",
+)
+# Single-word triggers — must be exact tokens because 'sleep' inside a longer
+# sentence ("I want to sleep") shouldn't always fire.
+SLEEP_SINGLE_TOKENS = {"sleep", "bye", "goodbye", "dismissed"}
+
 STOP_KEYWORDS = {"stop", "quiet", "silence", "halt", "end", "cancel"}
 PAUSE_KEYWORDS = {"pause", "hold", "wait", "break"}
 RESUME_KEYWORDS = {"resume", "continue", "unpause"}
@@ -1423,6 +1454,31 @@ class OllamaVoiceListener:
             return None
         return manifest.get("current") or manifest.get("default")
 
+    def _match_sleep(self, command_text):
+        """Return True when the user is asking the assistant to go quiet
+        and wait for the next wake-word — not just pause playback."""
+        if not command_text:
+            return False
+        t = command_text.lower().strip().rstrip(".!?")
+        if any(p in t for p in SLEEP_PHRASES):
+            return True
+        # Single-word sleep triggers: only fire if the whole utterance is one
+        # of these tokens (after wake-word stripping). Avoids matching
+        # 'sleep' inside 'play sleep adhkar' or similar.
+        tokens = tokenize_words(t)
+        if len(tokens) == 1 and tokens[0] in SLEEP_SINGLE_TOKENS:
+            return True
+        return False
+
+    def _go_to_sleep(self):
+        """Stop everything and revert to wake-word-only listening."""
+        print("  💤 Sleep requested — stopping playback and closing follow-up window.")
+        self.stop_playback()
+        self.followup_deadline = 0          # no more wakeless follow-ups
+        self._chainer_paused = False
+        if self.enable_voice:
+            self.speak(random.choice(SLEEP_ACKNOWLEDGEMENTS))
+
     def _match_replay(self, command_text):
         """Return True if the user is asking to replay/restart the same surah.
         Avoids matching plain 'play' (that's the regular play intent) — we
@@ -1692,6 +1748,12 @@ class OllamaVoiceListener:
             target_reciter = self._match_reciter_switch(command_text)
             if target_reciter:
                 self._switch_reciter(target_reciter)
+                return
+
+            # Sleep check — runs ahead of every other handler. After sleep
+            # we still listen, but only the wake word re-engages us.
+            if self._match_sleep(command_text):
+                self._go_to_sleep()
                 return
 
             # Replay check — natural phrases meaning "play it again from start"
@@ -2632,6 +2694,8 @@ class OllamaVoiceListener:
                 self.start_chainer(self.last_played_surah, position_sec=pos)
             else:
                 print("  Toggle pressed but nothing to play yet.")
+        elif action == "sleep":
+            self._go_to_sleep()
         elif action == "replay":
             target = self.last_played_surah or (self.last_intent or {}).get("surah")
             try:
