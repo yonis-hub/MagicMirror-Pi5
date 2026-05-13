@@ -60,33 +60,35 @@
   flex-direction: column;
   align-items: center;
   margin-top: 18px;
-  padding: 8px 18px 20px;
+  padding: 10px 18px 22px;
+  text-align: center;
 }
 
-/* Half-circle progress arc + time text overlay */
+/* Half-circle progress arc + centered time text */
 .mmm-quran-display .media-arc-wrap {
   position: relative;
-  width: 220px;
-  height: 120px;
+  width: 260px;
+  height: 140px;
+  margin-bottom: 2px;
 }
 
 .mmm-quran-display .media-arc {
-  width: 220px;
-  height: 120px;
+  width: 260px;
+  height: 140px;
   display: block;
   overflow: visible;
 }
 
 .mmm-quran-display .media-arc-bg {
   fill: none;
-  stroke: rgb(255 255 255 / 18%);
+  stroke: rgb(255 255 255 / 16%);
   stroke-width: 4;
-  stroke-linecap: round;
+  stroke-linecap: butt;       /* no nubs at the arc's start/end */
 }
 
 .mmm-quran-display .media-arc-fg {
   fill: none;
-  stroke: #f2f2f2;
+  stroke: #ffffff;
   stroke-width: 4;
   stroke-linecap: round;
   transition: stroke-dashoffset 600ms linear;
@@ -94,71 +96,79 @@
 
 .mmm-quran-display .media-time {
   position: absolute;
-  top: 8px;
+  top: 26px;
   left: 0;
   right: 0;
   text-align: center;
-  color: #d8d8d8;
-  font-size: 1.1em;
+  color: #e6e6e6;
+  font-size: 1.05em;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
-/* BT indicator just below the arc */
+/* BT indicator (inline SVG) — pulled slightly into the arc */
 .mmm-quran-display .media-bt-indicator {
-  margin-top: -8px;
-  margin-bottom: 4px;
-  font-size: 1.2em;
-  color: #f2f2f2;
-  opacity: 0.9;
+  margin-top: -28px;
+  margin-bottom: 6px;
+  color: #ffffff;
+  opacity: 0.95;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Arabic surah title (subtitle role — gray) */
+.mmm-quran-display .media-bt-indicator svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Arabic surah title (subtitle role — gray-pink ornate) */
 .mmm-quran-display .media-arabic {
   color: #b9b9b9;
-  font-family: var(--quran-arabic-font-family, "Aref Ruqaa", serif);
-  font-size: 1.45em;
-  line-height: 1.1;
-  margin-bottom: 4px;
+  font-family: var(--quran-arabic-font-family, "Aref Ruqaa Ink", "Aref Ruqaa", serif);
+  font-size: 1.55em;
+  line-height: 1.15;
+  margin-bottom: 2px;
 }
 
 /* English surah title (primary label — white, larger) */
 .mmm-quran-display .media-english {
   color: #ffffff;
-  font-size: 1.6em;
+  font-size: 1.8em;
   font-weight: 600;
   line-height: 1.1;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .mmm-quran-display .media-reciter {
   color: #c8b56c;
   font-size: 0.85em;
   letter-spacing: 0.4px;
-  opacity: 0.9;
-  margin-bottom: 4px;
+  opacity: 0.95;
+  margin-bottom: 8px;
 }
 
 .mmm-quran-display .media-verse-counter {
   color: #9f9f9f;
-  font-size: 0.75em;
-  letter-spacing: 0.6px;
+  font-size: 0.8em;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .mmm-quran-display .media-buttons {
   display: flex;
   align-items: center;
-  gap: 28px;
-  margin-top: 12px;
+  justify-content: center;
+  gap: 36px;
+  margin-top: 6px;
 }
 
 .mmm-quran-display .media-btn {
   background: transparent;
   border: 0;
   color: #ffffff;
-  font-size: 2.1em;
+  font-size: 2em;
   line-height: 1;
   padding: 0;
   cursor: pointer;
@@ -171,7 +181,7 @@
 }
 
 .mmm-quran-display .media-btn:hover {
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .mmm-quran-display .media-btn:active {
@@ -179,7 +189,18 @@
 }
 
 .mmm-quran-display .media-btn-play {
-  font-size: 2.6em;
+  width: 72px;
+  height: 72px;
+}
+
+.mmm-quran-display .media-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mmm-quran-display .media-btn-play svg {
+  width: 60%;
+  height: 60%;
 }
 
 .mmm-quran-display .adhkar-now-playing {

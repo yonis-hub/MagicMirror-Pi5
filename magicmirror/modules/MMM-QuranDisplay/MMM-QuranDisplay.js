@@ -416,15 +416,15 @@ Module.register("MMM-QuranDisplay", {
 		const arcWrap = document.createElement("div");
 		arcWrap.className = "media-arc-wrap";
 
-		// SVG arc: 220x110 viewBox. Background semi-circle, foreground stroke
-		// length = progress * total. We compute the stroke-dasharray below.
+		// SVG arc: 260x140 viewBox. Padding around the arc so rounded caps
+		// don't get clipped or look uneven against the viewBox edges.
 		const svgNS = "http://www.w3.org/2000/svg";
 		const svg = document.createElementNS(svgNS, "svg");
-		svg.setAttribute("viewBox", "0 0 220 120");
+		svg.setAttribute("viewBox", "0 0 260 140");
 		svg.setAttribute("class", "media-arc");
-		// Path d = "M 10 110 A 100 100 0 0 1 210 110" → semicircle from 10,110 to 210,110
-		const ARC_PATH_D = "M 10 110 A 100 100 0 0 1 210 110";
-		const ARC_LEN = Math.PI * 100; // arc length of semicircle with r=100
+		// Semicircle from (20,130) to (240,130), radius 110, bulging upward.
+		const ARC_PATH_D = "M 20 130 A 110 110 0 0 1 240 130";
+		const ARC_LEN = Math.PI * 110; // arc length for r=110
 
 		const bg = document.createElementNS(svgNS, "path");
 		bg.setAttribute("d", ARC_PATH_D);
@@ -435,7 +435,8 @@ Module.register("MMM-QuranDisplay", {
 		fg.setAttribute("d", ARC_PATH_D);
 		fg.setAttribute("class", "media-arc-fg");
 		fg.setAttribute("stroke-dasharray", `${ARC_LEN}`);
-		// Initial offset based on current progress (set below after computing).
+		// Start fully hidden; computed below.
+		fg.setAttribute("stroke-dashoffset", `${ARC_LEN}`);
 		svg.appendChild(fg);
 
 		const timeText = document.createElement("div");
@@ -455,10 +456,15 @@ Module.register("MMM-QuranDisplay", {
 		this._timeText = timeText;
 		this.ensureProgressTimer();
 
-		// ---- Bluetooth indicator ----
+		// ---- Bluetooth indicator (inline SVG so we don't depend on emoji fonts) ----
 		const bt = document.createElement("div");
 		bt.className = "media-bt-indicator";
-		bt.innerHTML = "&#x1F532;"; // approximate BT glyph; styled via CSS
+		bt.innerHTML =
+			'<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+			'<path d="M6.5 6.5l11 11-5.5 5.5V1l5.5 5.5-11 11" ' +
+			'fill="none" stroke="currentColor" stroke-width="2" ' +
+			'stroke-linecap="round" stroke-linejoin="round"/>' +
+			"</svg>";
 		widget.appendChild(bt);
 
 		// ---- Arabic + English names + reciter ----
@@ -489,22 +495,38 @@ Module.register("MMM-QuranDisplay", {
 			widget.appendChild(verseDiv);
 		}
 
-		// ---- Buttons row ----
+		// ---- Buttons row (inline SVG, crisp at any size) ----
+		const SVG_HEAD = '<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">';
+		const SVG_TAIL = "</svg>";
+		const ICON_PREV = SVG_HEAD +
+			'<path d="M10 6v20M28 6L14 16l14 10z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+			SVG_TAIL;
+		const ICON_NEXT = SVG_HEAD +
+			'<path d="M22 6v20M4 6l14 10L4 26z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+			SVG_TAIL;
+		const ICON_PLAY = SVG_HEAD +
+			'<path d="M8 5l20 11L8 27z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+			SVG_TAIL;
+		const ICON_PAUSE = SVG_HEAD +
+			'<rect x="8" y="6" width="6" height="20" rx="1.5" fill="currentColor"/>' +
+			'<rect x="18" y="6" width="6" height="20" rx="1.5" fill="currentColor"/>' +
+			SVG_TAIL;
+
 		const row = document.createElement("div");
 		row.className = "media-buttons";
-		const makeBtn = (id, label, glyph, action) => {
+		const makeBtn = (id, label, svg, action) => {
 			const btn = document.createElement("button");
 			btn.type = "button";
 			btn.className = `media-btn media-btn-${id}`;
 			btn.setAttribute("aria-label", label);
-			btn.innerHTML = glyph;
+			btn.innerHTML = svg;
 			btn.addEventListener("click", () => this.sendControlAction(action));
 			return btn;
 		};
-		row.appendChild(makeBtn("prev", "Previous surah", "&#x23EE;&#xFE0E;", "previous"));
-		const playPauseGlyph = this.isPlaying ? "&#x23F8;&#xFE0E;" : "&#x25B6;&#xFE0E;";
-		row.appendChild(makeBtn("play", this.isPlaying ? "Pause" : "Play", playPauseGlyph, "toggle"));
-		row.appendChild(makeBtn("next", "Next surah", "&#x23ED;&#xFE0E;", "next"));
+		row.appendChild(makeBtn("prev", "Previous surah", ICON_PREV, "previous"));
+		row.appendChild(makeBtn("play", this.isPlaying ? "Pause" : "Play",
+			this.isPlaying ? ICON_PAUSE : ICON_PLAY, "toggle"));
+		row.appendChild(makeBtn("next", "Next surah", ICON_NEXT, "next"));
 		widget.appendChild(row);
 
 		return widget;
