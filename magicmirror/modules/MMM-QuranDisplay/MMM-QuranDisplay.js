@@ -519,12 +519,14 @@ Module.register("MMM-QuranDisplay", {
 			'<rect x="8" y="6" width="6" height="20" rx="1.5" fill="currentColor"/>' +
 			'<rect x="18" y="6" width="6" height="20" rx="1.5" fill="currentColor"/>' +
 			SVG_TAIL;
-		// Replay: circular arrow with a small leading head (matches typical
-		// "restart" / "replay" iconography).
-		const ICON_REPLAY = SVG_HEAD +
-			'<path d="M16 6a10 10 0 1 0 9.46 6.79" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' +
-			'<path d="M16 2l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
-			SVG_TAIL;
+		// Replay: two arrows circling each other (Material 'autorenew' style).
+		// Drawn in a 24x24 viewBox of its own so the geometry stays clean
+		// regardless of the row's 32x32 button frame.
+		const ICON_REPLAY =
+			'<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+			'<path d="M12 6V3L8 7l4 4V8c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 17.03 20 15.57 20 14c0-4.42-3.58-8-8-8z" fill="currentColor"/>' +
+			'<path d="M12 20c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.46 10.97 4 12.43 4 14c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" fill="currentColor"/>' +
+			"</svg>";
 
 		const row = document.createElement("div");
 		row.className = "media-buttons";
