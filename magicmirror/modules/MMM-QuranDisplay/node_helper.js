@@ -72,6 +72,32 @@ module.exports = NodeHelper.create({
 			res.status(200).json({ status: "success" });
 		});
 
+		// API endpoint for media-player-style control clicks (pause, resume,
+		// stop, next, previous). Writes a one-shot file the voice listener
+		// polls so the same control surface affects voice-started playback.
+		this.expressApp.post("/api/quran/control", (req, res) => {
+			const action = String((req.body && req.body.action) || "").toLowerCase();
+			const allowed = new Set(["pause", "resume", "stop", "next", "previous", "toggle"]);
+			if (!allowed.has(action)) {
+				return res.status(400).json({ status: "error", error: "unknown action" });
+			}
+			try {
+				fs.writeFileSync("/tmp/mm-quran-control", action + "\n");
+				// Also fall through to module-owned chainer in case voice
+				// listener isn't running.
+				if (action === "pause") {
+					this.sendSocketNotification("PAUSE_PLAYBACK", {});
+				} else if (action === "resume") {
+					this.sendSocketNotification("RESUME_PLAYBACK", {});
+				} else if (action === "stop") {
+					this.sendSocketNotification("STOP_PLAYBACK", {});
+				}
+				res.status(200).json({ status: "success", action });
+			} catch (err) {
+				res.status(500).json({ status: "error", error: String(err) });
+			}
+		});
+
 		// API endpoint to mute/unmute the voice listener. Writes a flag
 		// file (/tmp/mm-voice-muted) that voice_listener_ollama.py checks
 		// before processing wake events. Used to suppress wake triggers

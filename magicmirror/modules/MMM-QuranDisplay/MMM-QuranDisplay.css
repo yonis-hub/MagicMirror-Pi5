@@ -54,6 +54,73 @@
   opacity: 0.85;
 }
 
+/* ---- Media-player-style controls (watch-widget look) ---- */
+.mmm-quran-display .media-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 10%);
+}
+
+.mmm-quran-display .media-bt-indicator {
+  font-size: 1.1em;
+  color: #5fb7ff;
+  opacity: 0.85;
+  margin-bottom: -2px;
+}
+
+.mmm-quran-display .media-progress {
+  font-size: 0.95em;
+  letter-spacing: 1.2px;
+  color: #d8d8d8;
+  font-variant-numeric: tabular-nums;
+}
+
+.mmm-quran-display .media-buttons {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.mmm-quran-display .media-btn {
+  background: transparent;
+  border: 0;
+  color: #f2f2f2;
+  font-size: 1.6em;
+  line-height: 1;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.mmm-quran-display .media-btn:hover {
+  background: rgb(255 255 255 / 8%);
+}
+
+.mmm-quran-display .media-btn:active {
+  transform: scale(0.94);
+}
+
+.mmm-quran-display .media-btn-play {
+  font-size: 2em;
+  background: rgb(255 255 255 / 8%);
+}
+
+.mmm-quran-display .media-btn-play:hover {
+  background: rgb(255 255 255 / 14%);
+}
+
 .mmm-quran-display .adhkar-now-playing {
   margin-bottom: 10px;
   padding: 8px 10px;

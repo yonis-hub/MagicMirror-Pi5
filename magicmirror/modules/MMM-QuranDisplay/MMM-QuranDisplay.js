@@ -338,6 +338,8 @@ Module.register("MMM-QuranDisplay", {
 			wrapper.appendChild(reciterDiv);
 		}
 
+		wrapper.appendChild(this.renderMediaControls());
+
 		if (this.isPlaying) {
 			const playingDiv = document.createElement("div");
 			playingDiv.className = "playing-indicator";
@@ -426,6 +428,57 @@ Module.register("MMM-QuranDisplay", {
 			// triggers don't get processed during prayer call.
 			this.setVoiceMute(this.adhanStatus.isPlaying, `adhan:${this.adhanStatus.prayer || "unknown"}`);
 		}
+	},
+
+	renderMediaControls: function () {
+		const controls = document.createElement("div");
+		controls.className = "media-controls";
+
+		// Bluetooth / connection indicator (purely visual; assumes BT sink wired)
+		const bt = document.createElement("div");
+		bt.className = "media-bt-indicator";
+		bt.innerHTML = "&#x1F50A;"; // 🔊 speaker; replace if you want literal BT glyph
+		controls.appendChild(bt);
+
+		// Verse/total progress text (acts as our "current/total time")
+		const progress = document.createElement("div");
+		progress.className = "media-progress";
+		const v = this.currentVerse?.verse;
+		const total = this.surahInfo?.totalVerses;
+		progress.textContent = v && total ? `${v} / ${total}` : "—";
+		controls.appendChild(progress);
+
+		// Button row
+		const row = document.createElement("div");
+		row.className = "media-buttons";
+
+		const makeBtn = (id, label, glyph, action) => {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = `media-btn media-btn-${id}`;
+			btn.setAttribute("aria-label", label);
+			btn.innerHTML = glyph;
+			btn.addEventListener("click", () => this.sendControlAction(action));
+			return btn;
+		};
+
+		row.appendChild(makeBtn("prev", "Previous surah", "&#x23EE;", "previous"));
+		const playPauseGlyph = this.isPlaying ? "&#x23F8;" : "&#x25B6;";
+		row.appendChild(makeBtn("play", this.isPlaying ? "Pause" : "Play", playPauseGlyph, "toggle"));
+		row.appendChild(makeBtn("next", "Next surah", "&#x23ED;", "next"));
+
+		controls.appendChild(row);
+		return controls;
+	},
+
+	sendControlAction: function (action) {
+		try {
+			fetch("/api/quran/control", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action })
+			}).catch(() => { /* ignore */ });
+		} catch (e) { /* ignore */ }
 	},
 
 	setVoiceMute: function (muted, reason) {

@@ -2344,6 +2344,7 @@ class OllamaVoiceListener:
         try:
             while self.is_running:
                 self._memory_tick()
+                self._check_control_file()
                 if not self.oww_detector.wait_for_wake(timeout=1.0):
                     continue
 
@@ -2468,6 +2469,62 @@ class OllamaVoiceListener:
                 self.check_memory()
             except Exception as e:
                 print(f"  Memory check error: {e}")
+
+    CONTROL_FILE = "/tmp/mm-quran-control"
+
+    def _check_control_file(self):
+        """Poll for UI-issued control actions written by node_helper's
+        /api/quran/control endpoint. One-shot file: read action, delete,
+        dispatch through the same paths voice commands use."""
+        try:
+            if not os.path.exists(self.CONTROL_FILE):
+                return
+            with open(self.CONTROL_FILE) as f:
+                action = f.read().strip().lower()
+            try:
+                os.unlink(self.CONTROL_FILE)
+            except Exception:
+                pass
+            if not action:
+                return
+            print(f"  🎛  UI control: {action}")
+            self._dispatch_ui_control(action)
+        except Exception as e:
+            print(f"  Control-file error: {e}")
+
+    def _dispatch_ui_control(self, action):
+        """Run a UI-issued action through the listener's existing playback
+        logic so the result is identical to issuing it by voice."""
+        if action == "pause":
+            self.pause_chainer()
+        elif action == "resume":
+            self.resume_chainer()
+        elif action == "stop":
+            self.stop_playback()
+        elif action == "toggle":
+            playing = self.current_process and self.current_process.poll() is None
+            if playing and not getattr(self, "_chainer_paused", False):
+                self.pause_chainer()
+            else:
+                self.resume_chainer()
+        elif action in ("next", "previous"):
+            # Skip to neighbouring surah. Track current via last_intent.
+            current = None
+            try:
+                current = int((self.last_intent or {}).get("surah") or 0)
+            except (TypeError, ValueError):
+                current = 0
+            if not (1 <= current <= 114):
+                print("  No known current surah to navigate from")
+                return
+            target = current + (1 if action == "next" else -1)
+            if target < 1:
+                target = 114
+            if target > 114:
+                target = 1
+            print(f"  Jumping to surah {target}")
+            self.stop_playback()
+            self.start_chainer(target)
 
 
 def signal_handler(sig, frame):
