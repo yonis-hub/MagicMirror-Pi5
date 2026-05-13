@@ -216,6 +216,10 @@ class QuranChainer:
         self.is_paused = False
         if self.current_process:
             self.current_process.terminate()
+        try:
+            self._update_playback_status(False)
+        except Exception:
+            pass
         self._clear_display()
         sys.exit(0)
 

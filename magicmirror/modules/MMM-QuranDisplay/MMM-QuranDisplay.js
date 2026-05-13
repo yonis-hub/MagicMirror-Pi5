@@ -340,8 +340,16 @@ Module.register("MMM-QuranDisplay", {
 			this.updateDom(200);
 		} else if (notification === "PLAYBACK_INFO") {
 			// Sent by chainer at the start of a new surah: total duration + start time.
-			this.playbackTotalSec = Number(payload.totalSec) || 0;
-			this.playbackStartMs = payload.startedAt || Date.now();
+			// totalSec = 0 means "reset" (no active playback) — used by the
+			// listener's stop_playback so the arc collapses cleanly.
+			const total = Number(payload.totalSec) || 0;
+			this.playbackTotalSec = total;
+			if (total > 0) {
+				this.playbackStartMs = Number(payload.startedAt) || Date.now();
+			} else {
+				this.playbackStartMs = 0;
+				this.isPlaying = false;
+			}
 			this.playbackPausedAtElapsedSec = 0;
 			this.updateDom(0);
 		} else if (notification === "CLEAR_DISPLAY") {

@@ -994,6 +994,8 @@ class OllamaVoiceListener:
         self._last_command_signature = None
         self._last_command_ts = 0.0
         self._tts_finished_at = 0.0  # used to suppress self-wake right after our own TTS
+        self.last_played_surah = None  # remembered so UI toggle can restart after stop
+        self._chainer_paused = False   # mirrors chainer's pause state for UI toggle
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
@@ -1358,6 +1360,12 @@ class OllamaVoiceListener:
             stdin=subprocess.PIPE,
             text=True
         )
+        # Track for UI toggle-after-stop and to keep last surah on display
+        try:
+            self.last_played_surah = int(surah)
+        except (TypeError, ValueError):
+            pass
+        self._chainer_paused = False
 
     # ---------- Reciter switching (per-session, persisted in reciters.json) ----------
     def _reciters_manifest_path(self):
@@ -1584,10 +1592,12 @@ class OllamaVoiceListener:
     def pause_chainer(self):
         if self.send_chainer_command("PAUSE"):
             print("⏸ Pause command sent to quran_chainer.")
+            self._chainer_paused = True
             return True
         signaled = self._signal_external_playback(signal.SIGSTOP)
         if signaled > 0:
             print(f"⏸ Pause signal sent to {signaled} external playback process(es).")
+            self._chainer_paused = True
             return True
         print("  No active recitation process to pause.")
         return False
@@ -1595,10 +1605,18 @@ class OllamaVoiceListener:
     def resume_chainer(self):
         if self.send_chainer_command("RESUME"):
             print("▶ Resume command sent to quran_chainer.")
+            self._chainer_paused = False
             return True
         signaled = self._signal_external_playback(signal.SIGCONT)
         if signaled > 0:
             print(f"▶ Resume signal sent to {signaled} external playback process(es).")
+            self._chainer_paused = False
+            return True
+        # Nothing alive to resume — fall back to replaying the last surah from
+        # the start so the play button isn't a dead end after a stop.
+        if self.last_played_surah:
+            print(f"  No active recitation; restarting last surah ({self.last_played_surah}).")
+            self.start_chainer(self.last_played_surah)
             return True
         print("  No active recitation process to resume.")
         return False
@@ -2036,6 +2054,19 @@ class OllamaVoiceListener:
         killed_external = self._signal_external_playback(signal.SIGTERM)
         if killed_external > 0:
             print(f"⏹ Terminated {killed_external} external playback process(es).")
+        self._chainer_paused = False  # state machine reset
+        # Tell UI the playback has stopped *before* clearing the display, so
+        # the progress arc collapses to 0 instead of being frozen mid-arc.
+        try:
+            requests.post(f"{self.mirror_url}/api/quran/status",
+                          json={"isPlaying": False}, timeout=1)
+        except Exception:
+            pass
+        try:
+            requests.post(f"{self.mirror_url}/api/quran/playback-info",
+                          json={"totalSec": 0, "startedAt": 0}, timeout=1)
+        except Exception:
+            pass
         try:
             requests.post(f"{self.mirror_url}/api/quran/clear", timeout=1)
         except Exception:
@@ -2502,11 +2533,16 @@ class OllamaVoiceListener:
         elif action == "stop":
             self.stop_playback()
         elif action == "toggle":
-            playing = self.current_process and self.current_process.poll() is None
-            if playing and not getattr(self, "_chainer_paused", False):
+            alive = self.current_process and self.current_process.poll() is None
+            if alive and not self._chainer_paused:
                 self.pause_chainer()
-            else:
+            elif alive and self._chainer_paused:
                 self.resume_chainer()
+            elif self.last_played_surah:
+                print(f"  Toggle with no active playback — restarting surah {self.last_played_surah}.")
+                self.start_chainer(self.last_played_surah)
+            else:
+                print("  Toggle pressed but nothing to play yet.")
         elif action in ("next", "previous"):
             # Skip to neighbouring surah. Track current via last_intent.
             current = None
