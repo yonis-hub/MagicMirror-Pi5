@@ -996,6 +996,13 @@ class OllamaVoiceListener:
         self._tts_finished_at = 0.0  # used to suppress self-wake right after our own TTS
         self.last_played_surah = None  # remembered so UI toggle can restart after stop
         self._chainer_paused = False   # mirrors chainer's pause state for UI toggle
+        # Wall-clock playback tracking so STOP can also preserve position
+        # (PAUSE already preserves it via mpv SIGSTOP). Reset on each new
+        # surah; toggle-from-stopped resumes from _resume_position_sec.
+        self._playback_start_wall = 0.0
+        self._paused_accum_sec = 0.0
+        self._paused_at_wall = 0.0
+        self._resume_position_sec = 0.0
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
@@ -1341,11 +1348,21 @@ class OllamaVoiceListener:
             return self.parse_with_ollama(command_text, require_wake=False)
         return local_result
 
-    def start_chainer(self, surah, verse_start=None):
+    def start_chainer(self, surah, verse_start=None, position_sec=0.0):
         # Defensive guard: enforce one active chainer even if a stale process remains.
         if self.current_process and self.current_process.poll() is None:
             self.stop_playback()
         self._terminate_stale_chainers()
+
+        try:
+            surah_int = int(surah)
+        except (TypeError, ValueError):
+            surah_int = None
+        # Different surah than what was last played → drop the resume marker;
+        # the user picked a fresh track, they don't want last surah's offset.
+        if surah_int is not None and surah_int != self.last_played_surah:
+            self._resume_position_sec = 0.0
+            position_sec = 0.0
 
         command = [sys.executable, "quran_chainer.py", "--surah", str(surah)]
         if verse_start is not None:
@@ -1353,6 +1370,8 @@ class OllamaVoiceListener:
         active = self._current_reciter_key()
         if active:
             command.extend(["--reciter", active])
+        if position_sec and position_sec > 0.5:
+            command.extend(["--start-position-sec", f"{position_sec:.2f}"])
         print(f"  Launching chainer: {' '.join(command)}")
         self.current_process = subprocess.Popen(
             command,
@@ -1361,11 +1380,17 @@ class OllamaVoiceListener:
             text=True
         )
         # Track for UI toggle-after-stop and to keep last surah on display
-        try:
-            self.last_played_surah = int(surah)
-        except (TypeError, ValueError):
-            pass
+        if surah_int is not None:
+            self.last_played_surah = surah_int
         self._chainer_paused = False
+        # Wall-clock tracking starts now; offset so elapsed-from-zero includes
+        # the seeked-into amount.
+        self._playback_start_wall = time.time() - float(position_sec or 0.0)
+        self._paused_accum_sec = 0.0
+        self._paused_at_wall = 0.0
+        # Once playback begins fresh from a position, we clear the resume
+        # marker — the user has to STOP again to set a new one.
+        self._resume_position_sec = 0.0
 
     # ---------- Reciter switching (per-session, persisted in reciters.json) ----------
     def _reciters_manifest_path(self):
@@ -1397,6 +1422,23 @@ class OllamaVoiceListener:
         if not manifest:
             return None
         return manifest.get("current") or manifest.get("default")
+
+    def _match_replay(self, command_text):
+        """Return True if the user is asking to replay/restart the same surah.
+        Avoids matching plain 'play' (that's the regular play intent) — we
+        require an explicit 'again' / 'replay' / 'restart' / 'one more time'
+        marker."""
+        if not command_text:
+            return False
+        t = command_text.lower().strip().rstrip(".!?")
+        markers = (
+            "replay", "play it again", "play again", "again from the start",
+            "start over", "from the beginning", "from the start",
+            "restart", "play this again", "play the same", "play same",
+            "one more time", "one more", "do it again", "redo it",
+            "rewind", "go back to the beginning",
+        )
+        return any(m in t for m in markers)
 
     def _match_reciter_switch(self, command_text):
         """If `command_text` matches a reciter-switch phrase, return the
@@ -1589,15 +1631,26 @@ class OllamaVoiceListener:
             or bool(extract_surah_number(text))
         )
 
+    def _current_elapsed_sec(self):
+        """Approximate elapsed playback seconds for the *active* chainer.
+        Accounts for the cumulative paused time."""
+        if not self._playback_start_wall:
+            return 0.0
+        now = time.time()
+        live_paused = (now - self._paused_at_wall) if self._paused_at_wall else 0.0
+        return max(0.0, (now - self._playback_start_wall) - self._paused_accum_sec - live_paused)
+
     def pause_chainer(self):
         if self.send_chainer_command("PAUSE"):
             print("⏸ Pause command sent to quran_chainer.")
             self._chainer_paused = True
+            self._paused_at_wall = time.time()
             return True
         signaled = self._signal_external_playback(signal.SIGSTOP)
         if signaled > 0:
             print(f"⏸ Pause signal sent to {signaled} external playback process(es).")
             self._chainer_paused = True
+            self._paused_at_wall = time.time()
             return True
         print("  No active recitation process to pause.")
         return False
@@ -1606,17 +1659,24 @@ class OllamaVoiceListener:
         if self.send_chainer_command("RESUME"):
             print("▶ Resume command sent to quran_chainer.")
             self._chainer_paused = False
+            if self._paused_at_wall:
+                self._paused_accum_sec += time.time() - self._paused_at_wall
+                self._paused_at_wall = 0.0
             return True
         signaled = self._signal_external_playback(signal.SIGCONT)
         if signaled > 0:
             print(f"▶ Resume signal sent to {signaled} external playback process(es).")
             self._chainer_paused = False
+            if self._paused_at_wall:
+                self._paused_accum_sec += time.time() - self._paused_at_wall
+                self._paused_at_wall = 0.0
             return True
-        # Nothing alive to resume — fall back to replaying the last surah from
-        # the start so the play button isn't a dead end after a stop.
+        # Nothing alive to resume — restart the last surah from the saved
+        # position (set by stop_playback) or from the beginning if none.
         if self.last_played_surah:
-            print(f"  No active recitation; restarting last surah ({self.last_played_surah}).")
-            self.start_chainer(self.last_played_surah)
+            pos = self._resume_position_sec
+            print(f"  No active recitation; restarting surah {self.last_played_surah} from {pos:.1f}s.")
+            self.start_chainer(self.last_played_surah, position_sec=pos)
             return True
         print("  No active recitation process to resume.")
         return False
@@ -1632,6 +1692,11 @@ class OllamaVoiceListener:
             target_reciter = self._match_reciter_switch(command_text)
             if target_reciter:
                 self._switch_reciter(target_reciter)
+                return
+
+            # Replay check — natural phrases meaning "play it again from start"
+            if self._match_replay(command_text):
+                self._dispatch_ui_control("replay")
                 return
 
             parse_started_at = time.perf_counter()
@@ -2034,6 +2099,13 @@ class OllamaVoiceListener:
 
     def stop_playback(self):
         """Stop playback and release resources"""
+        # Snapshot the current playback position *before* we kill anything,
+        # so a subsequent toggle/resume can pick up where we stopped.
+        if self.current_process and self.current_process.poll() is None and self._playback_start_wall:
+            elapsed = self._current_elapsed_sec()
+            if elapsed > 0.5:
+                self._resume_position_sec = elapsed
+                print(f"  Saved resume position: {elapsed:.1f}s")
         if self.current_process:
             try:
                 if self.current_process.poll() is None:
@@ -2539,10 +2611,25 @@ class OllamaVoiceListener:
             elif alive and self._chainer_paused:
                 self.resume_chainer()
             elif self.last_played_surah:
-                print(f"  Toggle with no active playback — restarting surah {self.last_played_surah}.")
-                self.start_chainer(self.last_played_surah)
+                pos = self._resume_position_sec
+                print(f"  Toggle with no active playback — resuming surah "
+                      f"{self.last_played_surah} from {pos:.1f}s.")
+                self.start_chainer(self.last_played_surah, position_sec=pos)
             else:
                 print("  Toggle pressed but nothing to play yet.")
+        elif action == "replay":
+            target = self.last_played_surah or (self.last_intent or {}).get("surah")
+            try:
+                target = int(target)
+            except (TypeError, ValueError):
+                target = None
+            if not (target and 1 <= target <= 114):
+                print("  Nothing to replay yet")
+                return
+            print(f"  Replaying surah {target} from the start")
+            self._resume_position_sec = 0.0
+            self.stop_playback()
+            self.start_chainer(target)
         elif action in ("next", "previous"):
             # Skip to neighbouring surah. Track current via last_intent.
             current = None

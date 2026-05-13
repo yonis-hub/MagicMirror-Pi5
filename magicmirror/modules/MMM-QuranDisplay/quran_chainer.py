@@ -548,8 +548,9 @@ class QuranChainer:
 
         return stable_args
 
-    def play_audio(self, audio_url):
-        """Play audio using mpv and wait for completion"""
+    def play_audio(self, audio_url, start_sec=0.0):
+        """Play audio using mpv and wait for completion. Optional start_sec
+        seeks mpv to that point at launch (used to resume after stop)."""
         if not audio_url:
             print("No audio URL provided")
             time.sleep(3)  # Fallback delay for display viewing
@@ -558,6 +559,8 @@ class QuranChainer:
         try:
             # Use mpv for playback; allow explicit audio backend/device overrides.
             mpv_cmd = ["mpv", "--no-video", "--really-quiet"]
+            if start_sec and start_sec > 0.1:
+                mpv_cmd.append(f"--start={start_sec:.2f}")
             mpv_ao = os.environ.get("QURAN_MPV_AO", "").strip()
             mpv_audio_device = os.environ.get("QURAN_MPV_AUDIO_DEVICE", "").strip()
             mpv_extra = os.environ.get("QURAN_MPV_EXTRA_ARGS", "").strip()
@@ -659,15 +662,41 @@ class QuranChainer:
         if self.reciter.get("layout") == "surah":
             return self._play_whole_surah(surah_number, surah_info, verses, start_verse)
 
-        # Per-verse layout: estimate total duration by probing each verse
-        # audio. ffprobe is cheap (a few ms per file).
-        total_duration = 0.0
+        # Per-verse layout: probe each verse to build a cumulative timeline.
+        # This both gives us total duration (for the UI arc) and lets us
+        # translate a resume position to (start_verse, within-verse offset).
+        verse_durations = []
+        cumulative = 0.0
         for v in verses:
             if v["number"] < start_verse:
+                verse_durations.append((v["number"], 0.0, 0.0))
                 continue
             local_audio = v.get("audio")
-            if local_audio and os.path.exists(local_audio):
-                total_duration += self._probe_duration(local_audio)
+            dur = self._probe_duration(local_audio) if (local_audio and os.path.exists(local_audio)) else 0.0
+            verse_durations.append((v["number"], dur, cumulative))
+            cumulative += dur
+        total_duration = cumulative
+
+        # Apply start_position_sec by translating into start_verse + offset
+        offset = float(getattr(self, "start_position_sec", 0.0) or 0.0)
+        self._verse_first_offset_sec = 0.0
+        if offset > 0.5:
+            target_verse = start_verse
+            for vnum, dur, cum_start in verse_durations:
+                if vnum < start_verse:
+                    continue
+                cum_end = cum_start + dur
+                if cum_start <= offset < cum_end:
+                    target_verse = vnum
+                    self._verse_first_offset_sec = max(0.0, offset - cum_start)
+                    break
+                target_verse = vnum  # ride along if past the end
+            if target_verse != start_verse:
+                print(f"  Resuming at verse {target_verse} (offset {self._verse_first_offset_sec:.1f}s in)")
+                start_verse = target_verse
+        # Reset so it doesn't accidentally re-apply later.
+        self.start_position_sec = 0.0
+
         self._send_playback_info(total_duration)
 
         # Filter verses based on start_verse
@@ -695,13 +724,17 @@ class QuranChainer:
                 is_playing=True
             )
 
+            # First verse of a resumed playback may need an in-verse seek.
+            first_verse_offset = getattr(self, "_verse_first_offset_sec", 0.0) or 0.0
+            self._verse_first_offset_sec = 0.0  # only applies to this first verse
+
             # Play audio
             if verse.get("audio"):
-                self.play_audio(verse["audio"])
+                self.play_audio(verse["audio"], start_sec=first_verse_offset)
             elif verse.get("ayah_number"):
                 # Fallback requires global ayah index, not numberInSurah.
                 audio_url = f"https://cdn.islamic.network/quran/audio/128/ar.alafasy/{verse['ayah_number']}.mp3"
-                self.play_audio(audio_url)
+                self.play_audio(audio_url, start_sec=first_verse_offset)
             else:
                 print(f"  No audio source for verse {verse_num}; skipping playback for this verse.")
 
@@ -750,10 +783,15 @@ class QuranChainer:
         # Probe duration so the UI progress arc fills correctly.
         duration_sec = self._probe_duration(audio_path)
         self._send_playback_info(duration_sec)
+        # Resume offset (set by --start-position-sec).
+        offset = float(getattr(self, "start_position_sec", 0.0) or 0.0)
+        offset = max(0.0, min(offset, max(duration_sec - 1.0, 0.0)))
         print(f"  [Whole-surah] Playing {audio_path.name} "
               f"({self.reciter.get('name', self.reciter_key)}) "
-              f"duration={duration_sec:.0f}s ...")
-        self.play_audio(str(audio_path))
+              f"duration={duration_sec:.0f}s start={offset:.1f}s ...")
+        # Once we've used it, clear so subsequent calls don't re-seek.
+        self.start_position_sec = 0.0
+        self.play_audio(str(audio_path), start_sec=offset)
 
         self._update_playback_status(False)
         print("\n✓ Playback complete")
@@ -786,6 +824,8 @@ def main():
     parser.add_argument("--start-verse", "-v", type=int, default=1, help="Starting verse number")
     parser.add_argument("--mirror-url", "-m", default="http://localhost:8080", help="MagicMirror URL")
     parser.add_argument("--reciter", "-r", default=None, help="Reciter key or alias (overrides reciters.json current). E.g. 'alafasy' or 'noreen-sedeeq'")
+    parser.add_argument("--start-position-sec", type=float, default=0.0,
+                        help="Seek this many seconds into playback before starting (used to resume after stop).")
 
     args = parser.parse_args()
 
@@ -796,6 +836,7 @@ def main():
         sys.exit(1)
 
     chainer = QuranChainer(mirror_url=args.mirror_url, reciter=args.reciter)
+    chainer.start_position_sec = float(getattr(args, "start_position_sec", 0.0) or 0.0)
     chainer.play_surah(surah_number, args.start_verse)
 
 

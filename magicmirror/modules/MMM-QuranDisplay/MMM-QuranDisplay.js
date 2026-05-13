@@ -519,6 +519,12 @@ Module.register("MMM-QuranDisplay", {
 			'<rect x="8" y="6" width="6" height="20" rx="1.5" fill="currentColor"/>' +
 			'<rect x="18" y="6" width="6" height="20" rx="1.5" fill="currentColor"/>' +
 			SVG_TAIL;
+		// Replay: circular arrow with a small leading head (matches typical
+		// "restart" / "replay" iconography).
+		const ICON_REPLAY = SVG_HEAD +
+			'<path d="M16 6a10 10 0 1 0 9.46 6.79" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' +
+			'<path d="M16 2l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+			SVG_TAIL;
 
 		const row = document.createElement("div");
 		row.className = "media-buttons";
@@ -532,6 +538,7 @@ Module.register("MMM-QuranDisplay", {
 			return btn;
 		};
 		row.appendChild(makeBtn("prev", "Previous surah", ICON_PREV, "previous"));
+		row.appendChild(makeBtn("replay", "Replay from start", ICON_REPLAY, "replay"));
 		row.appendChild(makeBtn("play", this.isPlaying ? "Pause" : "Play",
 			this.isPlaying ? ICON_PAUSE : ICON_PLAY, "toggle"));
 		row.appendChild(makeBtn("next", "Next surah", ICON_NEXT, "next"));

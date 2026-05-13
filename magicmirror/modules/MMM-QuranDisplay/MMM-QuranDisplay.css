@@ -161,8 +161,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 36px;
+  gap: 24px;
   margin-top: 6px;
+}
+
+.mmm-quran-display .media-btn-replay {
+  opacity: 0.85;
 }
 
 .mmm-quran-display .media-btn {
