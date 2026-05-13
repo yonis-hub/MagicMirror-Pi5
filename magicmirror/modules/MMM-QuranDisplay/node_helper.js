@@ -38,6 +38,16 @@ module.exports = NodeHelper.create({
 			res.status(200).json({ status: "success" });
 		});
 
+		// Chainer reports total duration + start time when a new surah begins
+		this.expressApp.post("/api/quran/playback-info", (req, res) => {
+			const { totalSec, startedAt } = req.body || {};
+			this.sendSocketNotification("PLAYBACK_INFO", {
+				totalSec: Number(totalSec) || 0,
+				startedAt: Number(startedAt) || Date.now(),
+			});
+			res.status(200).json({ status: "success" });
+		});
+
 		// API endpoint for playback status updates
 		this.expressApp.post("/api/quran/status", (req, res) => {
 			const { isPlaying } = req.body;

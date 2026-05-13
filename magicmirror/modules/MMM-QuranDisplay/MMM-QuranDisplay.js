@@ -306,46 +306,9 @@ Module.register("MMM-QuranDisplay", {
 			}
 		}
 
-		if (this.config.showSurahName) {
-			const header = document.createElement("div");
-			header.className = "surah-header";
-
-			const arabicName = document.createElement("div");
-			arabicName.className = "surah-arabic";
-			arabicName.textContent = this.surahInfo?.arabicName || "";
-
-			const englishName = document.createElement("div");
-			englishName.className = "surah-english";
-			englishName.textContent = this.surahInfo?.englishName || `Surah ${this.currentVerse.surah || ""}`;
-
-			header.appendChild(arabicName);
-			header.appendChild(englishName);
-			wrapper.appendChild(header);
-		}
-
-		if (this.config.showVerseNumber) {
-			const infoDiv = document.createElement("div");
-			infoDiv.className = "verse-info";
-			infoDiv.style.fontSize = this.config.fontSize.info;
-			infoDiv.textContent = this.formatAyahLabel();
-			wrapper.appendChild(infoDiv);
-		}
-
-		if (this.surahInfo?.reciter) {
-			const reciterDiv = document.createElement("div");
-			reciterDiv.className = "surah-reciter";
-			reciterDiv.textContent = `Recited by ${this.surahInfo.reciter}`;
-			wrapper.appendChild(reciterDiv);
-		}
-
-		wrapper.appendChild(this.renderMediaControls());
-
-		if (this.isPlaying) {
-			const playingDiv = document.createElement("div");
-			playingDiv.className = "playing-indicator";
-			playingDiv.textContent = "Reciting";
-			wrapper.appendChild(playingDiv);
-		}
+		// Consolidated media-player widget: arc progress, time, BT, Arabic +
+		// English surah names, reciter, controls.
+		wrapper.appendChild(this.renderMediaWidget());
 
 		this.renderStatusIndicators(wrapper);
 		return wrapper;
@@ -364,8 +327,23 @@ Module.register("MMM-QuranDisplay", {
 			this.updateDom(this.config.animationSpeed);
 			Log.info(`MMM-QuranDisplay: Updated verse ${payload.surah}:${payload.verse}`);
 		} else if (notification === "PLAYBACK_STATUS") {
+			const wasPlaying = this.isPlaying;
 			this.isPlaying = payload.isPlaying;
+			if (!this.isPlaying && wasPlaying) {
+				// Captured the elapsed time so the arc/text don't reset on pause
+				this.playbackPausedAtElapsedSec = this.computePlaybackProgress().elapsedSec;
+			} else if (this.isPlaying && !wasPlaying && this.playbackPausedAtElapsedSec) {
+				// Resumed: shift the start so elapsed continues from where we paused
+				this.playbackStartMs = Date.now() - (this.playbackPausedAtElapsedSec * 1000);
+				this.playbackPausedAtElapsedSec = 0;
+			}
 			this.updateDom(200);
+		} else if (notification === "PLAYBACK_INFO") {
+			// Sent by chainer at the start of a new surah: total duration + start time.
+			this.playbackTotalSec = Number(payload.totalSec) || 0;
+			this.playbackStartMs = payload.startedAt || Date.now();
+			this.playbackPausedAtElapsedSec = 0;
+			this.updateDom(0);
 		} else if (notification === "CLEAR_DISPLAY") {
 			this.currentVerse = null;
 			this.surahInfo = null;
@@ -430,28 +408,90 @@ Module.register("MMM-QuranDisplay", {
 		}
 	},
 
-	renderMediaControls: function () {
-		const controls = document.createElement("div");
-		controls.className = "media-controls";
+	renderMediaWidget: function () {
+		const widget = document.createElement("div");
+		widget.className = "media-widget";
 
-		// Bluetooth / connection indicator (purely visual; assumes BT sink wired)
+		// ---- Half-circle progress arc + time at the top ----
+		const arcWrap = document.createElement("div");
+		arcWrap.className = "media-arc-wrap";
+
+		// SVG arc: 220x110 viewBox. Background semi-circle, foreground stroke
+		// length = progress * total. We compute the stroke-dasharray below.
+		const svgNS = "http://www.w3.org/2000/svg";
+		const svg = document.createElementNS(svgNS, "svg");
+		svg.setAttribute("viewBox", "0 0 220 120");
+		svg.setAttribute("class", "media-arc");
+		// Path d = "M 10 110 A 100 100 0 0 1 210 110" → semicircle from 10,110 to 210,110
+		const ARC_PATH_D = "M 10 110 A 100 100 0 0 1 210 110";
+		const ARC_LEN = Math.PI * 100; // arc length of semicircle with r=100
+
+		const bg = document.createElementNS(svgNS, "path");
+		bg.setAttribute("d", ARC_PATH_D);
+		bg.setAttribute("class", "media-arc-bg");
+		svg.appendChild(bg);
+
+		const fg = document.createElementNS(svgNS, "path");
+		fg.setAttribute("d", ARC_PATH_D);
+		fg.setAttribute("class", "media-arc-fg");
+		fg.setAttribute("stroke-dasharray", `${ARC_LEN}`);
+		// Initial offset based on current progress (set below after computing).
+		svg.appendChild(fg);
+
+		const timeText = document.createElement("div");
+		timeText.className = "media-time";
+		arcWrap.appendChild(svg);
+		arcWrap.appendChild(timeText);
+		widget.appendChild(arcWrap);
+
+		// Compute + apply current progress.
+		const { elapsedSec, totalSec, ratio } = this.computePlaybackProgress();
+		fg.setAttribute("stroke-dashoffset", `${ARC_LEN * (1 - ratio)}`);
+		timeText.textContent = `${this.formatClock(elapsedSec)} / ${this.formatClock(totalSec)}`;
+
+		// Keep refs for setInterval updates.
+		this._arcFg = fg;
+		this._arcLen = ARC_LEN;
+		this._timeText = timeText;
+		this.ensureProgressTimer();
+
+		// ---- Bluetooth indicator ----
 		const bt = document.createElement("div");
 		bt.className = "media-bt-indicator";
-		bt.innerHTML = "&#x1F50A;"; // 🔊 speaker; replace if you want literal BT glyph
-		controls.appendChild(bt);
+		bt.innerHTML = "&#x1F532;"; // approximate BT glyph; styled via CSS
+		widget.appendChild(bt);
 
-		// Verse/total progress text (acts as our "current/total time")
-		const progress = document.createElement("div");
-		progress.className = "media-progress";
-		const v = this.currentVerse?.verse;
-		const total = this.surahInfo?.totalVerses;
-		progress.textContent = v && total ? `${v} / ${total}` : "—";
-		controls.appendChild(progress);
+		// ---- Arabic + English names + reciter ----
+		const arabicName = document.createElement("div");
+		arabicName.className = "media-arabic";
+		arabicName.textContent = this.surahInfo?.arabicName || "";
+		widget.appendChild(arabicName);
 
-		// Button row
+		const englishName = document.createElement("div");
+		englishName.className = "media-english";
+		const surahNum = this.currentVerse?.surah;
+		englishName.textContent = this.surahInfo?.englishName
+			|| (surahNum ? `Surah ${surahNum}` : "");
+		widget.appendChild(englishName);
+
+		if (this.surahInfo?.reciter) {
+			const reciterDiv = document.createElement("div");
+			reciterDiv.className = "media-reciter";
+			reciterDiv.textContent = `Recited by ${this.surahInfo.reciter}`;
+			widget.appendChild(reciterDiv);
+		}
+
+		// Optional small verse counter
+		if (this.config.showVerseNumber && this.currentVerse?.verse && this.surahInfo?.totalVerses) {
+			const verseDiv = document.createElement("div");
+			verseDiv.className = "media-verse-counter";
+			verseDiv.textContent = this.formatAyahLabel();
+			widget.appendChild(verseDiv);
+		}
+
+		// ---- Buttons row ----
 		const row = document.createElement("div");
 		row.className = "media-buttons";
-
 		const makeBtn = (id, label, glyph, action) => {
 			const btn = document.createElement("button");
 			btn.type = "button";
@@ -461,14 +501,45 @@ Module.register("MMM-QuranDisplay", {
 			btn.addEventListener("click", () => this.sendControlAction(action));
 			return btn;
 		};
-
-		row.appendChild(makeBtn("prev", "Previous surah", "&#x23EE;", "previous"));
-		const playPauseGlyph = this.isPlaying ? "&#x23F8;" : "&#x25B6;";
+		row.appendChild(makeBtn("prev", "Previous surah", "&#x23EE;&#xFE0E;", "previous"));
+		const playPauseGlyph = this.isPlaying ? "&#x23F8;&#xFE0E;" : "&#x25B6;&#xFE0E;";
 		row.appendChild(makeBtn("play", this.isPlaying ? "Pause" : "Play", playPauseGlyph, "toggle"));
-		row.appendChild(makeBtn("next", "Next surah", "&#x23ED;", "next"));
+		row.appendChild(makeBtn("next", "Next surah", "&#x23ED;&#xFE0E;", "next"));
+		widget.appendChild(row);
 
-		controls.appendChild(row);
-		return controls;
+		return widget;
+	},
+
+	computePlaybackProgress: function () {
+		// Prefer real duration reported by the chainer; otherwise estimate.
+		const totalSec = Number(this.playbackTotalSec) || 0;
+		let elapsedSec = 0;
+		if (this.isPlaying && this.playbackStartMs) {
+			elapsedSec = (Date.now() - this.playbackStartMs) / 1000 - (this.playbackPausedAccumSec || 0);
+		} else if (this.playbackPausedAtElapsedSec) {
+			elapsedSec = this.playbackPausedAtElapsedSec;
+		}
+		if (elapsedSec < 0) elapsedSec = 0;
+		if (totalSec > 0 && elapsedSec > totalSec) elapsedSec = totalSec;
+		const ratio = totalSec > 0 ? elapsedSec / totalSec : 0;
+		return { elapsedSec, totalSec, ratio };
+	},
+
+	formatClock: function (seconds) {
+		seconds = Math.max(0, Math.floor(Number(seconds) || 0));
+		const m = Math.floor(seconds / 60);
+		const s = seconds % 60;
+		return `${m}:${s.toString().padStart(2, "0")}`;
+	},
+
+	ensureProgressTimer: function () {
+		if (this._progressTimer) return;
+		this._progressTimer = setInterval(() => {
+			if (!this._arcFg || !this._timeText) return;
+			const { elapsedSec, totalSec, ratio } = this.computePlaybackProgress();
+			this._arcFg.setAttribute("stroke-dashoffset", `${this._arcLen * (1 - ratio)}`);
+			this._timeText.textContent = `${this.formatClock(elapsedSec)} / ${this.formatClock(totalSec)}`;
+		}, 500);
 	},
 
 	sendControlAction: function (action) {

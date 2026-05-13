@@ -250,6 +250,30 @@ class QuranChainer:
         """Update playback status indicator"""
         return self._send_to_mirror("status", {"isPlaying": is_playing})
 
+    def _send_playback_info(self, total_sec):
+        """Tell the mirror: a new track is starting, its duration is N seconds.
+        UI uses this to drive the progress arc and time readout."""
+        return self._send_to_mirror("playback-info", {
+            "totalSec": float(total_sec or 0),
+            "startedAt": int(time.time() * 1000),
+        })
+
+    def _probe_duration(self, audio_path):
+        """Return audio duration in seconds via ffprobe, or 0 if unavailable."""
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                value = result.stdout.strip()
+                if value:
+                    return float(value)
+        except Exception as e:
+            print(f"  ffprobe duration probe failed for {audio_path}: {e}")
+        return 0.0
+
     def _clear_display(self):
         """Clear the verse display"""
         return self._send_to_mirror("clear", {})
@@ -631,6 +655,17 @@ class QuranChainer:
         if self.reciter.get("layout") == "surah":
             return self._play_whole_surah(surah_number, surah_info, verses, start_verse)
 
+        # Per-verse layout: estimate total duration by probing each verse
+        # audio. ffprobe is cheap (a few ms per file).
+        total_duration = 0.0
+        for v in verses:
+            if v["number"] < start_verse:
+                continue
+            local_audio = v.get("audio")
+            if local_audio and os.path.exists(local_audio):
+                total_duration += self._probe_duration(local_audio)
+        self._send_playback_info(total_duration)
+
         # Filter verses based on start_verse
         verses_to_play = [v for v in verses if v["number"] >= start_verse]
 
@@ -708,7 +743,12 @@ class QuranChainer:
                 is_playing=True,
             )
 
-        print(f"  [Whole-surah] Playing {audio_path.name} ({self.reciter.get('name', self.reciter_key)})...")
+        # Probe duration so the UI progress arc fills correctly.
+        duration_sec = self._probe_duration(audio_path)
+        self._send_playback_info(duration_sec)
+        print(f"  [Whole-surah] Playing {audio_path.name} "
+              f"({self.reciter.get('name', self.reciter_key)}) "
+              f"duration={duration_sec:.0f}s ...")
         self.play_audio(str(audio_path))
 
         self._update_playback_status(False)
