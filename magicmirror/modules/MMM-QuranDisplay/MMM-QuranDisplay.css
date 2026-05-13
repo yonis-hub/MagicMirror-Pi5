@@ -81,22 +81,23 @@
 
 .mmm-quran-display .media-arc-bg {
   fill: none;
-  stroke: rgb(255 255 255 / 16%);
-  stroke-width: 4;
-  stroke-linecap: butt;       /* no nubs at the arc's start/end */
+  stroke: rgb(255 255 255 / 18%);
+  stroke-width: 12;            /* 3x previous (4 -> 12) */
+  stroke-linecap: butt;        /* no nubs at the arc's start/end */
 }
 
 .mmm-quran-display .media-arc-fg {
   fill: none;
-  stroke: #ffffff;
-  stroke-width: 4;
+  stroke: #22c55e;             /* green progress for the completed portion */
+  stroke-width: 12;            /* matches bg so it overlays cleanly */
   stroke-linecap: round;
   transition: stroke-dashoffset 600ms linear;
+  filter: drop-shadow(0 0 4px rgb(34 197 94 / 45%));
 }
 
 .mmm-quran-display .media-time {
   position: absolute;
-  top: 26px;
+  top: 40px;                   /* dropped to clear the thicker arc */
   left: 0;
   right: 0;
   text-align: center;
