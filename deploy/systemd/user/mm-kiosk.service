@@ -1,0 +1,33 @@
+[Unit]
+Description=MagicMirror Chromium Kiosk
+# Bind to the graphical session so we have a working DISPLAY/WAYLAND_DISPLAY.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Wait until labwc is alive — Chromium would otherwise launch before the
+# Wayland compositor has its socket up.
+ExecStartPre=/bin/bash -lc 'until pgrep -x labwc >/dev/null; do sleep 1; done; \
+  until curl -sf -o /dev/null http://localhost:8080; do sleep 1; done'
+ExecStart=/usr/bin/chromium \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --no-first-run \
+  --disable-features=Translate \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  --check-for-update-interval=31536000 \
+  http://localhost:8080
+Restart=always
+RestartSec=5
+# Kill leftover renderers cleanly on stop.
+KillMode=mixed
+TimeoutStopSec=10
+# Schedule a daily browser restart at 04:00 to bleed off any memory drift.
+# (Commented out — uncomment if Chromium starts dying again after multi-day uptimes.)
+#RuntimeMaxSec=86400
+
+[Install]
+WantedBy=graphical-session.target
