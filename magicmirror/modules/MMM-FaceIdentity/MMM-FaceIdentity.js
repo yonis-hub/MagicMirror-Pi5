@@ -83,7 +83,15 @@ Module.register("MMM-FaceIdentity", {
 			return wrapper;
 		}
 
-		if (this.config.hidePreviewWhenCovered && this.identityState.cameraCovered) {
+		// Hide the preview when:
+		//   1. The lens cover is on (camera opened, frames are dark/uniform)
+		//   2. The camera failed to open at all (some lens covers physically
+		//      disconnect the device — Logitech sliders, etc.)
+		// Both should look the same to the user: the preview tile just goes
+		// away rather than displaying an 'unable to open' error.
+		const lensCovered = this.identityState.cameraCovered;
+		const cameraUnavailable = !this.identityState.available && !!this.identityState.error;
+		if (this.config.hidePreviewWhenCovered && (lensCovered || cameraUnavailable)) {
 			wrapper.style.display = "none";
 			wrapper.setAttribute("aria-hidden", "true");
 			return wrapper;
