@@ -200,6 +200,10 @@ let config = {
 			}
 		},
 		{
+			module: "MMM-MarketTicker",
+			position: "top_right"
+		},
+		{
 			module: "MMM-FaceIdentity",
 			position: "bottom_right",
 			config: {
