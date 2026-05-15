@@ -20,7 +20,10 @@ Module.register("MMM-MarketTicker", {
 		scrollSecondsPerItem: 6,
 		decimals: 2,
 		showCurrency: false,
-		initialLoadDelay: 1000
+		initialLoadDelay: 1000,
+		// Optional fallback when Yahoo fails. Free tier covers US stocks/ETFs only
+		// (not indices, futures, or crypto). Set in your local config.js, never commit.
+		finnhubApiKey: ""
 	},
 
 	getStyles: function () {
@@ -50,7 +53,8 @@ Module.register("MMM-MarketTicker", {
 
 	requestQuotes: function () {
 		this.sendSocketNotification("GET_MARKET_QUOTES", {
-			symbols: this.config.symbols.map((s) => (typeof s === "string" ? s : s.symbol))
+			symbols: this.config.symbols.map((s) => (typeof s === "string" ? s : s.symbol)),
+			finnhubApiKey: String(this.config.finnhubApiKey || "").trim()
 		});
 	},
 

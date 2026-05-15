@@ -2,8 +2,15 @@ const https = require("https");
 const NodeHelper = require("node_helper");
 
 const YAHOO_HOST = "query1.finance.yahoo.com";
+const FINNHUB_HOST = "finnhub.io";
 const REQUEST_TIMEOUT_MS = 6000;
 const FETCH_INTERVAL_MS = 60 * 1000;
+
+// Finnhub's free tier only covers US-listed stocks/ETFs.
+// Skip the fallback for indices (^...), futures (...=F), and dashed symbols (crypto/FX).
+function isFinnhubFriendly(symbol) {
+	return /^[A-Z][A-Z.]{0,5}$/.test(String(symbol || ""));
+}
 
 module.exports = NodeHelper.create({
 	start() {
@@ -77,13 +84,82 @@ module.exports = NodeHelper.create({
 		});
 	},
 
-	async fetchAll(symbols) {
-		const results = await Promise.all(symbols.map((s) => this.fetchSymbol(s)));
-		return results;
+	fetchSymbolFinnhub(symbol, apiKey) {
+		return new Promise((resolve) => {
+			if (!apiKey) {
+				resolve({ symbol, error: "no fallback key" });
+				return;
+			}
+			const encoded = encodeURIComponent(symbol);
+			const path = `/api/v1/quote?symbol=${encoded}&token=${encodeURIComponent(apiKey)}`;
+			const req = https.request(
+				{
+					hostname: FINNHUB_HOST,
+					path,
+					method: "GET",
+					headers: { Accept: "application/json" },
+					timeout: REQUEST_TIMEOUT_MS
+				},
+				(res) => {
+					let body = "";
+					res.setEncoding("utf8");
+					res.on("data", (chunk) => (body += chunk));
+					res.on("end", () => {
+						if (res.statusCode < 200 || res.statusCode >= 300) {
+							resolve({ symbol, error: `finnhub http ${res.statusCode}` });
+							return;
+						}
+						try {
+							const parsed = JSON.parse(body);
+							const price = Number(parsed.c);
+							const prevClose = Number(parsed.pc);
+							const change = Number.isFinite(parsed.d) ? Number(parsed.d) : NaN;
+							const changePct = Number.isFinite(parsed.dp) ? Number(parsed.dp) : NaN;
+							if (!Number.isFinite(price) || price === 0) {
+								resolve({ symbol, error: "finnhub no price" });
+								return;
+							}
+							resolve({
+								symbol,
+								price,
+								previousClose: prevClose,
+								change,
+								changePct,
+								source: "finnhub"
+							});
+						} catch (err) {
+							resolve({ symbol, error: `finnhub parse: ${err.message}` });
+						}
+					});
+				}
+			);
+			req.on("timeout", () => req.destroy(new Error("timeout")));
+			req.on("error", (err) => resolve({ symbol, error: err.message || "finnhub request error" }));
+			req.end();
+		});
+	},
+
+	async fetchAll(symbols, finnhubApiKey) {
+		const primary = await Promise.all(symbols.map((s) => this.fetchSymbol(s)));
+		if (!finnhubApiKey) return primary;
+
+		const failedIndices = primary
+			.map((r, i) => (r && r.error && isFinnhubFriendly(r.symbol) ? i : -1))
+			.filter((i) => i !== -1);
+
+		if (failedIndices.length === 0) return primary;
+
+		const fallback = await Promise.all(failedIndices.map((i) => this.fetchSymbolFinnhub(primary[i].symbol, finnhubApiKey)));
+		failedIndices.forEach((idx, j) => {
+			const fb = fallback[j];
+			if (fb && !fb.error) primary[idx] = fb;
+		});
+		return primary;
 	},
 
 	async handleGetQuotes(payload) {
 		const requested = Array.isArray(payload && payload.symbols) ? payload.symbols.filter(Boolean) : [];
+		const finnhubApiKey = String((payload && payload.finnhubApiKey) || "").trim();
 		if (requested.length === 0) {
 			this.sendSocketNotification("MARKET_QUOTES_RESULT", []);
 			return;
@@ -102,7 +178,7 @@ module.exports = NodeHelper.create({
 		}
 
 		if (!this.inflight) {
-			this.inflight = this.fetchAll(requested)
+			this.inflight = this.fetchAll(requested, finnhubApiKey)
 				.then((results) => {
 					results.forEach((r) => {
 						if (r && r.symbol) this.cache.set(r.symbol, r);

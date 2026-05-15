@@ -201,7 +201,12 @@ let config = {
 		},
 		{
 			module: "MMM-MarketTicker",
-			position: "top_right"
+			position: "top_right",
+			config: {
+				// Optional Finnhub fallback when Yahoo fails (US stocks/ETFs only).
+				// Replace placeholder on the Pi only — never commit your real key.
+				finnhubApiKey: "YOUR_FINNHUB_API_KEY_HERE"
+			}
 		},
 		{
 			module: "MMM-FaceIdentity",
