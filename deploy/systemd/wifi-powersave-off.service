@@ -1,0 +1,12 @@
+[Unit]
+Description=Disable Wi-Fi power-save on wlan0 (Pi 5 brcmfmac stability)
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/hyonis/MagicMirror-Pi5/deploy/wifi/disable-powersave.sh
+
+[Install]
+WantedBy=multi-user.target

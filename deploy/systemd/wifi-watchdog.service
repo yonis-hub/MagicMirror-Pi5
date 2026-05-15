@@ -1,0 +1,11 @@
+[Unit]
+Description=Wi-Fi connectivity watchdog (cycle wlan0 if probe fails)
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/hyonis/MagicMirror-Pi5/deploy/wifi/wifi-watchdog.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=5

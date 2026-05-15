@@ -65,7 +65,34 @@ sudo systemctl start myscoreboard-update@hyonis.service
 journalctl -u myscoreboard-update@hyonis.service -n 100 --no-pager
 ```
 
-## 6) Optional cleanup pass
+## 6) Wi-Fi stability (Pi 5 brcmfmac)
+
+The on-board Wi-Fi can wedge so hard that only a power cycle recovers. Install the
+power-save-off oneshot and the watchdog timer to recover automatically.
+
+```bash
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/wifi-powersave-off.service /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/wifi-watchdog.service /etc/systemd/system/
+sudo cp ~/MagicMirror-Pi5/deploy/systemd/wifi-watchdog.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now wifi-powersave-off.service
+sudo systemctl enable --now wifi-watchdog.timer
+```
+
+What it does:
+- `wifi-powersave-off`: disables `power_save` on `wlan0` at boot (the #1 cause of drops).
+- `wifi-watchdog`: every 60s pings the gateway via `wlan0`; on consecutive failures it escalates:
+  1. `ip link` down/up
+  2. NetworkManager disconnect/connect, then `systemctl restart NetworkManager`
+  3. `rfkill block/unblock wifi` — software power-cycle of the radio (closest thing to unplugging the Pi)
+
+Tail the watchdog log:
+
+```bash
+journalctl -u wifi-watchdog.service -f
+```
+
+## 7) Optional cleanup pass
 
 ```bash
 bash ~/MagicMirror-Pi5/deploy/pi_cleanup.sh
