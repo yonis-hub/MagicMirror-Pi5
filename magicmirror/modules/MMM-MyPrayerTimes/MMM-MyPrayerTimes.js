@@ -31,7 +31,7 @@ Module.register("MMM-MyPrayerTimes", {
 		adhanVolume: 0.8,
 		adhanPrayers: ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"],
 		adhanCheckInterval: 30 * 1000,
-		adhanTriggerWindowMinutes: 1,
+		adhanTriggerWindowMinutes: 5,
 		// Adhkar autoplay settings
 		autoPlayAdhkar: true,
 		adhkarManifestFile: "adhkar_manifest.json",
@@ -105,6 +105,7 @@ Module.register("MMM-MyPrayerTimes", {
 		this.audioInterruptionReasons = new Set();
 		this.pendingAudioOutputEnsures = {};
 		this.lastAudioOutputEnsureAt = 0;
+		this.effectiveAudioOutputSink = "";
 
 		this.updateTimer = null;
 		this.adhanCheckTimer = null;
@@ -231,16 +232,26 @@ Module.register("MMM-MyPrayerTimes", {
 	},
 
 	setAudioOutputSink: function (audio) {
-		const sinkId = String(this.config.audioOutputSink || "").trim();
-		if (!audio || !sinkId || typeof audio.setSinkId !== "function") {
+		const preferredSink = String(this.effectiveAudioOutputSink || this.config.audioOutputSink || "").trim();
+		if (!audio || !preferredSink || typeof audio.setSinkId !== "function") {
 			return Promise.resolve(false);
 		}
 
+		const fallbackSink = String(this.config.audioOutputSink || "").trim();
 		return audio
-			.setSinkId(sinkId)
+			.setSinkId(preferredSink)
 			.then(() => true)
 			.catch((error) => {
-				Log.warn(`MMM-MyPrayerTimes: Failed to set sink '${sinkId}' on audio element: ${error}`);
+				Log.warn(`MMM-MyPrayerTimes: Failed to set sink '${preferredSink}': ${error}`);
+				if (preferredSink !== fallbackSink && fallbackSink) {
+					return audio
+						.setSinkId(fallbackSink)
+						.then(() => true)
+						.catch((err) => {
+							Log.warn(`MMM-MyPrayerTimes: Fallback sink '${fallbackSink}' also failed: ${err}`);
+							return false;
+						});
+				}
 				return false;
 			});
 	},
@@ -896,6 +907,10 @@ Module.register("MMM-MyPrayerTimes", {
 			const requestId = String(safePayload.requestId || "");
 			if (!requestId) {
 				return;
+			}
+			const reportedSink = String(safePayload.sink || "").trim();
+			if (reportedSink) {
+				this.effectiveAudioOutputSink = reportedSink;
 			}
 			this.resolveAudioOutputEnsure(requestId, safePayload.ok === true, safePayload.message || "failed");
 		}
