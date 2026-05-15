@@ -5,6 +5,7 @@ Module.register("MMM-MarketTicker", {
 			{ symbol: "SPY", label: "SPY" },
 			{ symbol: "^DJI", label: "DOW" },
 			{ symbol: "^IXIC", label: "NASDAQ" },
+			{ symbol: "QQQ", label: "QQQ" },
 			{ symbol: "^GSPTSE", label: "TSX" },
 			{ symbol: "^FTSE", label: "FTSE" },
 			{ symbol: "^GDAXI", label: "DAX" },
