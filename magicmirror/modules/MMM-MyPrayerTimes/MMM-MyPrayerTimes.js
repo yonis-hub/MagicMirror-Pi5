@@ -90,6 +90,7 @@ Module.register("MMM-MyPrayerTimes", {
 
 		this.adhanAudio = null;
 		this.activeAdhanPauseReason = null;
+		this.activeAdhanRequest = null;
 		this.adhkarAudio = null;
 		this.adhkarTracks = {
 			morning: [],
@@ -450,46 +451,81 @@ Module.register("MMM-MyPrayerTimes", {
 		this.requestQuranPause(pauseReason, this.config.pauseQuranForAdhan);
 		this.activeAdhanPauseReason = pauseReason;
 
-		const audio = new Audio(this.config.adhanFile);
-		let finalized = false;
-		const finalize = () => {
-			if (finalized) {
-				return;
-			}
-			finalized = true;
-			if (this.adhanAudio === audio) {
-				this.adhanAudio = null;
-			}
-			if (this.activeAdhanPauseReason === pauseReason) {
-				this.releaseQuranPause(pauseReason);
-				this.activeAdhanPauseReason = null;
-			}
-			this.sendAdhanStatus({
-				isPlaying: false,
-				prayer: prayerKey || "",
-				reason: "finished"
-			});
+		const requestId = `adhan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		this.activeAdhanRequest = {
+			requestId,
+			prayerKey: prayerKey || "",
+			pauseReason,
+			finalized: false,
+			fallbackTimer: null
 		};
 
-		this.prepareAudioElement(audio, this.config.adhanVolume, 0.8);
-		audio.onended = () => finalize();
-		audio.onerror = () => {
-			Log.error(`MMM-MyPrayerTimes: Error while playing Adhan for ${prayerKey}`);
-			finalize();
-		};
-
-		this.adhanAudio = audio;
 		this.sendAdhanStatus({
 			isPlaying: true,
 			prayer: prayerKey || "",
 			reason: "started"
 		});
-		this.playAudioElement(audio, {
-			label: `Adhan for ${prayerKey || "unknown prayer"}`,
-			isCurrent: () => this.adhanAudio === audio,
-			onPlayError: () => {
-				finalize();
+
+		// Server-side playback (mpg123 / ffplay / cvlc) is rock-solid; the browser
+		// path is kept only as a last-resort fallback if no native player exists.
+		this.ensureAudioOutputBeforePlay(() => {
+			if (!this.activeAdhanRequest || this.activeAdhanRequest.requestId !== requestId) return;
+			this.sendSocketNotification("PLAY_ADHAN_SERVER", {
+				requestId,
+				sink: String(this.effectiveAudioOutputSink || this.config.audioOutputSink || "").trim()
+			});
+			// If we don't get a "started" status within 4s, fall back to browser audio.
+			this.activeAdhanRequest.fallbackTimer = setTimeout(() => {
+				if (!this.activeAdhanRequest || this.activeAdhanRequest.requestId !== requestId) return;
+				if (this.activeAdhanRequest.serverStarted) return;
+				Log.warn("MMM-MyPrayerTimes: Server-side adhan did not start in time; falling back to browser audio");
+				this.playAdhanBrowserFallback(prayerKey, requestId);
+			}, 4000);
+		});
+	},
+
+	finalizeAdhan: function (requestId, reason) {
+		if (!this.activeAdhanRequest || this.activeAdhanRequest.requestId !== requestId) return;
+		const req = this.activeAdhanRequest;
+		if (req.finalized) return;
+		req.finalized = true;
+		if (req.fallbackTimer) {
+			clearTimeout(req.fallbackTimer);
+			req.fallbackTimer = null;
+		}
+		if (this.adhanAudio) {
+			try {
+				this.adhanAudio.pause();
+			} catch (err) {
+				// noop
 			}
+			this.adhanAudio = null;
+		}
+		if (this.activeAdhanPauseReason === req.pauseReason) {
+			this.releaseQuranPause(req.pauseReason);
+			this.activeAdhanPauseReason = null;
+		}
+		this.activeAdhanRequest = null;
+		this.sendAdhanStatus({
+			isPlaying: false,
+			prayer: req.prayerKey || "",
+			reason: String(reason || "finished")
+		});
+	},
+
+	playAdhanBrowserFallback: function (prayerKey, requestId) {
+		const audio = new Audio(this.config.adhanFile);
+		this.prepareAudioElement(audio, this.config.adhanVolume, 0.8);
+		audio.onended = () => this.finalizeAdhan(requestId, "browser_ended");
+		audio.onerror = () => {
+			Log.error(`MMM-MyPrayerTimes: Browser fallback error for Adhan ${prayerKey}`);
+			this.finalizeAdhan(requestId, "browser_error");
+		};
+		this.adhanAudio = audio;
+		this.playAudioElement(audio, {
+			label: `Adhan fallback for ${prayerKey || "unknown prayer"}`,
+			isCurrent: () => this.adhanAudio === audio,
+			onPlayError: () => this.finalizeAdhan(requestId, "browser_play_rejected")
 		});
 	},
 
@@ -913,6 +949,24 @@ Module.register("MMM-MyPrayerTimes", {
 				this.effectiveAudioOutputSink = reportedSink;
 			}
 			this.resolveAudioOutputEnsure(requestId, safePayload.ok === true, safePayload.message || "failed");
+		} else if (notification === "ADHAN_PLAYBACK_STATUS") {
+			const safePayload = payload && typeof payload === "object" ? payload : {};
+			const reqId = String(safePayload.requestId || "");
+			if (!this.activeAdhanRequest || this.activeAdhanRequest.requestId !== reqId) return;
+			const stage = String(safePayload.stage || "");
+			if (stage === "started" && safePayload.ok) {
+				this.activeAdhanRequest.serverStarted = true;
+				if (this.activeAdhanRequest.fallbackTimer) {
+					clearTimeout(this.activeAdhanRequest.fallbackTimer);
+					this.activeAdhanRequest.fallbackTimer = null;
+				}
+				Log.info(`MMM-MyPrayerTimes: Adhan started via ${safePayload.player || "server"}`);
+			} else if (stage === "ended") {
+				this.finalizeAdhan(reqId, "server_ended");
+			} else if (stage === "init" && !safePayload.ok) {
+				Log.warn(`MMM-MyPrayerTimes: Server adhan init failed (${safePayload.reason}); falling back to browser`);
+				this.playAdhanBrowserFallback(this.activeAdhanRequest.prayerKey, reqId);
+			}
 		}
 	}
 });

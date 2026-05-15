@@ -14,8 +14,14 @@ MIT License
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const NodeHelper = require("node_helper");
+
+const ADHAN_PLAYER_CANDIDATES = [
+	{ cmd: "mpg123", args: ["-q", "-o", "pulse"] },
+	{ cmd: "ffplay", args: ["-nodisp", "-autoexit", "-loglevel", "error"] },
+	{ cmd: "cvlc", args: ["--play-and-exit", "--quiet"] }
+];
 
 module.exports = NodeHelper.create({
 	start() {
@@ -428,6 +434,108 @@ module.exports = NodeHelper.create({
 		});
 	},
 
+	playAdhanServerSide(payload) {
+		const safePayload = payload && typeof payload === "object" ? payload : {};
+		const requestId = String(safePayload.requestId || "");
+		const sink = String(safePayload.sink || "").trim();
+		const filePath = path.join(__dirname, "adaan.mp3");
+
+		if (!fs.existsSync(filePath)) {
+			console.error(`MMM-MyPrayerTimes: Adhan file missing at ${filePath}`);
+			this.sendSocketNotification("ADHAN_PLAYBACK_STATUS", {
+				requestId,
+				ok: false,
+				stage: "init",
+				reason: "file_missing"
+			});
+			return;
+		}
+
+		if (this.adhanChild && !this.adhanChild.killed) {
+			try {
+				this.adhanChild.kill("SIGTERM");
+			} catch (err) {
+				// noop
+			}
+		}
+
+		const env = this.getPulseEnv();
+		if (sink) env.PULSE_SINK = sink;
+
+		const tryCandidate = (idx) => {
+			if (idx >= ADHAN_PLAYER_CANDIDATES.length) {
+				console.error(
+					"MMM-MyPrayerTimes: No adhan player found. Install one of: mpg123, ffplay (ffmpeg), cvlc (vlc)."
+				);
+				this.sendSocketNotification("ADHAN_PLAYBACK_STATUS", {
+					requestId,
+					ok: false,
+					stage: "init",
+					reason: "no_player_installed"
+				});
+				return;
+			}
+
+			const candidate = ADHAN_PLAYER_CANDIDATES[idx];
+			let started = false;
+			const child = spawn(candidate.cmd, [...candidate.args, filePath], { env });
+
+			child.on("error", (err) => {
+				if (started) return;
+				if (err && err.code === "ENOENT") {
+					tryCandidate(idx + 1);
+					return;
+				}
+				console.warn(`MMM-MyPrayerTimes: ${candidate.cmd} error: ${err && err.message}`);
+				tryCandidate(idx + 1);
+			});
+
+			child.on("exit", (code, signal) => {
+				if (this.adhanChild === child) this.adhanChild = null;
+				if (!started) {
+					// Exited before we treated it as started — try the next player.
+					tryCandidate(idx + 1);
+					return;
+				}
+				const ok = code === 0 || signal === "SIGTERM";
+				this.sendSocketNotification("ADHAN_PLAYBACK_STATUS", {
+					requestId,
+					ok,
+					stage: "ended",
+					reason: signal ? `signal_${signal}` : `exit_${code}`,
+					player: candidate.cmd
+				});
+			});
+
+			// Treat the process as "actually playing" if it survives 250ms.
+			setTimeout(() => {
+				if (child.exitCode !== null || child.killed) return;
+				started = true;
+				this.adhanChild = child;
+				console.log(`MMM-MyPrayerTimes: Adhan playing via ${candidate.cmd} (sink=${sink || "default"})`);
+				this.sendSocketNotification("ADHAN_PLAYBACK_STATUS", {
+					requestId,
+					ok: true,
+					stage: "started",
+					player: candidate.cmd
+				});
+			}, 250);
+		};
+
+		tryCandidate(0);
+	},
+
+	stopAdhanServerSide() {
+		if (this.adhanChild && !this.adhanChild.killed) {
+			try {
+				this.adhanChild.kill("SIGTERM");
+			} catch (err) {
+				// noop
+			}
+		}
+		this.adhanChild = null;
+	},
+
 	socketNotificationReceived(notification, payload) {
 		if (notification === "GET_MPT") {
 			this.getMPT(payload);
@@ -435,6 +543,10 @@ module.exports = NodeHelper.create({
 			this.getAdhkarTracks(payload);
 		} else if (notification === "ENSURE_AUDIO_OUTPUT") {
 			this.ensureAudioOutput(payload);
+		} else if (notification === "PLAY_ADHAN_SERVER") {
+			this.playAdhanServerSide(payload);
+		} else if (notification === "STOP_ADHAN_SERVER") {
+			this.stopAdhanServerSide();
 		}
 	}
 });
