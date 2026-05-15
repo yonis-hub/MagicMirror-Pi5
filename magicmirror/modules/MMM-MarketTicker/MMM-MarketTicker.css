@@ -52,6 +52,16 @@
 	color: #aaa;
 }
 
+.MMM-MarketTicker .mt-wrapper.mt-cycle {
+	text-align: center;
+	font-size: 1em;
+	padding: 6px 0;
+}
+
+.MMM-MarketTicker .mt-wrapper.mt-cycle .mt-item {
+	margin-right: 0;
+}
+
 @keyframes mt-marquee {
 	0% {
 		transform: translateX(0);

@@ -10,9 +10,13 @@ Module.register("MMM-MarketTicker", {
 			{ symbol: "^FTSE", label: "FTSE" },
 			{ symbol: "^GDAXI", label: "DAX" },
 			{ symbol: "^N225", label: "NIKKEI" },
+			{ symbol: "GC=F", label: "GOLD" },
+			{ symbol: "CL=F", label: "OIL" },
 			{ symbol: "BTC-USD", label: "BTC" }
 		],
 		updateInterval: 5 * 60 * 1000,
+		displayMode: "cycle", // "cycle" = one at a time with fade; "scroll" = marquee
+		cycleIntervalMs: 5000,
 		scrollSecondsPerItem: 6,
 		decimals: 2,
 		showCurrency: false,
@@ -26,8 +30,22 @@ Module.register("MMM-MarketTicker", {
 	start: function () {
 		this.quotes = [];
 		this.loaded = false;
+		this.cycleIndex = 0;
+		this.cycleTimer = null;
 		setTimeout(() => this.requestQuotes(), this.config.initialLoadDelay);
 		setInterval(() => this.requestQuotes(), this.config.updateInterval);
+	},
+
+	startCycleTimer: function () {
+		if (this.cycleTimer) {
+			clearInterval(this.cycleTimer);
+		}
+		const interval = Math.max(1500, Number(this.config.cycleIntervalMs) || 5000);
+		this.cycleTimer = setInterval(() => {
+			if (!this.quotes.length) return;
+			this.cycleIndex = (this.cycleIndex + 1) % this.quotes.length;
+			this.updateDom(400);
+		}, interval);
 	},
 
 	requestQuotes: function () {
@@ -47,7 +65,13 @@ Module.register("MMM-MarketTicker", {
 			label: labels[q.symbol] || q.label || q.symbol
 		}));
 		this.loaded = true;
+		if (this.cycleIndex >= this.quotes.length) {
+			this.cycleIndex = 0;
+		}
 		this.updateDom();
+		if (this.config.displayMode === "cycle" && !this.cycleTimer) {
+			this.startCycleTimer();
+		}
 	},
 
 	formatPrice: function (n) {
@@ -107,6 +131,13 @@ Module.register("MMM-MarketTicker", {
 		if (!this.quotes.length) {
 			wrapper.innerHTML = "No market data";
 			wrapper.classList.add("dimmed", "small");
+			return wrapper;
+		}
+
+		if (this.config.displayMode === "cycle") {
+			wrapper.classList.add("mt-cycle");
+			const current = this.quotes[this.cycleIndex % this.quotes.length];
+			wrapper.appendChild(this.renderItem(current));
 			return wrapper;
 		}
 
