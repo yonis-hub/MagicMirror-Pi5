@@ -2,6 +2,7 @@ Module.register("MMM-MarketTicker", {
 	defaults: {
 		symbols: [
 			{ symbol: "^GSPC", label: "S&P 500" },
+			{ symbol: "SPY", label: "SPY" },
 			{ symbol: "^DJI", label: "DOW" },
 			{ symbol: "^IXIC", label: "NASDAQ" },
 			{ symbol: "^GSPTSE", label: "TSX" },
