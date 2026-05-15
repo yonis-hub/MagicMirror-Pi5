@@ -20,6 +20,8 @@ ExecStart=/usr/bin/chromium \
   --overscroll-history-navigation=0 \
   --check-for-update-interval=31536000 \
   --autoplay-policy=no-user-gesture-required \
+  --disable-session-crashed-bubble \
+  --user-data-dir=%h/.cache/mm-kiosk-profile \
   http://localhost:8080
 Restart=always
 RestartSec=5
