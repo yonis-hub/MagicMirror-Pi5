@@ -1184,15 +1184,20 @@ class OllamaVoiceListener:
                 intent["mood"] = key
                 break
 
+        # Whisper hallucinates short calming words ("patience", "mercy", "ayatul kursi")
+        # during silence after false wake-word fires, which used to spontaneously play a
+        # verse. Require an explicit play verb so only deliberate commands trigger these.
+        has_play_verb = contains_any_token(text, PLAY_KEYWORDS)
+
         for phrase, ref in SPECIAL_VERSES.items():
-            if phrase in text:
+            if phrase in text and has_play_verb:
                 intent["action"] = "play_verse"
                 intent["surah"], verse = ref
                 intent["verse_start"] = verse
                 intent["verse_end"] = verse
                 break
 
-        if not intent.get("surah") and intent.get("topic"):
+        if not intent.get("surah") and intent.get("topic") and has_play_verb:
             verse_ref = TOPIC_TO_VERSE.get(intent["topic"])
             if verse_ref:
                 intent["surah"], verse = verse_ref
