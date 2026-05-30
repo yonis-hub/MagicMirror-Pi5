@@ -1,15 +1,28 @@
 [Unit]
 Description=MagicMirror Chromium Kiosk
-# Bind to the graphical session so we have a working DISPLAY/WAYLAND_DISPLAY.
-PartOf=graphical-session.target
-After=graphical-session.target
+# Anchored to default.target (always reached when the user session starts via
+# linger) instead of graphical-session.target (which requires an actual login
+# manager and won't fire under enable-linger autologin). The ExecStartPre
+# below waits for labwc to be alive so we still don't race Wayland startup.
+After=default.target
+# systemd's default StartLimit (5 starts in 10s) is too tight for Chromium
+# spinning up; widen so a brief flap doesn't lock the service forever.
+StartLimitIntervalSec=600
+StartLimitBurst=20
 
 [Service]
 Type=simple
-# Wait until labwc is alive — Chromium would otherwise launch before the
-# Wayland compositor has its socket up.
-ExecStartPre=/bin/bash -lc 'until pgrep -x labwc >/dev/null; do sleep 1; done; \
-  until curl -sf -o /dev/null http://localhost:8080; do sleep 1; done'
+# Wait until labwc is alive AND its Wayland socket exists, then wait until
+# the MagicMirror HTTP server answers. Bounded retries so we don't spin
+# forever if something is genuinely broken.
+ExecStartPre=/bin/bash -lc 'for i in $(seq 1 120); do \
+  pgrep -x labwc >/dev/null && [ -S "$XDG_RUNTIME_DIR/wayland-0" ] && break; sleep 1; done; \
+  for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:8080 && break; sleep 1; done'
+# Inherit the labwc-side Wayland/Display env so Chromium can attach.
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_SESSION_TYPE=wayland
+Environment=DISPLAY=:0
 ExecStart=/usr/bin/chromium \
   --kiosk \
   --noerrdialogs \
@@ -33,4 +46,4 @@ TimeoutStopSec=10
 #RuntimeMaxSec=86400
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
