@@ -426,3 +426,55 @@
     opacity: 1;
   }
 }
+
+/* ---- Voice-speaking activity overlay (sits just above the compliments) ---- */
+.mm-voice-speaking-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;            /* lifted just above the compliment line; tune if needed */
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 35%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+  z-index: 9999;
+}
+
+.mm-voice-speaking-overlay.is-active {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.mm-voice-speaking-overlay .mm-voice-bar {
+  display: inline-block;
+  width: 3px;
+  height: 6px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #7ad9ff 0%, #2e8bff 100%);
+  animation: mm-voice-bar-pulse 0.7s ease-in-out infinite alternate;
+}
+
+.mm-voice-speaking-overlay .mm-voice-bar:nth-child(1) { animation-delay: 0.00s; }
+.mm-voice-speaking-overlay .mm-voice-bar:nth-child(2) { animation-delay: 0.10s; }
+.mm-voice-speaking-overlay .mm-voice-bar:nth-child(3) { animation-delay: 0.20s; }
+.mm-voice-speaking-overlay .mm-voice-bar:nth-child(4) { animation-delay: 0.30s; }
+.mm-voice-speaking-overlay .mm-voice-bar:nth-child(5) { animation-delay: 0.40s; }
+
+/* Pause the animation when the overlay isn't shown — saves CPU. */
+.mm-voice-speaking-overlay:not(.is-active) .mm-voice-bar {
+  animation-play-state: paused;
+}
+
+@keyframes mm-voice-bar-pulse {
+  from { height: 4px; opacity: 0.6; }
+  to   { height: 18px; opacity: 1; }
+}

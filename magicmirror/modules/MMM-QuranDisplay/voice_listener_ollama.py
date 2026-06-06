@@ -1370,13 +1370,27 @@ class OllamaVoiceListener:
         if self.enable_voice:
             self.speak(message)
 
+    def _send_speaking_status(self, is_speaking):
+        """Tell MagicMirror that Jarvis is/isn't actively speaking right now,
+        so the UI can show a small voice-activity animation while we talk."""
+        try:
+            requests.post(
+                f"{self.mirror_url}/api/quran/speaking",
+                json={"isSpeaking": bool(is_speaking)},
+                timeout=1,
+            )
+        except Exception:
+            pass
+
     def speak(self, text):
         if not self.enable_voice or not text:
             return
+        self._send_speaking_status(True)
         # Phase 2: try Piper neural TTS first (more natural voice)
         if self.piper_tts is not None:
             if self.piper_tts.speak(text):
                 self._tts_finished_at = time.monotonic()
+                self._send_speaking_status(False)
                 return
             # fall through to espeak on Piper failure
         try:
@@ -1390,6 +1404,7 @@ class OllamaVoiceListener:
                 timeout=10
             )
             self._tts_finished_at = time.monotonic()
+            self._send_speaking_status(False)
         except FileNotFoundError:
             # Fallback to pyttsx3 if espeak-ng not installed
             try:
@@ -1399,11 +1414,14 @@ class OllamaVoiceListener:
                     self.tts_engine.setProperty("rate", 150)
                 self.tts_engine.say(text)
                 self.tts_engine.runAndWait()
+                self._send_speaking_status(False)
             except Exception as e:
                 print(f"TTS error: {e}")
                 self.enable_voice = False
+                self._send_speaking_status(False)
         except Exception as e:
             print(f"TTS error: {e}")
+            self._send_speaking_status(False)
 
     def _parse_command(self, command_text):
         local_result = self.parse_fallback(command_text, require_wake=False)

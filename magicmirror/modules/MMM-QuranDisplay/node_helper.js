@@ -108,6 +108,14 @@ module.exports = NodeHelper.create({
 			}
 		});
 
+		// API endpoint: voice listener tells us when Jarvis is actively
+		// speaking (TTS in progress) so the UI can show an animation.
+		this.expressApp.post("/api/quran/speaking", (req, res) => {
+			const isSpeaking = !!(req.body && req.body.isSpeaking);
+			this.sendSocketNotification("VOICE_SPEAKING", { isSpeaking });
+			res.status(200).json({ status: "success" });
+		});
+
 		// API endpoint to mute/unmute the voice listener. Writes a flag
 		// file (/tmp/mm-voice-muted) that voice_listener_ollama.py checks
 		// before processing wake events. Used to suppress wake triggers

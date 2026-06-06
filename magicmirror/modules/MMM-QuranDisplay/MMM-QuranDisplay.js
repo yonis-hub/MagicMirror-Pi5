@@ -45,6 +45,7 @@ Module.register("MMM-QuranDisplay", {
 		this.isListening = false;
 		this.isRecording = false;
 		this.isProcessing = false;
+		this.isSpeaking = false;
 		this.adhkarStatus = {
 			isPlaying: false,
 			period: null,
@@ -365,6 +366,9 @@ Module.register("MMM-QuranDisplay", {
 			this.updateDom(0);
 		} else if (notification === "PROCESSING_STATUS") {
 			this.isProcessing = payload.isProcessing;
+		} else if (notification === "VOICE_SPEAKING") {
+			this.isSpeaking = Boolean(payload && payload.isSpeaking);
+			this.renderSpeakingOverlay();
 			this.updateDom(0);
 		} else if (notification === "VOICE_TRANSCRIPT") {
 			this.voiceTranscript = {
@@ -598,6 +602,25 @@ Module.register("MMM-QuranDisplay", {
 				body: JSON.stringify({ action })
 			}).catch(() => { /* ignore */ });
 		} catch (e) { /* ignore */ }
+	},
+
+	renderSpeakingOverlay: function () {
+		// Mounted directly on <body> so it isn't bound to this module's
+		// region — sits as a fixed-position overlay just above the
+		// compliments area (which lives in lower_third / bottom_bar).
+		let overlay = document.getElementById("mm-voice-speaking-overlay");
+		if (!overlay) {
+			overlay = document.createElement("div");
+			overlay.id = "mm-voice-speaking-overlay";
+			overlay.className = "mm-voice-speaking-overlay";
+			for (let i = 0; i < 5; i++) {
+				const bar = document.createElement("span");
+				bar.className = "mm-voice-bar";
+				overlay.appendChild(bar);
+			}
+			document.body.appendChild(overlay);
+		}
+		overlay.classList.toggle("is-active", !!this.isSpeaking);
 	},
 
 	setVoiceMute: function (muted, reason) {
