@@ -201,7 +201,7 @@ let config = {
 		},
 		{
 			module: "MMM-MarketTicker",
-			position: "bottom_bar",
+			position: "lower_third",
 			config: {
 				displayMode: "scroll",
 				scrollSecondsPerItem: 6,
