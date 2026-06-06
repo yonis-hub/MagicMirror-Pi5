@@ -79,11 +79,22 @@ Module.register("MMM-MarketTicker", {
 		}
 	},
 
+	// Pick a sane number of decimals based on magnitude — bigger numbers don't
+	// need cents, sub-dollar numbers usually need extra precision.
+	pickDecimals: function (n) {
+		const abs = Math.abs(Number(n) || 0);
+		if (abs >= 1000) return 0;        // 60,612 (no decimals)
+		if (abs >= 1) return 2;           // 1,554.15
+		if (abs >= 0.01) return 4;        // 0.4321
+		return 6;                          // 0.000123 (memecoin territory)
+	},
+
 	formatPrice: function (n) {
 		if (!Number.isFinite(n)) return "--";
+		const dp = this.pickDecimals(n);
 		return n.toLocaleString(undefined, {
-			minimumFractionDigits: this.config.decimals,
-			maximumFractionDigits: this.config.decimals
+			minimumFractionDigits: dp,
+			maximumFractionDigits: dp
 		});
 	},
 
@@ -92,7 +103,14 @@ Module.register("MMM-MarketTicker", {
 		const arrow = change > 0 ? "▲" : change < 0 ? "▼" : "•";
 		const sign = change > 0 ? "+" : change < 0 ? "" : "";
 		const pctSign = pct > 0 ? "+" : "";
-		return `${arrow} ${sign}${change.toFixed(this.config.decimals)} (${pctSign}${pct.toFixed(2)}%)`;
+		const dp = this.pickDecimals(change);
+		// toLocaleString puts the thousand separator in for big moves
+		// (e.g. ▲ +1,243.21 instead of +1243.21).
+		const absChange = Math.abs(change).toLocaleString(undefined, {
+			minimumFractionDigits: dp,
+			maximumFractionDigits: dp
+		});
+		return `${arrow} ${sign}${absChange} (${pctSign}${pct.toFixed(2)}%)`;
 	},
 
 	renderItem: function (q) {
