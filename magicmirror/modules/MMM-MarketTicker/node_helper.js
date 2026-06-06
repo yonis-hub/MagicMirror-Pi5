@@ -4,8 +4,23 @@ const NodeHelper = require("node_helper");
 const YAHOO_HOST = "query1.finance.yahoo.com";
 const FINNHUB_HOST = "finnhub.io";
 const COINGECKO_HOST = "api.coingecko.com";
+const STOOQ_HOST = "stooq.com";
 const REQUEST_TIMEOUT_MS = 6000;
 const FETCH_INTERVAL_MS = 60 * 1000;
+
+// Yahoo futures symbols -> Stooq symbol (free, no key, CSV).
+// Add more here when you find new ones that Yahoo throttles.
+const STOOQ_SYMBOL_BY_YAHOO = {
+	"GC=F": "xauusd",          // Gold spot per oz
+	"CL=F": "wtiusd",          // WTI crude oil
+	"SI=F": "xagusd",          // Silver
+	"HG=F": "hgusd",           // Copper
+	"NG=F": "ngusd"            // Natural gas
+};
+
+function isStooqFriendly(symbol) {
+	return Object.prototype.hasOwnProperty.call(STOOQ_SYMBOL_BY_YAHOO, String(symbol || ""));
+}
 
 // Finnhub's free tier only covers US-listed stocks/ETFs.
 // Skip the fallback for indices (^...), futures (...=F), and dashed symbols (crypto/FX).
@@ -225,19 +240,103 @@ module.exports = NodeHelper.create({
 		});
 	},
 
-	async fetchAll(symbols, finnhubApiKey) {
-		// Crypto goes to CoinGecko directly — Yahoo rate-limits them aggressively.
-		const cryptoResults = await this.fetchCryptoBatch(symbols);
+	fetchStooqBatch(symbols) {
+		// Stooq's CSV endpoint: /q/l/?s=xauusd,wtiusd&f=sd2t2ohlcv&h&e=csv
+		const futures = symbols.filter(isStooqFriendly);
+		if (futures.length === 0) return Promise.resolve(new Map());
+		const stooqList = futures.map((s) => STOOQ_SYMBOL_BY_YAHOO[s]).join(",");
+		const path = `/q/l/?s=${stooqList}&f=sd2t2ohlcv&h&e=csv`;
+		return new Promise((resolve) => {
+			const req = https.request(
+				{
+					hostname: STOOQ_HOST,
+					path,
+					method: "GET",
+					headers: {
+						"User-Agent":
+							"Mozilla/5.0 (X11; Linux aarch64) MMM-MarketTicker/1.0",
+						Accept: "text/csv,application/csv,text/plain"
+					},
+					timeout: REQUEST_TIMEOUT_MS
+				},
+				(res) => {
+					let body = "";
+					res.setEncoding("utf8");
+					res.on("data", (chunk) => (body += chunk));
+					res.on("end", () => {
+						const results = new Map();
+						if (res.statusCode < 200 || res.statusCode >= 300) {
+							console.warn(`[MMM-MarketTicker] Stooq http ${res.statusCode}`);
+							resolve(results);
+							return;
+						}
+						// CSV: Symbol,Date,Time,Open,High,Low,Close,Volume
+						const lines = body.split(/\r?\n/).filter((l) => l && !/^Symbol,/i.test(l));
+						const byStooq = new Map();
+						for (const line of lines) {
+							const parts = line.split(",");
+							if (parts.length < 7) continue;
+							const sym = parts[0].toLowerCase();
+							const open = Number(parts[3]);
+							const close = Number(parts[6]);
+							if (!Number.isFinite(close) || close === 0) continue;
+							byStooq.set(sym, { open, close });
+						}
+						for (const yahooSym of futures) {
+							const stooqSym = STOOQ_SYMBOL_BY_YAHOO[yahooSym];
+							const row = byStooq.get(stooqSym);
+							if (!row) continue;
+							// Use intraday open as the change reference — not a true 24h
+							// move but close enough for a marquee. Stooq doesn't expose
+							// previous-day close in the simple endpoint.
+							const change = row.close - row.open;
+							const changePct = row.open ? (change / row.open) * 100 : 0;
+							results.set(yahooSym, {
+								symbol: yahooSym,
+								price: row.close,
+								previousClose: row.open,
+								change,
+								changePct,
+								currency: "USD",
+								source: "stooq"
+							});
+						}
+						resolve(results);
+					});
+				}
+			);
+			req.on("timeout", () => {
+				console.warn("[MMM-MarketTicker] Stooq timeout");
+				req.destroy(new Error("timeout"));
+			});
+			req.on("error", (err) => {
+				console.warn(`[MMM-MarketTicker] Stooq error: ${err.message || "request error"}`);
+				resolve(new Map());
+			});
+			req.end();
+		});
+	},
 
-		// Everything else goes to Yahoo first.
-		const nonCrypto = symbols.filter((s) => !isCryptoSymbol(s));
-		const yahooResults = await Promise.all(nonCrypto.map((s) => this.fetchSymbol(s)));
+	async fetchAll(symbols, finnhubApiKey) {
+		// Crypto goes to CoinGecko, commodity futures go to Stooq — both bypass
+		// Yahoo entirely since Yahoo's IP-based throttling silently nukes them
+		// from a Pi.
+		const [cryptoResults, stooqResults] = await Promise.all([
+			this.fetchCryptoBatch(symbols),
+			this.fetchStooqBatch(symbols)
+		]);
+
+		// Everything else goes to Yahoo.
+		const yahooBound = symbols.filter((s) => !isCryptoSymbol(s) && !isStooqFriendly(s));
+		const yahooResults = await Promise.all(yahooBound.map((s) => this.fetchSymbol(s)));
 		const byKey = new Map(yahooResults.map((r) => [r.symbol, r]));
 
 		// Stitch back in the order the caller asked for.
-		const primary = symbols.map((s) =>
-			cryptoResults.has(s) ? cryptoResults.get(s) : byKey.get(s) || { symbol: s, error: "no source" }
-		);
+		const primary = symbols.map((s) => {
+			if (cryptoResults.has(s)) return cryptoResults.get(s);
+			if (stooqResults.has(s)) return stooqResults.get(s);
+			return byKey.get(s) || { symbol: s, error: "no source" };
+		});
 
 		// Log any failures so we can see them in mm-server's journal.
 		for (const r of primary) {

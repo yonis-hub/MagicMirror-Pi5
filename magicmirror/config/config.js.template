@@ -208,7 +208,6 @@ let config = {
 				symbols: [
 					{ symbol: "BTC-USD",  label: "BTC" },
 					{ symbol: "ETH-USD",  label: "ETH" },
-					{ symbol: "^IXIC",    label: "NASDAQ" },
 					{ symbol: "GC=F",     label: "GOLD" },
 					{ symbol: "CL=F",     label: "OIL" }
 				],
