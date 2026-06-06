@@ -383,6 +383,7 @@ Module.register("MMM-QuranDisplay", {
 
 	notificationReceived: function (notification, payload) {
 		if (notification === "ADHKAR_STATUS") {
+			const wasPlaying = !!this.adhkarStatus?.isPlaying;
 			this.adhkarStatus = {
 				isPlaying: Boolean(payload && payload.isPlaying),
 				period: payload && payload.period ? payload.period : null,
@@ -392,6 +393,13 @@ Module.register("MMM-QuranDisplay", {
 				titleArabic: payload && payload.titleArabic ? payload.titleArabic : ""
 			};
 			this.updateDom(200);
+			// Adhkar takes priority — mute voice while it plays and stop any
+			// current recitation/TTS on the first transition to playing so the
+			// two audio sources don't overlap.
+			this.setVoiceMute(this.adhkarStatus.isPlaying, `adhkar:${this.adhkarStatus.period || "session"}`);
+			if (this.adhkarStatus.isPlaying && !wasPlaying) {
+				this.sendControlAction("stop");
+			}
 		} else if (notification === "QURAN_PLAY_SURAH") {
 			const safePayload = payload && typeof payload === "object" ? payload : {};
 			if (!safePayload.surah) {
@@ -408,15 +416,20 @@ Module.register("MMM-QuranDisplay", {
 		} else if (notification === "QURAN_RESUME") {
 			this.sendSocketNotification("RESUME_PLAYBACK", {});
 		} else if (notification === "ADHAN_STATUS") {
+			const wasPlaying = !!this.adhanStatus?.isPlaying;
 			this.adhanStatus = {
 				isPlaying: Boolean(payload && payload.isPlaying),
 				prayer: payload && payload.prayer ? String(payload.prayer) : "",
 				reason: payload && payload.reason ? String(payload.reason) : ""
 			};
 			this.updateDom(0);
-			// Mute the voice listener for the duration of the adhan so wake
-			// triggers don't get processed during prayer call.
+			// Adhan takes priority — mute voice + stop any current recitation
+			// the first time we transition into playing so the adhan plays
+			// cleanly without anything underneath it.
 			this.setVoiceMute(this.adhanStatus.isPlaying, `adhan:${this.adhanStatus.prayer || "unknown"}`);
+			if (this.adhanStatus.isPlaying && !wasPlaying) {
+				this.sendControlAction("stop");
+			}
 		}
 	},
 
