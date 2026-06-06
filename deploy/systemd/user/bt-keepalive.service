@@ -1,0 +1,11 @@
+[Unit]
+Description=Bluetooth speaker keepalive (inaudible tone)
+After=default.target
+
+[Service]
+Type=oneshot
+# Override BT_SINK / KEEPALIVE_VOLUME via `systemctl --user edit bt-keepalive.service`
+# if you change speakers or want a slightly louder ping.
+Environment=BT_SINK=bluez_output.FC_A8_9A_F6_FB_DA.1
+ExecStart=%h/MagicMirror-Pi5/deploy/audio-keepalive/bt-keepalive.sh
+Nice=10

@@ -1,0 +1,12 @@
+[Unit]
+Description=Fire BT keepalive every 8 minutes
+
+[Timer]
+# Start 90s after the user session is up (let labwc + chainer settle first).
+OnBootSec=90s
+OnUnitActiveSec=8min
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=default.target
