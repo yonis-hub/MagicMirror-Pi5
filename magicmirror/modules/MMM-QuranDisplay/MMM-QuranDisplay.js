@@ -165,7 +165,9 @@ Module.register("MMM-QuranDisplay", {
 			statusContainer.appendChild(processingDiv);
 		}
 
-		if (this.isListening && !this.adhanStatus?.isPlaying) {
+		// Skip "Listening" while Jarvis is speaking — the new voice-speaking
+		// overlay already covers that state and the listener is in TTS cooldown.
+		if (this.isListening && !this.adhanStatus?.isPlaying && !this.isSpeaking) {
 			const listeningDiv = document.createElement("div");
 			listeningDiv.className = "listening-indicator";
 			listeningDiv.innerHTML = '<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening</span>';
@@ -294,23 +296,21 @@ Module.register("MMM-QuranDisplay", {
 				wrapper.appendChild(waitingDiv);
 			}
 			this.renderVoiceTranscript(wrapper);
-			this.renderStatusIndicators(wrapper);
-			return wrapper;
-		}
-
-		if (this.shouldShowBismillah()) {
-			const renderMode = String(this.config.bismillahRenderMode || "text").toLowerCase();
-			if (renderMode === "image" && this.config.bismillahImageUrl) {
-				wrapper.appendChild(this.createBismillahImageNode());
-			} else {
-				wrapper.appendChild(this.createBismillahTextNode());
+		} else {
+			if (this.shouldShowBismillah()) {
+				const renderMode = String(this.config.bismillahRenderMode || "text").toLowerCase();
+				if (renderMode === "image" && this.config.bismillahImageUrl) {
+					wrapper.appendChild(this.createBismillahImageNode());
+				} else {
+					wrapper.appendChild(this.createBismillahTextNode());
+				}
 			}
+			// Consolidated media-player widget: arc progress, time, BT, Arabic +
+			// English surah names, reciter, controls.
+			wrapper.appendChild(this.renderMediaWidget());
 		}
 
-		// Consolidated media-player widget: arc progress, time, BT, Arabic +
-		// English surah names, reciter, controls.
-		wrapper.appendChild(this.renderMediaWidget());
-
+		// Single status indicators render path, applied to both modes.
 		this.renderStatusIndicators(wrapper);
 		return wrapper;
 	},

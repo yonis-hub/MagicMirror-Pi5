@@ -309,13 +309,16 @@
 
 .status-indicators {
   position: fixed;
-  right: 18px;
-  bottom: 22px;
+  left: 50%;
+  bottom: 22px;            /* sits along the bottom edge, below speaking overlay (165px) */
+  transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
+  flex-direction: row;     /* horizontal row instead of stacked column */
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   z-index: 1000;
+  pointer-events: none;    /* don't intercept clicks on the kiosk */
 }
 
 .listening-indicator,
