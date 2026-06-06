@@ -3,6 +3,7 @@ const NodeHelper = require("node_helper");
 
 const YAHOO_HOST = "query1.finance.yahoo.com";
 const FINNHUB_HOST = "finnhub.io";
+const COINGECKO_HOST = "api.coingecko.com";
 const REQUEST_TIMEOUT_MS = 6000;
 const FETCH_INTERVAL_MS = 60 * 1000;
 
@@ -10,6 +11,22 @@ const FETCH_INTERVAL_MS = 60 * 1000;
 // Skip the fallback for indices (^...), futures (...=F), and dashed symbols (crypto/FX).
 function isFinnhubFriendly(symbol) {
 	return /^[A-Z][A-Z.]{0,5}$/.test(String(symbol || ""));
+}
+
+// Yahoo crypto symbols ('BTC-USD', 'ETH-USD', ...) -> CoinGecko id.
+// Add new pairs here as needed; only the listed ones get routed to CoinGecko.
+const COINGECKO_ID_BY_SYMBOL = {
+	"BTC-USD": "bitcoin",
+	"ETH-USD": "ethereum",
+	"SOL-USD": "solana",
+	"ADA-USD": "cardano",
+	"XRP-USD": "ripple",
+	"DOGE-USD": "dogecoin",
+	"BNB-USD": "binancecoin"
+};
+
+function isCryptoSymbol(symbol) {
+	return Object.prototype.hasOwnProperty.call(COINGECKO_ID_BY_SYMBOL, String(symbol || ""));
 }
 
 module.exports = NodeHelper.create({
@@ -139,8 +156,96 @@ module.exports = NodeHelper.create({
 		});
 	},
 
+	fetchCryptoBatch(symbols) {
+		// CoinGecko's /simple/price supports comma-separated ids in one request.
+		const cryptoSymbols = symbols.filter(isCryptoSymbol);
+		if (cryptoSymbols.length === 0) return Promise.resolve(new Map());
+		const ids = cryptoSymbols.map((s) => COINGECKO_ID_BY_SYMBOL[s]).join(",");
+		const path = `/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+		return new Promise((resolve) => {
+			const req = https.request(
+				{
+					hostname: COINGECKO_HOST,
+					path,
+					method: "GET",
+					headers: {
+						"User-Agent":
+							"Mozilla/5.0 (X11; Linux aarch64) MMM-MarketTicker/1.0",
+						Accept: "application/json"
+					},
+					timeout: REQUEST_TIMEOUT_MS
+				},
+				(res) => {
+					let body = "";
+					res.setEncoding("utf8");
+					res.on("data", (chunk) => (body += chunk));
+					res.on("end", () => {
+						const results = new Map();
+						if (res.statusCode < 200 || res.statusCode >= 300) {
+							console.warn(`[MMM-MarketTicker] CoinGecko http ${res.statusCode}`);
+							resolve(results);
+							return;
+						}
+						try {
+							const parsed = JSON.parse(body);
+							for (const sym of cryptoSymbols) {
+								const id = COINGECKO_ID_BY_SYMBOL[sym];
+								const entry = parsed && parsed[id];
+								if (!entry || typeof entry.usd !== "number") continue;
+								const price = Number(entry.usd);
+								const changePct = Number(entry.usd_24h_change) || 0;
+								const prevClose = price / (1 + changePct / 100);
+								const change = price - prevClose;
+								results.set(sym, {
+									symbol: sym,
+									price,
+									previousClose: prevClose,
+									change,
+									changePct,
+									currency: "USD",
+									source: "coingecko"
+								});
+							}
+						} catch (err) {
+							console.warn(`[MMM-MarketTicker] CoinGecko parse: ${err.message}`);
+						}
+						resolve(results);
+					});
+				}
+			);
+			req.on("timeout", () => {
+				console.warn("[MMM-MarketTicker] CoinGecko timeout");
+				req.destroy(new Error("timeout"));
+			});
+			req.on("error", (err) => {
+				console.warn(`[MMM-MarketTicker] CoinGecko error: ${err.message || "request error"}`);
+				resolve(new Map());
+			});
+			req.end();
+		});
+	},
+
 	async fetchAll(symbols, finnhubApiKey) {
-		const primary = await Promise.all(symbols.map((s) => this.fetchSymbol(s)));
+		// Crypto goes to CoinGecko directly — Yahoo rate-limits them aggressively.
+		const cryptoResults = await this.fetchCryptoBatch(symbols);
+
+		// Everything else goes to Yahoo first.
+		const nonCrypto = symbols.filter((s) => !isCryptoSymbol(s));
+		const yahooResults = await Promise.all(nonCrypto.map((s) => this.fetchSymbol(s)));
+		const byKey = new Map(yahooResults.map((r) => [r.symbol, r]));
+
+		// Stitch back in the order the caller asked for.
+		const primary = symbols.map((s) =>
+			cryptoResults.has(s) ? cryptoResults.get(s) : byKey.get(s) || { symbol: s, error: "no source" }
+		);
+
+		// Log any failures so we can see them in mm-server's journal.
+		for (const r of primary) {
+			if (r && r.error) {
+				console.warn(`[MMM-MarketTicker] ${r.symbol} failed: ${r.error}`);
+			}
+		}
+
 		if (!finnhubApiKey) return primary;
 
 		const failedIndices = primary
