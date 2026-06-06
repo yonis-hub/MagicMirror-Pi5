@@ -12,7 +12,8 @@ Module.register("MMM-MarketTicker", {
 			{ symbol: "^N225", label: "NIKKEI" },
 			{ symbol: "GC=F", label: "GOLD" },
 			{ symbol: "CL=F", label: "OIL" },
-			{ symbol: "BTC-USD", label: "BTC" }
+			{ symbol: "BTC-USD", label: "BTC" },
+			{ symbol: "ETH-USD", label: "ETH" }
 		],
 		updateInterval: 5 * 60 * 1000,
 		displayMode: "cycle", // "cycle" = one at a time with fade; "scroll" = marquee
