@@ -644,9 +644,13 @@ class QuranChainer:
             time.sleep(3)  # Fallback delay
             return False
 
-    def play_surah(self, surah_number, start_verse=1):
+    def play_surah(self, surah_number, start_verse=1, end_verse=None):
         """Play an entire surah. Verse-by-verse for verse-layout reciters,
-        single-file for surah-layout reciters."""
+        single-file for surah-layout reciters.
+
+        end_verse caps playback at that ayah (inclusive) for per-verse layouts.
+        Surah-layout reciters ignore end_verse (single MP3, no segment timestamps).
+        """
         data = self.fetch_surah(surah_number)
 
         if not data:
@@ -664,6 +668,8 @@ class QuranChainer:
 
         # For per-surah reciters, skip verse iteration and play the whole file.
         if self.reciter.get("layout") == "surah":
+            if end_verse is not None and end_verse < surah_info["totalVerses"]:
+                print(f"  (end-verse {end_verse} ignored: surah-layout reciter plays whole MP3)")
             return self._play_whole_surah(surah_number, surah_info, verses, start_verse)
 
         # Per-verse layout: probe each verse to build a cumulative timeline.
@@ -704,8 +710,10 @@ class QuranChainer:
         # offset passes through so UI arc starts at offset/total, not at 0.
         self._send_playback_info(total_duration, offset_sec=offset)
 
-        # Filter verses based on start_verse
+        # Filter verses based on start_verse (and end_verse if supplied)
         verses_to_play = [v for v in verses if v["number"] >= start_verse]
+        if end_verse is not None:
+            verses_to_play = [v for v in verses_to_play if v["number"] <= end_verse]
 
         for verse in verses_to_play:
             if self.is_stopped:
@@ -831,6 +839,8 @@ def main():
     parser = argparse.ArgumentParser(description="Quran Verse Chainer for MagicMirror")
     parser.add_argument("--surah", "-s", required=True, help="Surah number or name (e.g., 1 or fatiha)")
     parser.add_argument("--start-verse", "-v", type=int, default=1, help="Starting verse number")
+    parser.add_argument("--end-verse", "-e", type=int, default=None,
+                        help="Stop after this verse (inclusive). Used for juz / partial-surah playback.")
     parser.add_argument("--mirror-url", "-m", default="http://localhost:8080", help="MagicMirror URL")
     parser.add_argument("--reciter", "-r", default=None, help="Reciter key or alias (overrides reciters.json current). E.g. 'alafasy' or 'noreen-sedeeq'")
     parser.add_argument("--start-position-sec", type=float, default=0.0,
@@ -846,7 +856,7 @@ def main():
 
     chainer = QuranChainer(mirror_url=args.mirror_url, reciter=args.reciter)
     chainer.start_position_sec = float(getattr(args, "start_position_sec", 0.0) or 0.0)
-    chainer.play_surah(surah_number, args.start_verse)
+    chainer.play_surah(surah_number, args.start_verse, end_verse=args.end_verse)
 
 
 if __name__ == "__main__":

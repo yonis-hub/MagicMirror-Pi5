@@ -7,7 +7,9 @@ Usage: python3 voice_listener_ollama.py
 
 Requirements:
 - Ollama installed and running: curl -fsSL https://ollama.com/install.sh | sh
-- Model pulled: ollama pull llama3.2:1b (or similar small model)
+- Model pulled: ollama pull qwen2.5:3b (default; needed for reliable tool/JSON
+  intent parsing including juz commands and conversational chat replies).
+  Override with VOICE_OLLAMA_MODEL=<name> to use a different tag.
 """
 
 import argparse
@@ -19,6 +21,7 @@ import subprocess
 import sys
 import os
 import signal
+import threading
 import time
 import tempfile
 import json
@@ -28,6 +31,8 @@ from pathlib import Path
 import requests
 import numpy as np
 import sounddevice as sd
+
+import quran_meta
 
 try:
     from faster_whisper import WhisperModel
@@ -679,7 +684,7 @@ def coerce_int(value):
     except (TypeError, ValueError):
         return None
 
-def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=None, verse_end=None, confidence=DEFAULT_CONFIDENCE, reason=None, follow_up=False):
+def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=None, verse_end=None, confidence=DEFAULT_CONFIDENCE, reason=None, follow_up=False, juz=None, chat_text=None):
     return {
         "action": action,
         "surah": surah,
@@ -687,6 +692,8 @@ def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=
         "mood": mood,
         "verse_start": verse_start,
         "verse_end": verse_end,
+        "juz": juz,
+        "chat_text": chat_text,
         "confidence": clamp_confidence(confidence),
         "reason": reason,
         "follow_up": bool(follow_up)
@@ -919,7 +926,9 @@ def check_server_ready():
 
 # Ollama configuration
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:1b"  # Fast, good reasoning for Pi 5
+# Default model — tool-calling needs ≥3B params to be reliable. Override via
+# VOICE_OLLAMA_MODEL env var if you want to fall back to the older 1B.
+OLLAMA_MODEL = os.getenv("VOICE_OLLAMA_MODEL", "qwen2.5:3b")
 
 # System prompt for Ollama
 SYSTEM_PROMPT = """You are a conversational intent parser for Mo, a Quran reciter.
@@ -927,12 +936,14 @@ Use the conversation context provided and respond ONLY with valid JSON.
 
 JSON schema (all keys required):
 {
-  "action": "play" | "play_verse" | "pause" | "resume" | "stop" | "search" | "none",
+  "action": "play" | "play_verse" | "play_juz" | "pause" | "resume" | "stop" | "search" | "chat" | "none",
   "surah": <number 1-114 or null>,
+  "juz": <number 1-30 or null>,
   "topic": "<short topic>" | null,
   "mood": "<optional mood adjective>" | null,
   "verse_start": <verse number or null>,
   "verse_end": <verse number or null>,
+  "chat_text": "<short spoken reply>" | null,
   "confidence": <float 0-1>,
   "reason": "<short explanation>" | null,
   "follow_up_needed": true | false
@@ -941,25 +952,35 @@ JSON schema (all keys required):
 Guidelines:
 - Respect the latest context summary when resolving references like "same one" or "resume".
 - Use "play_verse" when the user asks for a specific verse or Ayah.
-- Use "pause" when the user asks to pause/hold.
-- Use "resume" when the user asks to continue/unpause current recitation.
-- Use "search" only when you need Mo to find a verse by topic; include a descriptive topic string.
+- Use "play_juz" when the user asks for a juz / para / part (e.g. "play juz 20", "para 30", "juz amma"). Set "juz" to the integer 1-30.
+- Use "pause" / "resume" / "stop" for transport commands.
+- Use "search" when you need Mo to find a verse by topic; include a descriptive topic string.
 - If the user asks for an emotion, quality, or theme (e.g., calming, mercy, forgiveness) without naming a surah, prefer {"action":"search","topic":"<theme>"}.
-- Never invent Surah numbers; use integers from 1-114.
+- Use "chat" for conversational questions that don't map to playback (e.g. "what is juz 20 about", "how many surahs are there", "who is the reciter"). Put a brief spoken answer (one or two sentences) in "chat_text".
+- Never invent Surah or Juz numbers; surah is 1-114, juz is 1-30.
 - Respond with JSON ONLY. No prose, no markdown.
 
 Examples:
 Input: "Mo, play Surah Yasin from verse 5"
-Output: {"action":"play","surah":36,"topic":null,"mood":null,"verse_start":5,"verse_end":null,"confidence":0.91,"reason":"explicit request","follow_up_needed":false}
+Output: {"action":"play","surah":36,"juz":null,"topic":null,"mood":null,"verse_start":5,"verse_end":null,"chat_text":null,"confidence":0.91,"reason":"explicit request","follow_up_needed":false}
+
+Input: "play juz 20"
+Output: {"action":"play_juz","surah":null,"juz":20,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"chat_text":null,"confidence":0.95,"reason":"explicit juz request","follow_up_needed":false}
+
+Input: "recite juz amma"
+Output: {"action":"play_juz","surah":null,"juz":30,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"chat_text":null,"confidence":0.9,"reason":"juz amma = juz 30","follow_up_needed":false}
 
 Input: "Give me something calming"
-Output: {"action":"play","surah":55,"topic":null,"mood":"calm","verse_start":null,"verse_end":null,"confidence":0.63,"reason":"calming implies Surah Ar-Rahman","follow_up_needed":false}
+Output: {"action":"play","surah":55,"juz":null,"topic":null,"mood":"calm","verse_start":null,"verse_end":null,"chat_text":null,"confidence":0.63,"reason":"calming implies Surah Ar-Rahman","follow_up_needed":false}
 
 Input: "Stop"
-Output: {"action":"stop","surah":null,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"confidence":0.99,"reason":"user asked to stop","follow_up_needed":false}
+Output: {"action":"stop","surah":null,"juz":null,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"chat_text":null,"confidence":0.99,"reason":"user asked to stop","follow_up_needed":false}
 
 Input: "Pause for now"
-Output: {"action":"pause","surah":null,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"confidence":0.97,"reason":"user asked to pause","follow_up_needed":false}
+Output: {"action":"pause","surah":null,"juz":null,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"chat_text":null,"confidence":0.97,"reason":"user asked to pause","follow_up_needed":false}
+
+Input: "what surahs are in juz 20"
+Output: {"action":"chat","surah":null,"juz":20,"topic":null,"mood":null,"verse_start":null,"verse_end":null,"chat_text":"Juz 20 covers parts of An-Naml, all of Al-Qasas, and the start of Al-Ankabut.","confidence":0.88,"reason":"informational question","follow_up_needed":false}
 """
 
 
@@ -1034,6 +1055,10 @@ class OllamaVoiceListener:
         self._paused_accum_sec = 0.0
         self._paused_at_wall = 0.0
         self._resume_position_sec = 0.0
+        # Juz playback state: cancel event flips True to abort the segment loop.
+        self._juz_cancel = None
+        self._juz_worker = None
+        self._juz_current = None
         wake_words_prompt = " ".join(sorted(self.wake_words))
         self.stt_prompt = (
             "Voice command for Quran recitation. "
@@ -1231,6 +1256,10 @@ class OllamaVoiceListener:
             if surah:
                 verse_start = intent.get("verse_start") or 1
                 return ("play_verse", (surah, verse_start))
+        if action == "play_juz":
+            juz = intent.get("juz")
+            if juz and 1 <= int(juz) <= 30:
+                return ("play_juz", int(juz))
         if action == "search":
             verse_ref = self.get_verse_from_topic(intent.get("topic"))
             if verse_ref:
@@ -1241,6 +1270,10 @@ class OllamaVoiceListener:
             return ("resume", None)
         if action == "stop":
             return ("stop", None)
+        if action == "chat":
+            text = intent.get("chat_text")
+            if text:
+                return ("chat", text)
         return ("none", None)
 
     def load_embeddings(self):
@@ -1317,12 +1350,18 @@ class OllamaVoiceListener:
         elif action == "play_verse":
             verse = intent.get("verse_start")
             message = f"Playing {surah_name} from verse {verse}."
+        elif action == "play_juz":
+            juz = intent.get("juz")
+            message = f"Playing Juz {juz}."
         elif action == "pause":
             message = "Pausing recitation."
         elif action == "resume":
             message = "Resuming recitation."
         elif action == "stop":
             message = "Stopping playback."
+        elif action == "chat":
+            # The spoken answer itself is the acknowledgement; skip the boilerplate.
+            return
         else:
             message = "Command not recognized."
 
@@ -1384,7 +1423,7 @@ class OllamaVoiceListener:
             return self.parse_with_ollama(command_text, require_wake=False)
         return local_result
 
-    def start_chainer(self, surah, verse_start=None, position_sec=0.0):
+    def start_chainer(self, surah, verse_start=None, position_sec=0.0, verse_end=None):
         # Defensive guard: enforce one active chainer even if a stale process remains.
         if self.current_process and self.current_process.poll() is None:
             self.stop_playback()
@@ -1403,6 +1442,8 @@ class OllamaVoiceListener:
         command = [sys.executable, "quran_chainer.py", "--surah", str(surah)]
         if verse_start is not None:
             command.extend(["--start-verse", str(verse_start)])
+        if verse_end is not None:
+            command.extend(["--end-verse", str(verse_end)])
         active = self._current_reciter_key()
         if active:
             command.extend(["--reciter", active])
@@ -1427,6 +1468,68 @@ class OllamaVoiceListener:
         # Once playback begins fresh from a position, we clear the resume
         # marker — the user has to STOP again to set a new one.
         self._resume_position_sec = 0.0
+
+    # ---------- Juz playback (sequential segments) ----------
+    def start_juz(self, juz):
+        """Play every segment in a juz back-to-back via a worker thread.
+
+        The worker launches one chainer process per segment and waits for it
+        to exit before launching the next. stop_playback() / a new play
+        command cancels by clearing self._juz_cancel.
+        """
+        try:
+            segments = quran_meta.juz_to_segments(int(juz))
+        except (ValueError, KeyError) as e:
+            print(f"  Juz error: {e}")
+            return False
+
+        # Cancel any previously running juz worker.
+        self._cancel_juz_worker()
+        self.stop_playback()
+
+        cancel = threading.Event()
+        self._juz_cancel = cancel
+        self._juz_current = int(juz)
+
+        def runner():
+            for idx, (surah, v_start, v_end) in enumerate(segments, start=1):
+                if cancel.is_set():
+                    print(f"  Juz {juz} cancelled before segment {idx}")
+                    return
+                print(f"  Juz {juz} segment {idx}/{len(segments)}: surah {surah} verses {v_start}-{v_end}")
+                self.start_chainer(surah, verse_start=v_start, verse_end=v_end)
+                proc = self.current_process
+                # Wait for this segment's chainer to finish (or be cancelled).
+                while proc is not None and proc.poll() is None:
+                    if cancel.is_set():
+                        return
+                    time.sleep(0.5)
+                # If somebody else (e.g. a new "play" intent) replaced our
+                # process while we slept, the new intent owns playback — stop.
+                if self.current_process is not proc and self.current_process is not None:
+                    print(f"  Juz {juz} aborted: another playback took over")
+                    return
+            print(f"✓ Juz {juz} complete")
+            if self._juz_cancel is cancel:
+                self._juz_cancel = None
+                self._juz_current = None
+
+        worker = threading.Thread(target=runner, name=f"juz-{juz}-runner", daemon=True)
+        self._juz_worker = worker
+        worker.start()
+        return True
+
+    def _cancel_juz_worker(self):
+        """Signal any running juz worker to exit before its next segment."""
+        cancel = getattr(self, "_juz_cancel", None)
+        if cancel is not None:
+            cancel.set()
+        self._juz_cancel = None
+        self._juz_current = None
+        worker = getattr(self, "_juz_worker", None)
+        if worker and worker.is_alive() and worker is not threading.current_thread():
+            worker.join(timeout=2.0)
+        self._juz_worker = None
 
     # ---------- Reciter switching (per-session, persisted in reciters.json) ----------
     def _reciters_manifest_path(self):
@@ -1617,6 +1720,8 @@ class OllamaVoiceListener:
             return ("play_verse", int(value[0]), int(value[1]))
         if action == "play" and value is not None:
             return ("play", int(value))
+        if action == "play_juz" and value is not None:
+            return ("play_juz", int(value))
         return (str(action), str(value))
 
     def _is_duplicate_command(self, signature):
@@ -1825,6 +1930,17 @@ class OllamaVoiceListener:
                 self.play_confirmation()
                 self.stop_playback()
                 self.start_chainer(surah, verse_start=verse)
+            elif action == "play_juz" and value:
+                self._remember_command(signature)
+                self.play_confirmation()
+                if not self.start_juz(value):
+                    self.play_error()
+            elif action == "chat" and value:
+                self._remember_command(signature)
+                if self.enable_voice:
+                    self.speak(str(value))
+                else:
+                    print(f"  (chat, voice disabled): {value}")
             elif action == "pause":
                 self._remember_command(signature)
                 if self.pause_chainer():
@@ -1862,7 +1978,7 @@ class OllamaVoiceListener:
         except:
             pass
         print("⚠ Ollama not running. Install with: curl -fsSL https://ollama.com/install.sh | sh")
-        print("  Then run: ollama pull llama3.2:1b")
+        print(f"  Then run: ollama pull {OLLAMA_MODEL}")
         return False
 
     def normalize_speech(self, text):
@@ -2013,10 +2129,45 @@ class OllamaVoiceListener:
             if os.path.exists(audio_file):
                 os.unlink(audio_file)
 
+    # Cheap transport-command detector. Runs before any Ollama round-trip so
+    # "stop"/"pause"/"resume" stay sub-second even with a 3B-class model.
+    _TRANSPORT_FAST_PATH = re.compile(
+        r"^\s*(?:mo[\s,!.]+|hey\s+jarvis[\s,!.]+|hi\s+jarvis[\s,!.]+)?"
+        r"(?P<verb>stop|halt|end\s+(?:it|playback)?|pause|hold(?:\s+on)?|wait|"
+        r"resume|continue|unpause|go\s+on|keep\s+going|carry\s+on)"
+        r"[\s,!.]*$",
+        re.IGNORECASE,
+    )
+    _FAST_PATH_VERB_TO_ACTION = {
+        "stop": "stop", "halt": "stop", "end": "stop",
+        "pause": "pause", "hold": "pause", "wait": "pause",
+        "resume": "resume", "continue": "resume", "unpause": "resume",
+        "go": "resume", "keep": "resume", "carry": "resume",
+    }
+
+    def _transport_fast_path(self, text):
+        """Return (action, value, intent) if `text` is a bare transport command."""
+        if not text:
+            return None
+        match = self._TRANSPORT_FAST_PATH.match(text)
+        if not match:
+            return None
+        verb = match.group("verb").split()[0].lower()
+        action = self._FAST_PATH_VERB_TO_ACTION.get(verb)
+        if not action:
+            return None
+        intent = create_intent(action=action, confidence=0.99, reason="regex fast-path")
+        return (action, None, intent)
+
     def parse_with_ollama(self, text, require_wake=True):
         """Use Ollama to parse command"""
         if not text or not self.ollama_available:
             return self.parse_fallback(text, require_wake=require_wake)
+
+        fast = self._transport_fast_path(text)
+        if fast is not None:
+            print(f"  Fast-path matched: {fast[0]}")
+            return fast
 
         try:
             context = self.get_context_summary()
@@ -2077,6 +2228,14 @@ class OllamaVoiceListener:
         except json.JSONDecodeError:
             return None
 
+        juz_raw = coerce_int(parsed.get("juz"))
+        juz_val = juz_raw if (juz_raw and 1 <= juz_raw <= 30) else None
+        chat_text = parsed.get("chat_text")
+        if isinstance(chat_text, str):
+            chat_text = chat_text.strip() or None
+        else:
+            chat_text = None
+
         intent = create_intent(
             action=parsed.get("action", "none"),
             surah=normalize_surah(parsed.get("surah")),
@@ -2084,6 +2243,8 @@ class OllamaVoiceListener:
             mood=parsed.get("mood"),
             verse_start=coerce_int(parsed.get("verse_start")),
             verse_end=coerce_int(parsed.get("verse_end")),
+            juz=juz_val,
+            chat_text=chat_text,
             confidence=parsed.get("confidence"),
             reason=parsed.get("reason"),
             follow_up=parsed.get("follow_up_needed", False)
@@ -2099,6 +2260,9 @@ class OllamaVoiceListener:
             if intent["surah"]:
                 verse_start = intent["verse_start"] or 1
                 return ("play_verse", (intent["surah"], verse_start), intent)
+        elif intent["action"] == "play_juz":
+            if intent["juz"]:
+                return ("play_juz", intent["juz"], intent)
         elif intent["action"] == "search" and intent["topic"]:
             verse_ref = self.get_verse_from_topic(intent["topic"])
             return ("play_verse", verse_ref, intent)
@@ -2108,6 +2272,8 @@ class OllamaVoiceListener:
             return ("resume", None, intent)
         elif intent["action"] == "stop":
             return ("stop", None, intent)
+        elif intent["action"] == "chat" and intent["chat_text"]:
+            return ("chat", intent["chat_text"], intent)
 
         return ("none", None, intent)
 
@@ -2181,6 +2347,9 @@ class OllamaVoiceListener:
 
     def stop_playback(self):
         """Stop playback and release resources"""
+        # Cancel the juz segment loop first so it doesn't relaunch the chainer
+        # the moment we kill the current process below.
+        self._cancel_juz_worker()
         # Snapshot the current playback position *before* we kill anything,
         # so a subsequent toggle/resume can pick up where we stopped.
         if self.current_process and self.current_process.poll() is None and self._playback_start_wall:
