@@ -1065,6 +1065,7 @@ class OllamaVoiceListener:
             f"Wake words: {wake_words_prompt}. "
             "Switch reciter use second reciter first reciter default reciter Noreen Sedeeq Alafasy Mishary. "
             "Actions: play recite pause resume continue stop. "
+            "Quran divisions: juz para juzz juz amma juz tabarak juz one juz two juz twenty juz thirty. "
             "Common surahs: fatiha baqarah imran nisa maidah anam araf anfal tawbah yunus hud yusuf ibrahim hijr nahl isra kahf maryam taha anbiya hajj muminun nur furqan shuara naml qasas ankabut rum luqman sajdah ahzab saba fatir yasin saffat sad zumar ghafir fussilat shura zukhruf dukhan jathiyah ahqaf muhammad fath hujurat qaf dhariyat tur najm qamar rahman waqiah hadid mujadila hashr mumtahanah saf jumuah munafiqun taghabun talaq tahrim mulk qalam haqqah maarij nuh jinn muzzammil muddaththir qiyamah insan mursalat naba naziat abasa takwir infitar mutaffifin inshiqaq buruj tariq ala ghashiyah fajr balad shams layl duha sharh tin alaq qadr bayyinah zalzalah adiyat qariah takathur asr humazah fil quraysh maun kawthar kafirun nasr masad ikhlas falaq nas. "
             "Quran vocabulary: surah ayah verse recite bismillah ayatul kursi mercy patience guidance protection."
         )
@@ -1990,6 +1991,24 @@ class OllamaVoiceListener:
         # Handle "oh, play ..." style wake-word miss heard as "oh".
         text = re.sub(r"\boh[\s,]+(?=(play|recite|stop|pause|resume|surah)\b)", "mo ", text)
 
+        # Whisper has no concept of "juz" (Arabic loanword, never in its
+        # training transcripts). It tends to render it as "pledge", "juice",
+        # "use", "yours", "youth", "jews", "ducks", "doze", or "duce" —
+        # always followed by a number when the user is actually asking for a
+        # juz. Match the mishear word + an optional filler ("is"/"of"/"number")
+        # + the number, and collapse it all to "juz <number>". The trailing
+        # number-lookahead is what keeps "use the second reciter" untouched.
+        text = re.sub(
+            r"\b(?:pledges?|juice|use|yours|youth|jews|ducks|doze|dose|duce)"
+            r"(?:\s+(?:is|of|number))?\s+(?=\d)",
+            "juz ",
+            text,
+        )
+        # "para 20" / "para amma" — Urdu/Hindi for juz.
+        text = re.sub(r"\bpara\b", "juz", text)
+        # "juzz" / "juss" / "judge" + number → juz N (closer mishears).
+        text = re.sub(r"\b(?:juzz|juss|judge)\s+(?=\d)", "juz ", text)
+
         # Apply phrase replacements first (multi-word expressions)
         for src, dst in PHRASE_REPLACEMENTS.items():
             text = text.replace(src, dst)
@@ -2277,6 +2296,43 @@ class OllamaVoiceListener:
 
         return ("none", None, intent)
 
+    # Named juz aliases (case-insensitive). "amma" = juz 30, "tabarak" = juz 29.
+    _JUZ_NAME_TO_NUMBER = {
+        "amma": 30, "amm": 30, "juz amma": 30, "juzz amma": 30,
+        "tabarak": 29, "tabarakallazi": 29, "tabaraka": 29,
+        "alif lam mim": 1, "alif lam meem": 1,
+    }
+
+    def _extract_juz_number(self, command_text):
+        """Return an int 1-30 if `command_text` is a juz request, else None.
+
+        Handles "juz 20", "juz twenty", "juz amma", "play juz 5", etc.
+        Assumes normalize_speech() already rewrote Whisper mishears
+        ("pledge", "juice"…) to "juz".
+        """
+        if "juz" not in command_text:
+            return None
+        # Named alias check first (longer matches win).
+        for alias, num in sorted(self._JUZ_NAME_TO_NUMBER.items(), key=lambda kv: -len(kv[0])):
+            if re.search(rf"\bjuz\s+{re.escape(alias.replace('juz ', ''))}\b", command_text):
+                return num
+            if alias in command_text:
+                return num
+        # Numeric: "juz 20" / "juz number 20" / "juz #20"
+        m = re.search(r"\bjuz\b[\s,]*(?:number|#)?\s*(\d{1,2})\b", command_text)
+        if m:
+            n = int(m.group(1))
+            if 1 <= n <= 30:
+                return n
+        # Spelled-out: "juz twenty", "juz thirtieth", etc.
+        m = re.search(r"\bjuz\b\s+([a-z\- ]{3,30})", command_text)
+        if m:
+            spelled = m.group(1).strip()
+            n = parse_number_words(spelled)
+            if n and 1 <= n <= 30:
+                return n
+        return None
+
     def parse_fallback(self, text, require_wake=True):
         """Fallback parser when Ollama unavailable"""
         if not text:
@@ -2288,6 +2344,16 @@ class OllamaVoiceListener:
 
         if require_wake and not wake_present:
             return (None, None, create_intent())
+
+        # Juz fast-path: a recognised juz number wins over any other intent.
+        # Local parse means no Ollama round-trip and confidence stays high so
+        # the hybrid path doesn't second-guess it.
+        juz_num = self._extract_juz_number(command_text)
+        if juz_num is not None:
+            return ("play_juz", juz_num, create_intent(
+                action="play_juz", juz=juz_num, confidence=0.92,
+                reason="local juz fast-path",
+            ))
 
         if (
             contains_any_token(command_text, STOP_KEYWORDS)
