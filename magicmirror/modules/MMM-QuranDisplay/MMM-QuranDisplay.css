@@ -431,14 +431,14 @@
 .mm-voice-speaking-overlay {
   position: fixed;
   left: 50%;
-  bottom: 110px;            /* lifted just above the compliment line; tune if needed */
+  bottom: 165px;            /* moved up 50% from original 110px */
   transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 4px;
-  height: 22px;
-  padding: 6px 12px;
+  gap: 6px;                 /* +40% from 4px */
+  height: 31px;             /* +40% from 22px */
+  padding: 8px 17px;        /* +40% all round */
   border-radius: 999px;
   background: rgb(0 0 0 / 35%);
   backdrop-filter: blur(6px);
@@ -456,8 +456,8 @@
 
 .mm-voice-speaking-overlay .mm-voice-bar {
   display: inline-block;
-  width: 3px;
-  height: 6px;
+  width: 4px;               /* +40% from 3px */
+  height: 8px;              /* +40% from 6px (idle) */
   border-radius: 2px;
   background: linear-gradient(180deg, #7ad9ff 0%, #2e8bff 100%);
   animation: mm-voice-bar-pulse 0.7s ease-in-out infinite alternate;
@@ -475,6 +475,6 @@
 }
 
 @keyframes mm-voice-bar-pulse {
-  from { height: 4px; opacity: 0.6; }
-  to   { height: 18px; opacity: 1; }
+  from { height: 6px; opacity: 0.6; }      /* +40% from 4px */
+  to   { height: 25px; opacity: 1; }       /* +40% from 18px */
 }
