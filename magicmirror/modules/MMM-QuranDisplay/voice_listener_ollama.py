@@ -1424,7 +1424,8 @@ class OllamaVoiceListener:
             return self.parse_with_ollama(command_text, require_wake=False)
         return local_result
 
-    def start_chainer(self, surah, verse_start=None, position_sec=0.0, verse_end=None):
+    def start_chainer(self, surah, verse_start=None, position_sec=0.0, verse_end=None,
+                       clear_on_end=True):
         # Defensive guard: enforce one active chainer even if a stale process remains.
         if self.current_process and self.current_process.poll() is None:
             self.stop_playback()
@@ -1450,6 +1451,8 @@ class OllamaVoiceListener:
             command.extend(["--reciter", active])
         if position_sec and position_sec > 0.5:
             command.extend(["--start-position-sec", f"{position_sec:.2f}"])
+        if not clear_on_end:
+            command.append("--no-clear-on-end")
         print(f"  Launching chainer: {' '.join(command)}")
         self.current_process = subprocess.Popen(
             command,
@@ -1498,7 +1501,12 @@ class OllamaVoiceListener:
                     print(f"  Juz {juz} cancelled before segment {idx}")
                     return
                 print(f"  Juz {juz} segment {idx}/{len(segments)}: surah {surah} verses {v_start}-{v_end}")
-                self.start_chainer(surah, verse_start=v_start, verse_end=v_end)
+                # Intermediate segments keep the widget on screen so the
+                # display doesn't flash between them; the last segment
+                # clears on natural end like a single-surah play.
+                is_last_segment = idx == len(segments)
+                self.start_chainer(surah, verse_start=v_start, verse_end=v_end,
+                                   clear_on_end=is_last_segment)
                 proc = self.current_process
                 # Wait for this segment's chainer to finish (or be cancelled).
                 while proc is not None and proc.poll() is None:

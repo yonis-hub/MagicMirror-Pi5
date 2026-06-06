@@ -644,6 +644,15 @@ class QuranChainer:
             time.sleep(3)  # Fallback delay
             return False
 
+    def _finalize_playback(self):
+        """Clear the on-screen widget on natural completion unless an
+        intermediate-segment flag asked us not to (e.g. juz playback)."""
+        if getattr(self, "clear_on_end", True):
+            try:
+                self._clear_display()
+            except Exception:
+                pass
+
     def play_surah(self, surah_number, start_verse=1, end_verse=None):
         """Play an entire surah. Verse-by-verse for verse-layout reciters,
         single-file for surah-layout reciters.
@@ -758,6 +767,7 @@ class QuranChainer:
         # Finished
         self._update_playback_status(False)
         print("\n✓ Playback complete")
+        self._finalize_playback()
         return True
 
     def _play_whole_surah(self, surah_number, surah_info, verses, start_verse=1):
@@ -839,6 +849,8 @@ def main():
     parser = argparse.ArgumentParser(description="Quran Verse Chainer for MagicMirror")
     parser.add_argument("--surah", "-s", required=True, help="Surah number or name (e.g., 1 or fatiha)")
     parser.add_argument("--start-verse", "-v", type=int, default=1, help="Starting verse number")
+    parser.add_argument("--no-clear-on-end", action="store_true",
+                        help="Leave the on-screen widget alone after playback completes naturally. Used for juz playback where the next segment follows immediately.")
     parser.add_argument("--end-verse", "-e", type=int, default=None,
                         help="Stop after this verse (inclusive). Used for juz / partial-surah playback.")
     parser.add_argument("--mirror-url", "-m", default="http://localhost:8080", help="MagicMirror URL")
@@ -856,6 +868,7 @@ def main():
 
     chainer = QuranChainer(mirror_url=args.mirror_url, reciter=args.reciter)
     chainer.start_position_sec = float(getattr(args, "start_position_sec", 0.0) or 0.0)
+    chainer.clear_on_end = not args.no_clear_on_end
     chainer.play_surah(surah_number, args.start_verse, end_verse=args.end_verse)
 
 

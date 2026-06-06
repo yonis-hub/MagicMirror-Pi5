@@ -420,6 +420,15 @@ Module.register("MMM-QuranDisplay", {
 		const widget = document.createElement("div");
 		widget.className = "media-widget";
 
+		// Hide the entire widget when there is no surah to display —
+		// e.g. immediately after natural playback completion (the chainer
+		// posts /api/quran/clear, which nulls surahInfo + currentVerse).
+		if (!this.surahInfo && !this.currentVerse) {
+			widget.style.display = "none";
+			widget.setAttribute("aria-hidden", "true");
+			return widget;
+		}
+
 		// ---- Half-circle progress arc + time at the top ----
 		const arcWrap = document.createElement("div");
 		arcWrap.className = "media-arc-wrap";
