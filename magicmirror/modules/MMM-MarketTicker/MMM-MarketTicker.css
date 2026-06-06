@@ -73,11 +73,11 @@
 }
 
 .MMM-MarketTicker .mt-wrapper.mt-static {
-	text-align: center;
+	text-align: left;
 	font-size: 1em;
-	padding: 6px 0;
+	padding: 6px 0 6px 20px;     /* small left inset so they're not flush against the edge */
 	display: flex;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: 2.4em;
 }
 
