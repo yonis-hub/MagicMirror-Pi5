@@ -1,0 +1,21 @@
+[Unit]
+Description=MagicMirror server (node serveronly)
+# Same pattern as mm-kiosk: anchored to default.target so it fires under
+# enable-linger autologin without needing graphical-session.target.
+After=default.target
+StartLimitIntervalSec=600
+StartLimitBurst=20
+
+[Service]
+Type=simple
+WorkingDirectory=%h/MagicMirror-Pi5/magicmirror
+ExecStart=/usr/bin/node serveronly
+Restart=always
+RestartSec=3
+KillMode=mixed
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

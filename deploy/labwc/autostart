@@ -2,17 +2,9 @@
 # User-level labwc autostart for MagicMirror Pi 5.
 # Pi OS's system default (/etc/xdg/labwc/autostart) is loaded separately by
 # labwc and handles panels, file manager desktop, kanshi, and XDG autostart.
-# This file only starts the MagicMirror server.
 #
-# Chromium itself is owned by the systemd USER service mm-kiosk.service,
-# which gives it Restart=always and survives crashes without losing the
-# kiosk display.
+# Both the MagicMirror server (mm-server.service) and the kiosk Chromium
+# (mm-kiosk.service) are user-systemd units now. This file is intentionally
+# minimal — left around in case we ever need a quick session-time hook.
 
-(
-  # Wait for the desktop session to settle
-  sleep 5
-
-  # Start MagicMirror server (no Electron). lwrespawn restarts it on crash.
-  cd "$HOME/MagicMirror-Pi5/magicmirror" || exit 1
-  /usr/bin/lwrespawn /usr/bin/node serveronly >> /tmp/mm-server.log 2>&1 &
-) &
+exit 0
