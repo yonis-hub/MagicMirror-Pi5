@@ -72,6 +72,19 @@
 	margin-right: 0;
 }
 
+.MMM-MarketTicker .mt-wrapper.mt-static {
+	text-align: center;
+	font-size: 1em;
+	padding: 6px 0;
+	display: flex;
+	justify-content: center;
+	gap: 2.4em;
+}
+
+.MMM-MarketTicker .mt-wrapper.mt-static .mt-item {
+	margin-right: 0;
+}
+
 @keyframes mt-marquee {
 	0% {
 		transform: translateX(0);

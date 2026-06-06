@@ -203,13 +203,10 @@ let config = {
 			module: "MMM-MarketTicker",
 			position: "bottom_bar",            // below compliments (declared earlier in array)
 			config: {
-				displayMode: "scroll",
-				scrollSecondsPerItem: 6,
+				displayMode: "static",         // both symbols side-by-side, no motion
 				symbols: [
 					{ symbol: "BTC-USD",  label: "BTC" },
-					{ symbol: "ETH-USD",  label: "ETH" },
-					{ symbol: "GC=F",     label: "GOLD" },
-					{ symbol: "CL=F",     label: "OIL" }
+					{ symbol: "ETH-USD",  label: "ETH" }
 				],
 				// Optional Finnhub fallback when Yahoo fails (US stocks/ETFs only).
 				// Replace placeholder on the Pi only — never commit your real key.

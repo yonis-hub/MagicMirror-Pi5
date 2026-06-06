@@ -164,6 +164,14 @@ Module.register("MMM-MarketTicker", {
 			return wrapper;
 		}
 
+		// Static row — all items side-by-side, no motion. Good for a
+		// short symbol list (2-4 items) where scrolling looks silly.
+		if (this.config.displayMode === "static") {
+			wrapper.classList.add("mt-static");
+			this.quotes.forEach((q) => wrapper.appendChild(this.renderItem(q)));
+			return wrapper;
+		}
+
 		const track = document.createElement("div");
 		track.className = "mt-track";
 		// Duplicate the content so the marquee can loop seamlessly when -50% slides.
