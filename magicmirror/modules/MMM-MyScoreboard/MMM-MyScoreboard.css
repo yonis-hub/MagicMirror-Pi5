@@ -1160,3 +1160,24 @@
   text-overflow: ellipsis;
   width: 100%;
 } */
+
+/* Make the league-name banner clearly visible against the dark MM theme. */
+.MMM-MyScoreboard .league-separator {
+  font-size: 22px;
+  line-height: 24px;
+  margin-top: 14px;
+  border-bottom: solid 1px #444;
+}
+
+.MMM-MyScoreboard .league-separator > span {
+  background-color: #c8b56c;
+  color: #1a1a1a;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 12px;
+}
+
+.MMM-MyScoreboard .league-separator > span:after {
+  border-width: 0 12px 24px 0;
+  border-color: transparent #c8b56c transparent transparent;
+}
