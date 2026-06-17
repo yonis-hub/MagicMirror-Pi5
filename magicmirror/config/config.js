@@ -267,7 +267,7 @@ let config = {
 				viewStyle: "oneLineWithLogos",
 				showPlayoffStatus: true,
 				rolloverHours: 5,
-				sports: [{ league: "NBA" }],
+				sports: [{ league: "NBA" }, { league: "FIFA_WORLD_CUP" }],
 				maxHeight: 200,
 				updateInterval: 300000 // Update every 5 minutes
 			}
