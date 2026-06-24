@@ -1,5 +1,12 @@
 const https = require("https");
+const fs = require("fs");
+const path = require("path");
 const NodeHelper = require("node_helper");
+
+// Persisted last-good quotes survive restarts and API outages. Served (clearly
+// marked stale) when a fresh fetch fails so the mirror never goes blank.
+const CACHE_FILE = path.join(__dirname, "cache", "quotes.json");
+const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // ignore cache older than a week
 
 const YAHOO_HOST = "query1.finance.yahoo.com";
 const FINNHUB_HOST = "finnhub.io";
@@ -49,7 +56,75 @@ module.exports = NodeHelper.create({
 		this.cache = new Map();
 		this.lastFetchAt = 0;
 		this.inflight = null;
+		// Per-symbol epoch ms of the last successful (non-error) value, so we can
+		// mark how stale each served quote is.
+		this.cachedAt = new Map();
+		this.loadCacheFromDisk();
 		console.log(`Starting node_helper for: ${this.name}`);
+	},
+
+	// Load the persisted quotes so the very first render after a restart can show
+	// last-good (stale-marked) data even before the first successful fetch.
+	loadCacheFromDisk() {
+		try {
+			if (!fs.existsSync(CACHE_FILE)) return;
+			const raw = fs.readFileSync(CACHE_FILE, "utf8");
+			const parsed = JSON.parse(raw);
+			const savedAt = Number(parsed && parsed.savedAt) || 0;
+			if (!savedAt || Date.now() - savedAt > CACHE_MAX_AGE_MS) return;
+			const quotes = Array.isArray(parsed && parsed.quotes) ? parsed.quotes : [];
+			for (const q of quotes) {
+				if (q && q.symbol && !q.error) {
+					this.cache.set(q.symbol, q);
+					this.cachedAt.set(q.symbol, Number(q.cachedAt) || savedAt);
+				}
+			}
+			console.log(`[MMM-MarketTicker] Loaded ${this.cache.size} cached quotes from disk`);
+		} catch (err) {
+			console.warn(`[MMM-MarketTicker] Failed to load cache: ${err && err.message}`);
+		}
+	},
+
+	// Persist current good quotes atomically (temp file + rename) so a crash
+	// mid-write can never corrupt the cache that playback/render depends on.
+	saveCacheToDisk() {
+		try {
+			const dir = path.dirname(CACHE_FILE);
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true });
+			}
+			const quotes = [];
+			for (const [symbol, q] of this.cache.entries()) {
+				if (q && !q.error) {
+					quotes.push({ ...q, cachedAt: this.cachedAt.get(symbol) || Date.now() });
+				}
+			}
+			const payload = JSON.stringify({ savedAt: Date.now(), quotes });
+			const tmp = `${CACHE_FILE}.tmp`;
+			fs.writeFileSync(tmp, payload);
+			fs.renameSync(tmp, CACHE_FILE);
+		} catch (err) {
+			console.warn(`[MMM-MarketTicker] Failed to write cache: ${err && err.message}`);
+		}
+	},
+
+	// Build the response for one requested symbol, attaching staleness metadata.
+	// `fresh` = the value came from the fetch that just completed this tick.
+	buildServedQuote(symbol, freshByKey) {
+		const fresh = freshByKey.get(symbol);
+		if (fresh && !fresh.error) {
+			return { ...fresh, stale: false };
+		}
+		const cached = this.cache.get(symbol);
+		if (cached && !cached.error) {
+			return {
+				...cached,
+				stale: true,
+				cachedAt: this.cachedAt.get(symbol) || this.lastFetchAt || null
+			};
+		}
+		// No good value ever seen for this symbol.
+		return fresh || { symbol, error: "no data" };
 	},
 
 	fetchSymbol(symbol) {
@@ -361,6 +436,33 @@ module.exports = NodeHelper.create({
 		return primary;
 	},
 
+	sleep(ms) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	},
+
+	// Retry the batch with exponential backoff, but only as long as the whole
+	// batch produced nothing usable. A partial success returns immediately —
+	// per-symbol failures already fall back to cache downstream.
+	async fetchAllWithRetry(symbols, finnhubApiKey, attempts = 3, baseDelayMs = 800) {
+		let last = [];
+		for (let attempt = 0; attempt < attempts; attempt += 1) {
+			try {
+				last = await this.fetchAll(symbols, finnhubApiKey);
+			} catch (err) {
+				console.warn(`[MMM-MarketTicker] fetch attempt ${attempt + 1} threw: ${err && err.message}`);
+				last = [];
+			}
+			const anyGood = Array.isArray(last) && last.some((r) => r && !r.error);
+			if (anyGood || attempt === attempts - 1) {
+				return last;
+			}
+			const delay = baseDelayMs * Math.pow(2, attempt);
+			console.warn(`[MMM-MarketTicker] all symbols failed; retrying in ${delay}ms`);
+			await this.sleep(delay);
+		}
+		return last;
+	},
+
 	async handleGetQuotes(payload) {
 		const requested = Array.isArray(payload && payload.symbols) ? payload.symbols.filter(Boolean) : [];
 		const finnhubApiKey = String((payload && payload.finnhubApiKey) || "").trim();
@@ -370,24 +472,44 @@ module.exports = NodeHelper.create({
 		}
 
 		const now = Date.now();
-		const fresh = now - this.lastFetchAt < FETCH_INTERVAL_MS;
-		const cachedAll = fresh && requested.every((s) => this.cache.has(s));
+		// Only treat the in-memory cache as a fast-path hit when EVERY requested
+		// symbol was last fetched successfully within the interval. lastFetchAt is
+		// global, but a failing symbol's cachedAt stops advancing, so per-symbol
+		// cachedAt is the correct freshness test — a failed fetch can't masquerade
+		// as fresh here.
+		const allFresh = requested.every((s) => {
+			const at = this.cachedAt.get(s);
+			return this.cache.has(s) && at && now - at < FETCH_INTERVAL_MS;
+		});
 
-		if (cachedAll) {
+		if (allFresh) {
 			this.sendSocketNotification(
 				"MARKET_QUOTES_RESULT",
-				requested.map((s) => this.cache.get(s))
+				requested.map((s) => ({ ...this.cache.get(s), stale: false }))
 			);
 			return;
 		}
 
 		if (!this.inflight) {
-			this.inflight = this.fetchAll(requested, finnhubApiKey)
+			this.inflight = this.fetchAllWithRetry(requested, finnhubApiKey)
 				.then((results) => {
+					let updated = false;
 					results.forEach((r) => {
-						if (r && r.symbol) this.cache.set(r.symbol, r);
+						// Only overwrite cache with good values — never let a fresh
+						// error clobber a last-good price.
+						if (r && r.symbol && !r.error) {
+							this.cache.set(r.symbol, r);
+							this.cachedAt.set(r.symbol, Date.now());
+							updated = true;
+						}
 					});
-					this.lastFetchAt = Date.now();
+					// Advance the global fetch clock only when at least one symbol
+					// actually refreshed, so an all-failed batch doesn't suppress the
+					// next retry or make stale data look fresh.
+					if (updated) {
+						this.lastFetchAt = Date.now();
+						this.saveCacheToDisk();
+					}
 					return results;
 				})
 				.finally(() => {
@@ -397,16 +519,17 @@ module.exports = NodeHelper.create({
 
 		try {
 			const results = await this.inflight;
-			const byKey = new Map(results.map((r) => [r.symbol, r]));
+			const byKey = new Map((results || []).map((r) => [r.symbol, r]));
 			this.sendSocketNotification(
 				"MARKET_QUOTES_RESULT",
-				requested.map((s) => byKey.get(s) || this.cache.get(s) || { symbol: s, error: "no data" })
+				requested.map((s) => this.buildServedQuote(s, byKey))
 			);
 		} catch (err) {
 			console.warn(`MMM-MarketTicker: fetch failed: ${err && err.message}`);
+			const empty = new Map();
 			this.sendSocketNotification(
 				"MARKET_QUOTES_RESULT",
-				requested.map((s) => this.cache.get(s) || { symbol: s, error: "fetch failed" })
+				requested.map((s) => this.buildServedQuote(s, empty))
 			);
 		}
 	},

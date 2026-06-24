@@ -113,9 +113,25 @@ Module.register("MMM-MarketTicker", {
 		return `${arrow} ${sign}${absChange} (${pctSign}${pct.toFixed(2)}%)`;
 	},
 
+	// Compact "5m"/"2h"/"3d" age label for stale (cached) quotes.
+	formatAge: function (cachedAt) {
+		const ms = Date.now() - Number(cachedAt || 0);
+		if (!Number.isFinite(ms) || ms < 0) return "";
+		const mins = Math.floor(ms / 60000);
+		if (mins < 60) return `${Math.max(1, mins)}m`;
+		const hrs = Math.floor(mins / 60);
+		if (hrs < 24) return `${hrs}h`;
+		return `${Math.floor(hrs / 24)}d`;
+	},
+
 	renderItem: function (q) {
 		const item = document.createElement("span");
 		item.className = "mt-item";
+		// Stale = served from cache because the live fetch failed. Dim it and
+		// append an "as of" age so the data is clearly marked, not silently old.
+		if (q.stale) {
+			item.classList.add("mt-stale");
+		}
 
 		const label = document.createElement("span");
 		label.className = "mt-label";
@@ -137,6 +153,17 @@ Module.register("MMM-MarketTicker", {
 			err.className = "mt-delta mt-flat";
 			err.textContent = "—";
 			item.appendChild(err);
+		}
+
+		if (q.stale && q.cachedAt) {
+			const age = this.formatAge(q.cachedAt);
+			if (age) {
+				const badge = document.createElement("span");
+				badge.className = "mt-stale-badge";
+				badge.textContent = `⚠ ${age} old`;
+				badge.title = "Cached — live market data unavailable";
+				item.appendChild(badge);
+			}
 		}
 
 		return item;

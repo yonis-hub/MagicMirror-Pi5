@@ -39,10 +39,7 @@ const SINKS_BT_HDMI_ANALOG = [
 	"50\tbluez_output.FC_A8_9A_F6_FB_DA.1\tPipeWire\ts16le 2ch 48000Hz\tRUNNING"
 ].join("\n");
 
-const SINKS_HDMI_ANALOG = [
-	"48\talsa_output.platform-fef00700.hdmi.hdmi-stereo\tPipeWire\ts16le 2ch 48000Hz\tIDLE",
-	"49\talsa_output.platform-bcm2835_audio.analog-stereo\tPipeWire\ts16le 2ch 44100Hz\tIDLE"
-].join("\n");
+const SINKS_HDMI_ANALOG = ["48\talsa_output.platform-fef00700.hdmi.hdmi-stereo\tPipeWire\ts16le 2ch 48000Hz\tIDLE", "49\talsa_output.platform-bcm2835_audio.analog-stereo\tPipeWire\ts16le 2ch 44100Hz\tIDLE"].join("\n");
 
 const SINKS_ANALOG_ONLY = "49\talsa_output.platform-bcm2835_audio.analog-stereo\tPipeWire\ts16le 2ch 44100Hz\tIDLE";
 const SINKS_GENERIC_ONLY = "12\talsa_output.usb-Generic_USB_Audio-00.pro-output-0\tPipeWire\ts16le 2ch 48000Hz\tIDLE";
@@ -98,11 +95,7 @@ test("explicit override (present) wins over bluetooth", () => {
 });
 
 test("override not in live list falls through tiers", () => {
-	expect(
-		helper.resolveSinkName("bluez_output.DEAD_BEEF.1", names(SINKS_HDMI_ANALOG)),
-		HDMI,
-		"override absent -> tier fallthrough"
-	);
+	expect(helper.resolveSinkName("bluez_output.DEAD_BEEF.1", names(SINKS_HDMI_ANALOG)), HDMI, "override absent -> tier fallthrough");
 });
 
 test("auto/empty sentinels trigger detection", () => {

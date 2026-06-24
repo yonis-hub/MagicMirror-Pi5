@@ -388,17 +388,49 @@ class QuranChainer:
         print(f"Loaded Surah {surah_number} from local quran_data ({len(verses)} verses)")
         return {"surah_info": surah_info, "verses": verses}
 
+    def _get_with_retry(self, url, timeout=30, attempts=3, base_delay=1.0):
+        """GET with exponential backoff. Returns the Response or None.
+
+        Retries on network errors and 5xx/429 responses so a transient API
+        hiccup doesn't immediately fall through to a (possibly missing) cache.
+        """
+        last_exc = None
+        for attempt in range(attempts):
+            try:
+                response = requests.get(url, timeout=timeout)
+                if response.status_code == 200:
+                    return response
+                # Retry only on rate-limit / server errors; 4xx won't fix itself.
+                if response.status_code not in (429, 500, 502, 503, 504):
+                    return response
+                print(f"  API {response.status_code} for {url} (attempt {attempt + 1}/{attempts})")
+            except requests.exceptions.RequestException as e:
+                last_exc = e
+                print(f"  API request error (attempt {attempt + 1}/{attempts}): {e}")
+            if attempt < attempts - 1:
+                time.sleep(base_delay * (2 ** attempt))
+        if last_exc is not None:
+            raise last_exc
+        return None
+
     def _fetch_surah_from_api(self, surah_number):
         print(f"Fetching Surah {surah_number} from API...")
         arabic_url = f"https://api.alquran.cloud/v1/surah/{surah_number}/ar.alafasy"
         english_url = f"https://api.alquran.cloud/v1/surah/{surah_number}/en.asad"
 
         try:
-            arabic_response = requests.get(arabic_url, timeout=30)
-            english_response = requests.get(english_url, timeout=30)
+            arabic_response = self._get_with_retry(arabic_url, timeout=30)
+            english_response = self._get_with_retry(english_url, timeout=30)
 
-            if arabic_response.status_code != 200 or english_response.status_code != 200:
-                print(f"API Error: Arabic={arabic_response.status_code}, English={english_response.status_code}")
+            if (
+                arabic_response is None
+                or english_response is None
+                or arabic_response.status_code != 200
+                or english_response.status_code != 200
+            ):
+                ar_code = arabic_response.status_code if arabic_response is not None else "none"
+                en_code = english_response.status_code if english_response is not None else "none"
+                print(f"API Error: Arabic={ar_code}, English={en_code}")
                 return None
 
             arabic_data = arabic_response.json()["data"]
@@ -424,11 +456,50 @@ class QuranChainer:
             }
 
             self.surah_info_cache[surah_number] = surah_info.copy()
-            return {"surah_info": surah_info, "verses": verses}
+            result = {"surah_info": surah_info, "verses": verses}
+            # Persist to local quran_data so the next run (and any API outage)
+            # is served from disk by _load_local_surah() with no network.
+            self._cache_surah_to_local(surah_number, result)
+            return result
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching surah: {e}")
             return None
+
+    def _cache_surah_to_local(self, surah_number, data):
+        """Write fetched verses to quran_data/{surah:03}/{verse:03}.json.
+
+        Uses exactly the JSON shape _load_local_surah() reads, so a cached surah
+        becomes the local-first source automatically. Best-effort: any failure
+        is logged and ignored so it can never break live playback.
+        """
+        try:
+            verses = (data or {}).get("verses") or []
+            if not verses:
+                return
+            surah_dir = self.quran_data_dir / f"{surah_number:03}"
+            surah_dir.mkdir(parents=True, exist_ok=True)
+            written = 0
+            for verse in verses:
+                num = verse.get("number")
+                if num is None:
+                    continue
+                payload = {
+                    "verse_key": f"{surah_number}:{num}",
+                    "ayah_number": verse.get("ayah_number"),
+                    "text_uthmani": verse.get("arabic", ""),
+                    "translation_en": verse.get("translation", ""),
+                    "audio_url": verse.get("audio"),
+                }
+                target = surah_dir / f"{int(num):03}.json"
+                tmp = surah_dir / f"{int(num):03}.json.tmp"
+                tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                tmp.replace(target)  # atomic rename
+                written += 1
+            if written:
+                print(f"Cached Surah {surah_number} to local quran_data ({written} verses)")
+        except Exception as e:  # pragma: no cover - best-effort cache
+            print(f"  WARNING: failed to cache surah {surah_number} locally: {e}")
 
     def fetch_surah(self, surah_number):
         """Load surah from local quran_data first, then fall back to API."""
@@ -465,7 +536,8 @@ class QuranChainer:
         """
         if _choose_sink is not None:
             return _choose_sink(sink_names, override=requested, default_sink=self._query_default_sink())
-        # Inline fallback mirroring audio_sink.choose_sink's tier order.
+        # Inline fallback mirroring audio_sink.choose_sink's tier order
+        # (override > bluez > hdmi > analog > system default > first).
         names = [n for n in sink_names if n]
         if not names:
             return ""
@@ -475,6 +547,9 @@ class QuranChainer:
             for name in names:
                 if pattern in name.lower():
                     return name
+        default_sink = self._query_default_sink()
+        if default_sink and default_sink in names:
+            return default_sink
         return names[0]
 
     def _prepare_pulse_sink(self, mpv_ao, mpv_audio_device):
@@ -487,7 +562,8 @@ class QuranChainer:
         then HDMI, then analog/3.5mm, then the system default).
         """
         if mpv_ao != "pulse" and not mpv_audio_device.startswith("pulse/"):
-            return mpv_audio_device.split("/", 1)[1].strip() if mpv_audio_device.startswith("pulse/") else ""
+            # Not using PulseAudio output; nothing to pin.
+            return ""
         if not shutil.which("pactl"):
             return ""
 

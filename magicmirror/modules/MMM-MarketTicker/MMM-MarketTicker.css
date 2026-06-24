@@ -85,6 +85,25 @@
 	margin-right: 0;
 }
 
+/* Stale = served from local cache because the live API was unavailable.
+   Dim the whole item and show a small amber "N old" badge so it's obvious
+   the figures are not live. */
+.MMM-MarketTicker .mt-item.mt-stale {
+	opacity: 0.55;
+}
+
+.MMM-MarketTicker .mt-stale-badge {
+	color: #f59e0b;                          /* amber */
+	font-size: 0.72em;
+	font-weight: 600;
+	margin-left: 0.5em;
+	padding: 1px 6px;
+	border-radius: 6px;
+	background: rgb(245 158 11 / 12%);
+	border: 1px solid rgb(245 158 11 / 35%);
+	letter-spacing: 0.02em;
+}
+
 @keyframes mt-marquee {
 	0% {
 		transform: translateX(0);

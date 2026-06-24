@@ -182,32 +182,133 @@ module.exports = NodeHelper.create({
 		this.sendSocketNotification("ADHKAR_TRACKS", { morning, evening });
 	},
 
-	getMPT(url) {
-		https
-			.get(url, (res) => {
-				let data = "";
-				res.on("data", (chunk) => {
-					data += chunk;
-				});
-				res.on("end", () => {
-					try {
-						const result = JSON.parse(data);
-						if (result && result.data && result.data.timings) {
-							this.sendSocketNotification("MPT_RESULT", {
-								timings: result.data.timings,
-								hijri: result.data.date && result.data.date.hijri ? result.data.date.hijri : null
-							});
-						} else {
-							console.error("MMM-MyPrayerTimes: Invalid data format received");
-						}
-					} catch (error) {
-						console.error("MMM-MyPrayerTimes: Error parsing JSON", error);
-					}
-				});
-			})
-			.on("error", (error) => {
-				console.error("MMM-MyPrayerTimes: Error fetching data", error);
+	// --- Prayer-times offline cache -------------------------------------------
+	// Persist the last good timings (keyed by the DD-MM-YYYY in the request URL)
+	// so a network/API outage still shows correct times for that day. Best-effort:
+	// all fs ops are wrapped so cache I/O can never break the fetch path.
+	getMptCacheFile() {
+		return path.join(__dirname, "cache", "prayer_times.json");
+	},
+
+	cacheKeyFromUrl(url) {
+		const match = String(url || "").match(/\/timings\/(\d{2}-\d{2}-\d{4})/);
+		return match ? match[1] : "latest";
+	},
+
+	readMptCache(key) {
+		try {
+			const file = this.getMptCacheFile();
+			if (!fs.existsSync(file)) return null;
+			const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+			const entry = parsed && parsed[key];
+			if (entry && entry.timings) {
+				return entry;
+			}
+		} catch (error) {
+			console.warn(`MMM-MyPrayerTimes: failed to read prayer-times cache: ${error}`);
+		}
+		return null;
+	},
+
+	writeMptCache(key, timings, hijri) {
+		try {
+			const file = this.getMptCacheFile();
+			const dir = path.dirname(file);
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true });
+			}
+			let store = {};
+			if (fs.existsSync(file)) {
+				try {
+					store = JSON.parse(fs.readFileSync(file, "utf8")) || {};
+				} catch (parseErr) {
+					store = {};
+				}
+			}
+			store[key] = { timings, hijri: hijri || null, savedAt: Date.now() };
+			// Keep the file small: retain only the most recent ~14 day-keys.
+			const keys = Object.keys(store);
+			if (keys.length > 14) {
+				keys
+					.sort((a, b) => (store[a].savedAt || 0) - (store[b].savedAt || 0))
+					.slice(0, keys.length - 14)
+					.forEach((old) => delete store[old]);
+			}
+			const tmp = `${file}.tmp`;
+			fs.writeFileSync(tmp, JSON.stringify(store));
+			fs.renameSync(tmp, file);
+		} catch (error) {
+			console.warn(`MMM-MyPrayerTimes: failed to write prayer-times cache: ${error}`);
+		}
+	},
+
+	serveMptFromCache(url, reason) {
+		const key = this.cacheKeyFromUrl(url);
+		const cached = this.readMptCache(key);
+		if (cached) {
+			console.warn(`MMM-MyPrayerTimes: ${reason}; serving cached prayer times for ${key}`);
+			this.sendSocketNotification("MPT_RESULT", {
+				timings: cached.timings,
+				hijri: cached.hijri || null,
+				stale: true,
+				cachedAt: cached.savedAt || null
 			});
+			return true;
+		}
+		console.error(`MMM-MyPrayerTimes: ${reason} and no cached prayer times available`);
+		return false;
+	},
+
+	getMPT(url, attempt = 0) {
+		const maxAttempts = 3;
+		let settled = false;
+		const req = https.get(url, (res) => {
+			let data = "";
+			res.on("data", (chunk) => {
+				data += chunk;
+			});
+			res.on("end", () => {
+				if (settled) return;
+				settled = true;
+				try {
+					const result = JSON.parse(data);
+					if (result && result.data && result.data.timings) {
+						const timings = result.data.timings;
+						const hijri = result.data.date && result.data.date.hijri ? result.data.date.hijri : null;
+						this.writeMptCache(this.cacheKeyFromUrl(url), timings, hijri);
+						this.sendSocketNotification("MPT_RESULT", { timings, hijri, stale: false });
+					} else {
+						console.error("MMM-MyPrayerTimes: Invalid data format received");
+						this.serveMptFromCache(url, "invalid API response");
+					}
+				} catch (error) {
+					console.error("MMM-MyPrayerTimes: Error parsing JSON", error);
+					this.retryOrServeCachedMpt(url, attempt, maxAttempts, "JSON parse error");
+				}
+			});
+		});
+		// A hung TCP connection (connect, then no data, no RST) would otherwise
+		// never fire 'end' or 'error', so the retry/cache fallback would never
+		// run. Abort after 15s and treat it as a network error.
+		req.setTimeout(15000, () => {
+			req.destroy(new Error("request timeout"));
+		});
+		req.on("error", (error) => {
+			if (settled) return;
+			settled = true;
+			console.error("MMM-MyPrayerTimes: Error fetching data", error);
+			this.retryOrServeCachedMpt(url, attempt, maxAttempts, "network error");
+		});
+	},
+
+	retryOrServeCachedMpt(url, attempt, maxAttempts, reason) {
+		if (attempt + 1 < maxAttempts) {
+			const delay = 2000 * Math.pow(2, attempt); // 2s, 4s
+			console.warn(`MMM-MyPrayerTimes: ${reason}; retry ${attempt + 1}/${maxAttempts - 1} in ${delay}ms`);
+			setTimeout(() => this.getMPT(url, attempt + 1), delay);
+			return;
+		}
+		this.serveMptFromCache(url, `${reason} after ${maxAttempts} attempts`);
 	},
 
 	getPulseEnv() {
@@ -309,7 +410,11 @@ module.exports = NodeHelper.create({
 	//   6. first available
 	// "auto"/"default"/empty target means "no override; pick by tier".
 	isAutoSink(targetSink) {
-		return ["", "auto", "default"].includes(String(targetSink || "").trim().toLowerCase());
+		return ["", "auto", "default"].includes(
+			String(targetSink || "")
+				.trim()
+				.toLowerCase()
+		);
 	},
 
 	resolveSinkName(targetSink, sinkNames, defaultSink = "") {

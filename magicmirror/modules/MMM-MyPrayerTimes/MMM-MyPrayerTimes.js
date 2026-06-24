@@ -238,7 +238,11 @@ Module.register("MMM-MyPrayerTimes", {
 	},
 
 	isAutoSink: function (value) {
-		return ["", "auto", "default"].includes(String(value || "").trim().toLowerCase());
+		return ["", "auto", "default"].includes(
+			String(value || "")
+				.trim()
+				.toLowerCase()
+		);
 	},
 
 	setAudioOutputSink: function (audio) {

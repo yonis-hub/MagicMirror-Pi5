@@ -157,12 +157,18 @@ resolve_voice_sink() {
         resolved="$(python3 "$SCRIPT_DIR/audio_sink.py" "${VOICE_SINK:-auto}" 2>/dev/null || true)"
     fi
     if [ -z "$resolved" ] && command -v pactl >/dev/null 2>&1; then
-        # Shell-only fallback: bluez -> hdmi -> analog -> first.
-        local sinks
+        # Shell-only fallback: bluez -> hdmi -> analog -> default sink -> first.
+        local sinks default_sink
         sinks="$(pactl list short sinks 2>/dev/null | awk '{print $2}')"
         resolved="$(printf '%s\n' "$sinks" | grep -m1 '^bluez_output\.' || true)"
         [ -z "$resolved" ] && resolved="$(printf '%s\n' "$sinks" | grep -im1 'hdmi' || true)"
         [ -z "$resolved" ] && resolved="$(printf '%s\n' "$sinks" | grep -im1 'analog' || true)"
+        if [ -z "$resolved" ]; then
+            default_sink="$(pactl get-default-sink 2>/dev/null || true)"
+            if [ -n "$default_sink" ] && printf '%s\n' "$sinks" | grep -Fxq "$default_sink"; then
+                resolved="$default_sink"
+            fi
+        fi
         [ -z "$resolved" ] && resolved="$(printf '%s\n' "$sinks" | grep -m1 . || true)"
     fi
     if [ -n "$resolved" ]; then
