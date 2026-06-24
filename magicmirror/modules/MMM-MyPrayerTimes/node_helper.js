@@ -299,20 +299,76 @@ module.exports = NodeHelper.create({
 		return ids;
 	},
 
-	resolveSinkName(targetSink, sinkNames) {
+	// Hardware-agnostic sink selection. Mirrors the tier order in the canonical
+	// Python resolver (MMM-QuranDisplay/audio_sink.py):
+	//   1. explicit override (if present in the live sink list)
+	//   2. bluetooth (bluez_output.*)
+	//   3. HDMI
+	//   4. analog / 3.5mm
+	//   5. system default sink (if listed)
+	//   6. first available
+	// "auto"/"default"/empty target means "no override; pick by tier".
+	isAutoSink(targetSink) {
+		return ["", "auto", "default"].includes(String(targetSink || "").trim().toLowerCase());
+	},
+
+	resolveSinkName(targetSink, sinkNames, defaultSink = "") {
 		if (!Array.isArray(sinkNames) || sinkNames.length === 0) {
 			return "";
 		}
-		if (targetSink && sinkNames.includes(targetSink)) {
-			return targetSink;
+
+		const target = String(targetSink || "").trim();
+		// Tier 1: explicit override, only when it actually exists right now.
+		if (target && !this.isAutoSink(target) && sinkNames.includes(target)) {
+			return target;
 		}
 
+		// Tier 2: Bluetooth.
 		const bluetoothSink = sinkNames.find((name) => /^bluez_output\./.test(name));
 		if (bluetoothSink) {
 			return bluetoothSink;
 		}
 
-		return targetSink || sinkNames[0];
+		// Tier 3: HDMI.
+		const hdmiSink = sinkNames.find((name) => /hdmi/i.test(name));
+		if (hdmiSink) {
+			return hdmiSink;
+		}
+
+		// Tier 4: analog / 3.5mm.
+		const analogSink = sinkNames.find((name) => /analog/i.test(name));
+		if (analogSink) {
+			return analogSink;
+		}
+
+		// Tier 5: system default sink.
+		const dflt = String(defaultSink || "").trim();
+		if (dflt && sinkNames.includes(dflt)) {
+			return dflt;
+		}
+
+		// Tier 6: first available.
+		return sinkNames[0];
+	},
+
+	async queryDefaultSink() {
+		const getResult = await this.runPactl(["get-default-sink"], 2500);
+		if (getResult.ok) {
+			const name = String(getResult.stdout || "").trim();
+			if (name && !/\s/.test(name) && !/^failure/i.test(name)) {
+				return name;
+			}
+		}
+		const infoResult = await this.runPactl(["info"], 2500);
+		if (infoResult.ok) {
+			const line = String(infoResult.stdout || "")
+				.split(/\r?\n/)
+				.find((row) => /^default sink:/i.test(row.trim()));
+			if (line) {
+				return line.split(":").slice(1).join(":").trim();
+			}
+		}
+		return "";
 	},
 
 	async ensureAudioOutput(payload) {
@@ -357,15 +413,18 @@ module.exports = NodeHelper.create({
 					console.warn(`MMM-MyPrayerTimes: ${message}`);
 				} else {
 					const sinkNames = this.parseNamesFromShortList(sinksResult.stdout, 1);
-					effectiveSink = this.resolveSinkName(targetSink, sinkNames);
+					const defaultSink = await this.queryDefaultSink();
+					effectiveSink = this.resolveSinkName(targetSink, sinkNames, defaultSink);
 					sinkFound = effectiveSink ? sinkNames.includes(effectiveSink) : false;
 
 					if (!sinkFound || !effectiveSink) {
 						ok = false;
-						message = targetSink ? `sink not found: ${targetSink}` : "no sinks available";
+						message = "no sinks available";
 						console.warn(`MMM-MyPrayerTimes: ${message}`);
 					} else {
-						if (targetSink && effectiveSink !== targetSink) {
+						// Only treat it as a "requested but unavailable" fallback when an
+						// explicit (non-auto) sink was asked for and we picked a different one.
+						if (targetSink && !this.isAutoSink(targetSink) && effectiveSink !== targetSink) {
 							message = `requested sink unavailable; using ${effectiveSink}`;
 							console.warn(`MMM-MyPrayerTimes: ${message}`);
 						}

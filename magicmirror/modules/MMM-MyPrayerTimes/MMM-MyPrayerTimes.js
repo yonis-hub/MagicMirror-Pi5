@@ -45,11 +45,16 @@ Module.register("MMM-MyPrayerTimes", {
 		ensureAudioOutputBeforePlayback: true,
 		audioOutputEnsureTimeoutMs: 3500,
 		audioOutputEnsureMinIntervalMs: 2500,
-		audioOutputSink: "bluez_output.FC_A8_9A_F6_FB_DA.1",
+		// "auto" = detect the best available sink at runtime (Bluetooth, then
+		// HDMI, then analog/3.5mm, then the system default). Set a specific sink
+		// name here to force a particular output on hardware that has one.
+		audioOutputSink: "auto",
 		audioOutputSinkVolume: "50%",
 		audioOutputEnforceSinkVolume: false,
-		audioOutputCard: "bluez_card.FC_A8_9A_F6_FB_DA",
-		audioOutputProfile: "a2dp-sink",
+		// Leave card/profile empty for auto-detected output. Only set these when
+		// pinning a specific Bluetooth card (e.g. "bluez_card.XX_..", "a2dp-sink").
+		audioOutputCard: "",
+		audioOutputProfile: "",
 		audioOutputPreferredSource: "alsa_input.usb-W1_W1_202505231443190-02.mono-fallback",
 		audioOutputMuteBluetoothInput: true,
 		// Arbitration settings (avoid overlapping Quran/adhaan/adhkar audio)
@@ -232,13 +237,20 @@ Module.register("MMM-MyPrayerTimes", {
 		audio.volume = this.getVolume(configuredVolume, fallbackVolume);
 	},
 
+	isAutoSink: function (value) {
+		return ["", "auto", "default"].includes(String(value || "").trim().toLowerCase());
+	},
+
 	setAudioOutputSink: function (audio) {
-		const preferredSink = String(this.effectiveAudioOutputSink || this.config.audioOutputSink || "").trim();
+		// Prefer the concrete sink the node_helper resolved at runtime. Never try
+		// to setSinkId("auto") — that's a sentinel, not a real device id.
+		const configSink = this.isAutoSink(this.config.audioOutputSink) ? "" : String(this.config.audioOutputSink || "").trim();
+		const preferredSink = String(this.effectiveAudioOutputSink || configSink || "").trim();
 		if (!audio || !preferredSink || typeof audio.setSinkId !== "function") {
 			return Promise.resolve(false);
 		}
 
-		const fallbackSink = String(this.config.audioOutputSink || "").trim();
+		const fallbackSink = configSink;
 		return audio
 			.setSinkId(preferredSink)
 			.then(() => true)

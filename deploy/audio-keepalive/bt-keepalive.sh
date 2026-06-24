@@ -13,7 +13,24 @@
 
 set -u
 
-BT_SINK="${BT_SINK:-bluez_output.FC_A8_9A_F6_FB_DA.1}"
+# "auto" (default) discovers the connected Bluetooth sink at runtime instead of
+# hardcoding a MAC. Keepalive only matters for Bluetooth, so if no bluez_output
+# sink is present we simply exit — nothing to keep awake. Override BT_SINK with
+# a concrete sink name to force a specific device.
+BT_SINK="${BT_SINK:-auto}"
+case "$(printf '%s' "$BT_SINK" | tr '[:upper:]' '[:lower:]')" in
+  ""|auto|default)
+    if command -v pactl >/dev/null 2>&1; then
+      BT_SINK="$(pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -m1 '^bluez_output\.' || true)"
+    else
+      BT_SINK=""
+    fi
+    if [[ -z "$BT_SINK" ]]; then
+      logger -t bt-keepalive -- "No Bluetooth sink present; nothing to keep alive"
+      exit 0
+    fi
+    ;;
+esac
 KEEPALIVE_SECONDS="${KEEPALIVE_SECONDS:-1.0}"
 KEEPALIVE_FREQ_HZ="${KEEPALIVE_FREQ_HZ:-100}"
 KEEPALIVE_VOLUME="${KEEPALIVE_VOLUME:-0.002}"   # ~-54dB

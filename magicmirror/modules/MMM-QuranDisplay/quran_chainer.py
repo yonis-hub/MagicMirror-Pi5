@@ -21,6 +21,13 @@ import signal
 import threading
 from pathlib import Path
 
+try:
+    # Hardware-agnostic sink resolver (shared, unit-tested in tests/).
+    from audio_sink import choose_sink as _choose_sink, is_auto as _sink_is_auto
+except Exception:  # pragma: no cover - resolver is best-effort
+    _choose_sink = None
+    _sink_is_auto = None
+
 # Surah name mapping for voice command parsing
 SURAH_NAMES = {
     "fatiha": 1, "baqara": 2, "imran": 3, "nisa": 4, "maida": 5,
@@ -430,20 +437,68 @@ class QuranChainer:
             return local_data
         return self._fetch_surah_from_api(surah_number)
 
+    def _query_default_sink(self):
+        """Best-effort system default-sink name (tolerates old/new pactl)."""
+        try:
+            out = subprocess.run(
+                ["pactl", "get-default-sink"], check=False, capture_output=True, text=True, timeout=3
+            )
+            name = (out.stdout or "").strip()
+            if name and " " not in name and not name.lower().startswith("failure"):
+                return name
+        except Exception:
+            pass
+        try:
+            info = subprocess.run(["pactl", "info"], check=False, capture_output=True, text=True, timeout=3)
+            for line in (info.stdout or "").splitlines():
+                if line.lower().startswith("default sink:"):
+                    return line.split(":", 1)[1].strip()
+        except Exception:
+            pass
+        return ""
+
+    def _resolve_available_sink(self, requested, sink_names):
+        """Pick the best sink among ``sink_names`` using the shared resolver.
+
+        Falls back to a local bluez->hdmi->analog->first heuristic if the
+        shared resolver module could not be imported.
+        """
+        if _choose_sink is not None:
+            return _choose_sink(sink_names, override=requested, default_sink=self._query_default_sink())
+        # Inline fallback mirroring audio_sink.choose_sink's tier order.
+        names = [n for n in sink_names if n]
+        if not names:
+            return ""
+        if requested and requested.lower() not in {"auto", "default", ""} and requested in names:
+            return requested
+        for pattern in ("bluez_output.", "hdmi", "analog"):
+            for name in names:
+                if pattern in name.lower():
+                    return name
+        return names[0]
+
     def _prepare_pulse_sink(self, mpv_ao, mpv_audio_device):
-        """Best-effort sink pin/unmute before mpv starts. Returns True if requested sink is ready."""
+        """Best-effort sink pin/unmute before mpv starts.
+
+        Returns the effective sink name that is ready (so the caller can route
+        mpv to it), or "" when no usable sink could be prepared. This makes
+        output hardware-agnostic: if the configured sink is "auto"/empty or has
+        disconnected, we fall through to the best available sink (Bluetooth,
+        then HDMI, then analog/3.5mm, then the system default).
+        """
         if mpv_ao != "pulse" and not mpv_audio_device.startswith("pulse/"):
-            return True
+            return mpv_audio_device.split("/", 1)[1].strip() if mpv_audio_device.startswith("pulse/") else ""
         if not shutil.which("pactl"):
-            return False
+            return ""
 
         sink_name = os.environ.get("QURAN_PULSE_SINK", "").strip()
         pulse_card = os.environ.get("QURAN_PULSE_CARD", "").strip()
         pulse_card_profile = os.environ.get("QURAN_PULSE_CARD_PROFILE", "").strip()
         if not sink_name and mpv_audio_device.startswith("pulse/"):
             sink_name = mpv_audio_device.split("/", 1)[1].strip()
-        if not sink_name:
-            return True
+
+        # "auto"/"default"/empty means: don't pin a specific MAC, auto-detect.
+        auto_select = sink_name.lower() in {"", "auto", "default"}
 
         sink_volume = os.environ.get("QURAN_PULSE_SINK_VOLUME", "50%").strip() or "50%"
         enforce_sink_volume = str(os.environ.get("QURAN_PULSE_ENFORCE_SINK_VOLUME", "0")).strip().lower() in {
@@ -457,10 +512,21 @@ class QuranChainer:
             wait_sec = max(0, min(60, int(wait_raw)))
         except ValueError:
             wait_sec = 8
+
+        def _pin(name):
+            subprocess.run(["pactl", "set-default-sink", name], check=False, timeout=3)
+            subprocess.run(["pactl", "set-sink-mute", name, "0"], check=False, timeout=3)
+            if enforce_sink_volume:
+                subprocess.run(["pactl", "set-sink-volume", name, sink_volume], check=False, timeout=3)
+                print(f"  pulse sink ensured: {name} volume={sink_volume} (enforced)")
+            else:
+                print(f"  pulse sink ensured: {name} volume=preserved")
+
         try:
             if pulse_card and pulse_card_profile:
                 subprocess.run(["pactl", "set-card-profile", pulse_card, pulse_card_profile], check=False, timeout=3)
 
+            last_sink_names = []
             for attempt in range(wait_sec + 1):
                 sinks_out = subprocess.run(
                     ["pactl", "list", "sinks", "short"],
@@ -474,25 +540,31 @@ class QuranChainer:
                     parts = row.split()
                     if len(parts) >= 2:
                         sink_names.append(parts[1])
+                last_sink_names = sink_names
 
-                if sink_name in sink_names:
-                    subprocess.run(["pactl", "set-default-sink", sink_name], check=False, timeout=3)
-                    subprocess.run(["pactl", "set-sink-mute", sink_name, "0"], check=False, timeout=3)
-                    if enforce_sink_volume:
-                        subprocess.run(["pactl", "set-sink-volume", sink_name, sink_volume], check=False, timeout=3)
-                        print(f"  pulse sink ensured: {sink_name} volume={sink_volume} (enforced)")
-                    else:
-                        print(f"  pulse sink ensured: {sink_name} volume=preserved")
-                    return True
+                # When a specific sink is requested, wait for it to appear so a
+                # just-connecting Bluetooth speaker still wins.
+                if not auto_select and sink_name in sink_names:
+                    _pin(sink_name)
+                    return sink_name
 
                 if attempt < wait_sec:
                     time.sleep(1)
 
-            print(f"  WARNING: pulse sink unavailable after {wait_sec}s: {sink_name}")
-            return False
+            # Either auto mode, or the requested sink never appeared: resolve
+            # the best available sink so playback is never silent on new hardware.
+            resolved = self._resolve_available_sink(sink_name, last_sink_names)
+            if resolved:
+                if not auto_select and resolved != sink_name:
+                    print(f"  pulse sink '{sink_name}' unavailable; falling back to {resolved}")
+                _pin(resolved)
+                return resolved
+
+            print(f"  WARNING: no usable pulse sink available (requested: {sink_name or 'auto'})")
+            return ""
         except Exception as e:
             print(f"  WARNING: failed to prepare pulse sink: {e}")
-            return False
+            return ""
 
     def _env_flag(self, key, default=False):
         raw = os.environ.get(key)
@@ -575,10 +647,17 @@ class QuranChainer:
             except ValueError:
                 mpv_volume = 100.0
 
-            sink_ready = self._prepare_pulse_sink(mpv_ao, mpv_audio_device)
-            if (
+            effective_sink = self._prepare_pulse_sink(mpv_ao, mpv_audio_device)
+            uses_pulse = mpv_ao == "pulse" or mpv_audio_device.startswith("pulse/")
+            if uses_pulse and effective_sink:
+                # Route mpv at the sink the resolver actually prepared. This makes
+                # output hardware-agnostic: if "auto"/empty was configured, or the
+                # configured Bluetooth sink disconnected, mpv follows the resolved
+                # sink (HDMI / 3.5mm / default) instead of going silent.
+                mpv_audio_device = f"pulse/{effective_sink}"
+            elif (
                 mpv_audio_device.startswith("pulse/")
-                and not sink_ready
+                and not effective_sink
                 and self._env_flag("QURAN_MPV_FALLBACK_TO_DEFAULT_SINK", True)
             ):
                 print("  desired pulse sink unavailable; using current default sink for this verse")

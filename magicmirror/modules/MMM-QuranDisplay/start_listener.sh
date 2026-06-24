@@ -39,17 +39,23 @@ export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 VOICE_DEVICE="${VOICE_DEVICE:-pulse}"
 VOICE_SOURCE="${VOICE_SOURCE:-alsa_input.usb-W1_W1_202505231443190-02.mono-fallback}"
-VOICE_SINK="${VOICE_SINK:-bluez_output.FC_A8_9A_F6_FB_DA.1}"
+# "auto" = pick the best available sink at runtime (Bluetooth > HDMI > analog
+# > default). Override by exporting VOICE_SINK with a concrete sink name.
+VOICE_SINK="${VOICE_SINK:-auto}"
 VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=W1,DEV=0}"
 VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
 VOICE_REQUIRE_PULSE="${VOICE_REQUIRE_PULSE:-1}"
-VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-50%}"
+# 75%: 50% gave a low-SNR clip on the wall mic, which hurt Whisper accuracy.
+# Raise further if the listener's printed RMS is still low; back off if it clips.
+VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-75%}"
 VOICE_SILENCE_MAX_AMP="${VOICE_SILENCE_MAX_AMP:-180}"
 VOICE_SILENCE_RMS_AMP="${VOICE_SILENCE_RMS_AMP:-35}"
 VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-50%}"
 VOICE_APPLY_SINK_VOLUME_ON_START="${VOICE_APPLY_SINK_VOLUME_ON_START:-1}"
 VOICE_ENFORCE_SINK_VOLUME="${VOICE_ENFORCE_SINK_VOLUME:-0}"
-VOICE_BT_CARD="${VOICE_BT_CARD:-bluez_card.FC_A8_9A_F6_FB_DA}"
+# Leave the Bluetooth card empty by default so non-Bluetooth hardware is not
+# assumed. Export VOICE_BT_CARD with a "bluez_card.XX_.." name to pin a profile.
+VOICE_BT_CARD="${VOICE_BT_CARD:-}"
 VOICE_BT_PROFILE="${VOICE_BT_PROFILE:-a2dp-sink}"
 VOICE_AUTO_HEAL_SINK="${VOICE_AUTO_HEAL_SINK:-1}"
 VOICE_AUTO_HEAL_INTERVAL_SEC="${VOICE_AUTO_HEAL_INTERVAL_SEC:-5}"
@@ -91,7 +97,7 @@ start_audio_heal_loop() {
         while true; do
             current_state="offline"
             if pactl info >/dev/null 2>&1; then
-                if pactl list cards short | awk '{print $2}' | grep -Fxq "$VOICE_BT_CARD"; then
+                if [ -n "$VOICE_BT_CARD" ] && pactl list cards short | awk '{print $2}' | grep -Fxq "$VOICE_BT_CARD"; then
                     pactl set-card-profile "$VOICE_BT_CARD" "$VOICE_BT_PROFILE" || true
                 fi
                 if pactl list sinks short | awk '{print $2}' | grep -Fxq "$VOICE_SINK"; then
@@ -138,6 +144,37 @@ start_audio_heal_loop() {
     AUTO_HEAL_PID=$!
 }
 
+# Resolve "auto"/empty VOICE_SINK to the best available sink using the shared,
+# unit-tested Python resolver (audio_sink.py). Falls back to the current default
+# sink if the resolver can't pick one. No-op when a concrete sink was provided.
+resolve_voice_sink() {
+    case "$(printf '%s' "${VOICE_SINK:-}" | tr '[:upper:]' '[:lower:]')" in
+        ""|auto|default) ;;
+        *) return ;;  # explicit sink requested; leave it untouched
+    esac
+    local resolved=""
+    if command -v python3 >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/audio_sink.py" ]; then
+        resolved="$(python3 "$SCRIPT_DIR/audio_sink.py" "${VOICE_SINK:-auto}" 2>/dev/null || true)"
+    fi
+    if [ -z "$resolved" ] && command -v pactl >/dev/null 2>&1; then
+        # Shell-only fallback: bluez -> hdmi -> analog -> first.
+        local sinks
+        sinks="$(pactl list short sinks 2>/dev/null | awk '{print $2}')"
+        resolved="$(printf '%s\n' "$sinks" | grep -m1 '^bluez_output\.' || true)"
+        [ -z "$resolved" ] && resolved="$(printf '%s\n' "$sinks" | grep -im1 'hdmi' || true)"
+        [ -z "$resolved" ] && resolved="$(printf '%s\n' "$sinks" | grep -im1 'analog' || true)"
+        [ -z "$resolved" ] && resolved="$(printf '%s\n' "$sinks" | grep -m1 . || true)"
+    fi
+    if [ -n "$resolved" ]; then
+        VOICE_SINK="$resolved"
+        export PULSE_SINK="$VOICE_SINK"
+        export QURAN_PULSE_SINK="$VOICE_SINK"
+        log "Auto-resolved audio sink: $VOICE_SINK"
+    else
+        log "WARNING: could not auto-resolve an audio sink; leaving system default"
+    fi
+}
+
 # Prefer shared Pulse capture and pin default source to the intended USB mic.
 if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
     # Give PipeWire/Pulse a moment after boot before falling back.
@@ -151,7 +188,8 @@ if [ "$VOICE_DEVICE" = "pulse" ] && command -v pactl >/dev/null 2>&1; then
     done
 
     if [ "$PULSE_READY" -eq 1 ]; then
-        if pactl list cards short | awk '{print $2}' | grep -Fxq "$VOICE_BT_CARD"; then
+        resolve_voice_sink
+        if [ -n "$VOICE_BT_CARD" ] && pactl list cards short | awk '{print $2}' | grep -Fxq "$VOICE_BT_CARD"; then
             pactl set-card-profile "$VOICE_BT_CARD" "$VOICE_BT_PROFILE" || true
             log "Pulse Bluetooth profile set: $VOICE_BT_CARD -> $VOICE_BT_PROFILE"
         fi
