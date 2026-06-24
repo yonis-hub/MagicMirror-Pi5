@@ -486,9 +486,15 @@ Module.register("MMM-MyPrayerTimes", {
 		// path is kept only as a last-resort fallback if no native player exists.
 		this.ensureAudioOutputBeforePlay(() => {
 			if (!this.activeAdhanRequest || this.activeAdhanRequest.requestId !== requestId) return;
+			// Prefer the concrete resolved sink; if only the "auto" sentinel is
+			// known, send empty so the server uses the system default sink rather
+			// than literally setting PULSE_SINK=auto.
+			const configSink = this.isAutoSink(this.config.audioOutputSink)
+				? ""
+				: String(this.config.audioOutputSink || "").trim();
 			this.sendSocketNotification("PLAY_ADHAN_SERVER", {
 				requestId,
-				sink: String(this.effectiveAudioOutputSink || this.config.audioOutputSink || "").trim()
+				sink: String(this.effectiveAudioOutputSink || configSink || "").trim()
 			});
 			// If we don't get a "started" status within 4s, fall back to browser audio.
 			this.activeAdhanRequest.fallbackTimer = setTimeout(() => {
@@ -961,7 +967,10 @@ Module.register("MMM-MyPrayerTimes", {
 				return;
 			}
 			const reportedSink = String(safePayload.sink || "").trim();
-			if (reportedSink) {
+			// Only store a concrete resolved sink. On the ensure-failure path the
+			// helper may echo back the "auto" sentinel; never let that reach
+			// setSinkId("auto") or PULSE_SINK=auto — keep the last good sink instead.
+			if (reportedSink && !this.isAutoSink(reportedSink)) {
 				this.effectiveAudioOutputSink = reportedSink;
 			}
 			this.resolveAudioOutputEnsure(requestId, safePayload.ok === true, safePayload.message || "failed");
