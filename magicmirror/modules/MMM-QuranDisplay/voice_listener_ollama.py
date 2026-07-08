@@ -1060,14 +1060,15 @@ class OllamaVoiceListener:
         self._juz_worker = None
         self._juz_current = None
         wake_words_prompt = " ".join(sorted(self.wake_words))
+        # Keep this SHORT. A long word list biases Whisper toward *emitting*
+        # those tokens on unclear audio, producing confident-but-wrong surah
+        # names. We list only the command grammar plus a handful of high-value
+        # terms — the normalize_speech() phonetic fixups handle the rest.
         self.stt_prompt = (
             "Voice command for Quran recitation. "
             f"Wake words: {wake_words_prompt}. "
-            "Switch reciter use second reciter first reciter default reciter Noreen Sedeeq Alafasy Mishary. "
-            "Actions: play recite pause resume continue stop. "
-            "Quran divisions: juz para juzz juz amma juz tabarak juz one juz two juz twenty juz thirty. "
-            "Common surahs: fatiha baqarah imran nisa maidah anam araf anfal tawbah yunus hud yusuf ibrahim hijr nahl isra kahf maryam taha anbiya hajj muminun nur furqan shuara naml qasas ankabut rum luqman sajdah ahzab saba fatir yasin saffat sad zumar ghafir fussilat shura zukhruf dukhan jathiyah ahqaf muhammad fath hujurat qaf dhariyat tur najm qamar rahman waqiah hadid mujadila hashr mumtahanah saf jumuah munafiqun taghabun talaq tahrim mulk qalam haqqah maarij nuh jinn muzzammil muddaththir qiyamah insan mursalat naba naziat abasa takwir infitar mutaffifin inshiqaq buruj tariq ala ghashiyah fajr balad shams layl duha sharh tin alaq qadr bayyinah zalzalah adiyat qariah takathur asr humazah fil quraysh maun kawthar kafirun nasr masad ikhlas falaq nas. "
-            "Quran vocabulary: surah ayah verse recite bismillah ayatul kursi mercy patience guidance protection."
+            "Actions: play recite pause resume continue stop switch reciter. "
+            "Vocabulary: surah ayah verse juz para fatiha baqarah yasin rahman mulk ikhlas."
         )
 
         # Print audio device information
@@ -1081,9 +1082,13 @@ class OllamaVoiceListener:
 
         # Initialize Whisper (loads model into RAM once)
         print(f"⏳ Loading Whisper model ({self.stt_model})...")
+        # CTranslate2 only supports cpu / cuda / auto — the old "opencl" always
+        # threw and silently fell through to CPU. "auto" picks CUDA if present,
+        # else CPU, without the misleading exception.
         try:
-            self.whisper = WhisperModel(self.stt_model, device="opencl", compute_type="int8")
-        except Exception:
+            self.whisper = WhisperModel(self.stt_model, device="auto", compute_type="int8")
+        except Exception as e:
+            print(f"  Whisper 'auto' device failed ({e!r}); using cpu")
             self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
 
         # ---- Voice v2 components (all optional; failure -> fallback to v1) ----
@@ -1098,35 +1103,35 @@ class OllamaVoiceListener:
                 self.piper_tts = PiperTTS()
                 print("  ✅ Piper TTS loaded")
             except Exception as e:
-                print(f"  ⚠️  Piper TTS unavailable: {e}")
+                print(f"  ⚠️  Piper TTS unavailable: {e!r}")
         if use_vad:
             try:
                 from voice_v2.vad import SileroVAD
                 self.vad = SileroVAD()
                 print("  ✅ silero-VAD loaded")
             except Exception as e:
-                print(f"  ⚠️  silero-VAD unavailable: {e}")
+                print(f"  ⚠️  silero-VAD unavailable: {e!r}")
         if use_oww:
             try:
                 from voice_v2.wake import WakeDetector
                 self.oww_detector = WakeDetector(device=self.device)
                 print("  ✅ openWakeWord loaded")
             except Exception as e:
-                print(f"  ⚠️  openWakeWord unavailable: {e}")
+                print(f"  ⚠️  openWakeWord unavailable: {e!r}")
         if speaker_id:
             try:
                 from voice_v2.speaker import SpeakerVerifier
                 self.speaker_verifier = SpeakerVerifier()
                 print("  ✅ speaker verifier loaded")
             except Exception as e:
-                print(f"  ⚠️  speaker verifier unavailable: {e}")
+                print(f"  ⚠️  speaker verifier unavailable: {e!r}")
         if denoise:
             try:
                 from voice_v2.denoise import Denoiser
                 self.denoiser = Denoiser()
                 print("  ✅ denoiser loaded")
             except Exception as e:
-                print(f"  ⚠️  denoiser unavailable: {e}")
+                print(f"  ⚠️  denoiser unavailable: {e!r}")
 
     def within_followup_window(self):
         return time.time() < self.followup_deadline
@@ -2145,11 +2150,17 @@ class OllamaVoiceListener:
         """Transcribe audio using Faster-Whisper"""
         try:
             language = self.stt_language if self.stt_language else None
+            # Silero-VAD already trims the clip in the v2 capture path, so
+            # Whisper's own vad_filter would trim a second time and clip word
+            # boundaries. Leave it off; re-enable via VOICE_WHISPER_VAD=1 only
+            # if running the v1 fixed-window path without upstream VAD.
+            whisper_vad = os.environ.get("VOICE_WHISPER_VAD", "0") == "1"
             segments, info = self.whisper.transcribe(
                 audio_file,
                 beam_size=5,
                 language=language,
-                vad_filter=True,
+                temperature=0,
+                vad_filter=whisper_vad,
                 vad_parameters={"min_silence_duration_ms": 250},
                 initial_prompt=self.stt_prompt,
                 condition_on_previous_text=False
@@ -2163,7 +2174,9 @@ class OllamaVoiceListener:
             else:
                 avg_no_speech = 1.0
             print(f"  Whisper language={language_detected} prob={language_prob:.2f} no_speech={avg_no_speech:.2f}")
-            if avg_no_speech > 0.6:
+            # Loosened 0.6 -> 0.7: denoise artifacts can nudge no_speech_prob up
+            # on a valid command, and 0.6 was discarding real speech.
+            if avg_no_speech > 0.7:
                 print("  Audio flagged as likely non-speech (TV/music/noise), discarding")
                 return ""
             return text.strip()
@@ -2833,8 +2846,14 @@ class OllamaVoiceListener:
                     self.send_recording_status(True)
                     audio_file = self.vad.record_command(
                         max_duration_sec=8.0,
-                        silence_tail_ms=700,
+                        # 900ms tail: 700 was cutting off when the user paused
+                        # briefly mid-command.
+                        silence_tail_ms=900,
                         speech_start_timeout_sec=3.0,
+                        # 0.5s pre-roll: the spoken wake-ack runs just before
+                        # this, so users often start talking over it; 0.3 was
+                        # clipping the first word.
+                        pre_roll_sec=0.5,
                     )
                     self.send_recording_status(False)
                 else:
