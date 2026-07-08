@@ -5,7 +5,8 @@ Module.register("MMM-SpyTrackerReport", {
         spyTrackerPath: "/home/hyonis/spy_tracker",
         updateInterval: 5 * 60 * 1000, // 5 minutes
         fadeSpeed: 500,
-        currency: "$"
+        currency: "$",
+        label: "Bot_Trades"
     },
 
     getStyles: function() {
@@ -42,12 +43,12 @@ Module.register("MMM-SpyTrackerReport", {
         wrapper.className = "spytracker-report";
 
         if (!this.loaded) {
-            wrapper.innerHTML = "<span class=\"dimmed\">SPY_TRACKER loading…</span>";
+            wrapper.innerHTML = "<span class=\"dimmed\">" + this.config.label + " loading…</span>";
             return wrapper;
         }
 
         if (!this.report || this.report.error) {
-            wrapper.innerHTML = "<span class=\"dimmed\">SPY_TRACKER: " + (this.report ? this.report.error : "no data") + "</span>";
+            wrapper.innerHTML = "<span class=\"dimmed\">" + this.config.label + ": " + (this.report ? this.report.error : "no data") + "</span>";
             return wrapper;
         }
 
@@ -56,7 +57,7 @@ Module.register("MMM-SpyTrackerReport", {
 
         var label = document.createElement("span");
         label.className = "spy-tick-label";
-        label.textContent = "SPY_TRACKER";
+        label.textContent = this.config.label;
         wrapper.appendChild(label);
 
         var acct = document.createElement("span");
