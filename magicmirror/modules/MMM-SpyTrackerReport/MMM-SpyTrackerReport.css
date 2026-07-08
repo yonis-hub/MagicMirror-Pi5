@@ -11,6 +11,11 @@
     text-align: left;
 }
 
+/* Undo the left-align for compliments — it keeps its centered line. */
+.region.bottom.bar .container .module.compliments {
+    text-align: center;
+}
+
 .region.bottom.bar .container .module.MMM-MarketTicker,
 .region.bottom.bar .container .module.MMM-SpyTrackerReport {
     display: inline-flex;
