@@ -2,7 +2,7 @@
 
 Module.register("MMM-SpyTrackerReport", {
     defaults: {
-        spyTrackerPath: "/mnt/c/Users/hyoni/Documents/Dev_Apps/spy_tracker",
+        spyTrackerPath: "/home/hyonis/spy_tracker",
         updateInterval: 5 * 60 * 1000, // 5 minutes
         fadeSpeed: 500,
         currency: "$"
@@ -35,12 +35,14 @@ Module.register("MMM-SpyTrackerReport", {
         }
     },
 
+    // One compact ticker line, styled to sit alongside MMM-MarketTicker in
+    // the bottom bar: LABEL  $account  [▲ +$pnl]  trade detail  streak/record
     getDom: function() {
         var wrapper = document.createElement("div");
         wrapper.className = "spytracker-report";
 
         if (!this.loaded) {
-            wrapper.innerHTML = "<span class=\"dimmed\">Loading SPY_TRACKER report...</span>";
+            wrapper.innerHTML = "<span class=\"dimmed\">SPY_TRACKER loading…</span>";
             return wrapper;
         }
 
@@ -52,69 +54,45 @@ Module.register("MMM-SpyTrackerReport", {
         var r = this.report;
         var cur = this.config.currency;
 
-        // Header
-        var header = document.createElement("div");
-        header.className = "spy-header";
-        header.innerHTML = "SPY_TRACKER DAILY REPORT";
-        wrapper.appendChild(header);
+        var label = document.createElement("span");
+        label.className = "spy-tick-label";
+        label.textContent = "SPY_TRACKER";
+        wrapper.appendChild(label);
 
-        // Date line
-        var dateLine = document.createElement("div");
-        dateLine.className = "spy-date";
-        dateLine.innerHTML = r.date ? moment(r.date).format("dddd, MMMM D") : "";
-        wrapper.appendChild(dateLine);
+        var acct = document.createElement("span");
+        acct.className = "spy-tick-price";
+        acct.textContent = cur + this._fmtMoney(r.total_account);
+        wrapper.appendChild(acct);
 
-        // KPI grid
-        var kpiRow = document.createElement("div");
-        kpiRow.className = "spy-kpi-row";
+        var pnl = parseFloat(r.today_pnl) || 0;
+        var delta = document.createElement("span");
+        delta.className = "spy-tick-delta " + (pnl > 0 ? "spy-tick-up" : pnl < 0 ? "spy-tick-down" : "spy-tick-flat");
+        var arrow = pnl > 0 ? "▲" : pnl < 0 ? "▼" : "•";
+        var sign = pnl > 0 ? "+" : pnl < 0 ? "-" : "";
+        delta.textContent = arrow + " " + sign + cur + this._fmtMoney(Math.abs(pnl)) + " today";
+        wrapper.appendChild(delta);
 
-        var total = this._kpi("Account", cur + this._fmtMoney(r.total_account));
-        var pnl = this._kpi("Today", (r.today_pnl >= 0 ? "+" : "") + cur + this._fmtMoney(r.today_pnl),
-                              r.today_pnl >= 0 ? "spy-pos" : "spy-neg");
-        var streak = this._kpi("Streak", r.streak_text, r.streak_class);
-        var wins = this._kpi("Win / Loss", r.wins + " / " + r.losses);
-
-        kpiRow.appendChild(total);
-        kpiRow.appendChild(pnl);
-        kpiRow.appendChild(streak);
-        kpiRow.appendChild(wins);
-        wrapper.appendChild(kpiRow);
-
-        // Today's trade
+        var detail = document.createElement("span");
+        detail.className = "spy-tick-detail";
         if (r.today_ticker) {
-            var trade = document.createElement("div");
-            trade.className = "spy-trade";
-            var tradeHtml = "<span class=\"spy-label\">Today's Trade:</span> ";
-            tradeHtml += "<b>" + r.today_ticker + "</b> — ";
-            tradeHtml += r.today_shares + " sh @ " + cur + this._fmtMoney(r.today_entry);
-            tradeHtml += " &rarr; " + cur + this._fmtMoney(r.today_exit);
-            tradeHtml += " <span class=\"" + (r.today_pnl >= 0 ? "spy-pos" : "spy-neg") + "\">";
-            tradeHtml += (r.today_pnl >= 0 ? "+" : "") + cur + this._fmtMoney(r.today_pnl) + "</span>";
-            trade.innerHTML = tradeHtml;
-            wrapper.appendChild(trade);
+            var txt = r.today_ticker + " · " + (r.today_shares || "?") + " sh @ " + cur + this._fmtMoney(r.today_entry);
+            if (r.today_exit) {
+                txt += " → " + cur + this._fmtMoney(r.today_exit);
+            }
+            detail.textContent = txt;
+        } else {
+            detail.textContent = "no trade yet";
+        }
+        wrapper.appendChild(detail);
+
+        if (r.wins + r.losses > 0) {
+            var record = document.createElement("span");
+            record.className = "spy-tick-detail";
+            record.textContent = r.streak_text + " · " + r.wins + "W-" + r.losses + "L";
+            wrapper.appendChild(record);
         }
 
-        // Status line
-        var status = document.createElement("div");
-        status.className = "spy-status";
-        status.innerHTML = "Status: <b>" + r.status + "</b> · Target: " + cur + r.target + " · Loss limit: " + cur + r.max_loss;
-        wrapper.appendChild(status);
-
         return wrapper;
-    },
-
-    _kpi: function(label, value, valueClass) {
-        var box = document.createElement("div");
-        box.className = "spy-kpi";
-        var lbl = document.createElement("div");
-        lbl.className = "spy-kpi-label";
-        lbl.innerHTML = label;
-        var val = document.createElement("div");
-        val.className = "spy-kpi-value" + (valueClass ? " " + valueClass : "");
-        val.innerHTML = value;
-        box.appendChild(lbl);
-        box.appendChild(val);
-        return box;
     },
 
     _fmtMoney: function(n) {

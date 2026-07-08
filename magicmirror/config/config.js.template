@@ -202,15 +202,6 @@ let config = {
 			}
 		},
 		{
-			module: "MMM-SpyTrackerReport",
-			position: "top_right",
-			header: "SPY_TRACKER",
-			config: {
-				spyTrackerPath: "/home/hyonis/spy_tracker",
-				updateInterval: 300000 // Update every 5 minutes
-			}
-		},
-		{
 			module: "MMM-MarketTicker",
 			position: "bottom_bar",            // below compliments (declared earlier in array)
 			config: {
@@ -222,6 +213,14 @@ let config = {
 				// Optional Finnhub fallback when Yahoo fails (US stocks/ETFs only).
 				// Replace placeholder on the Pi only — never commit your real key.
 				finnhubApiKey: "YOUR_FINNHUB_API_KEY_HERE"
+			}
+		},
+		{
+			module: "MMM-SpyTrackerReport",
+			position: "bottom_bar", // compact ticker line right under the market ticker
+			config: {
+				spyTrackerPath: "/home/hyonis/spy_tracker",
+				updateInterval: 300000 // Update every 5 minutes
 			}
 		},
 		{
