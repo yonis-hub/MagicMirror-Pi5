@@ -1,6 +1,32 @@
 /* Compact one-line ticker, visually matched to MMM-MarketTicker's static
    bottom-bar row (same label/price/pill treatment and colors). */
 
+/* Lay the bottom-bar modules out as one wrapping row so this line sits on
+   the same level as the market ticker instead of stacking under it.
+   Compliments keeps its own full-width line above them. */
+.region.bottom.bar .container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+}
+
+.region.bottom.bar .container .module.compliments {
+    flex-basis: 100%;
+}
+
+.region.bottom.bar .container .module.MMM-MarketTicker,
+.region.bottom.bar .container .module.MMM-SpyTrackerReport {
+    margin-bottom: 0;
+    flex: 0 0 auto;
+}
+
+/* The market ticker's wrapper is width:100% for its marquee mode; in this
+   side-by-side row it must shrink to its content or it hogs the whole line. */
+.region.bottom.bar .container .module.MMM-MarketTicker .mt-wrapper {
+    width: auto;
+}
+
 .spytracker-report {
     display: flex;
     align-items: baseline;
