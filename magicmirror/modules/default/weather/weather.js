@@ -233,15 +233,12 @@ Module.register("weather", {
 			"unit",
 			function (value, type, valueUnit) {
 				if (type === "temperature") {
-					value = `${this.roundValue(WeatherUtils.convertTemp(value, this.config.tempUnits))}°`;
 					if (this.config.degreeLabel) {
-						if (this.config.tempUnits === "metric") {
-							value += "C";
-						} else if (this.config.tempUnits === "imperial") {
-							value += "F";
-						} else {
-							value += "K";
-						}
+						const c = this.roundValue(WeatherUtils.convertTemp(value, "metric"));
+						const f = this.roundValue(WeatherUtils.convertTemp(value, "imperial"));
+						value = `${c}°C / ${f}°F`;
+					} else {
+						value = `${this.roundValue(WeatherUtils.convertTemp(value, this.config.tempUnits))}°`;
 					}
 				} else if (type === "precip") {
 					if (value === null || isNaN(value) || value === 0 || value.toFixed(2) === "0.00") {

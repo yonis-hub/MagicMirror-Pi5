@@ -183,6 +183,7 @@ let config = {
 				showHumidity: true,
 				showSun: true,
 				showWeekdayForecasts: true,
+				degreeLabel: true,
 				fadePoint: 0.25
 			}
 		},
@@ -196,7 +197,17 @@ let config = {
 				location: "London, Ontario",
 				locationID: "6058560", // London, Ontario, Canada
 				apiKey: "YOUR_OPENWEATHER_API_KEY_HERE",
-				updateInterval: 600000 // Update every 10 minutes
+				updateInterval: 600000, // Update every 10 minutes
+				degreeLabel: true
+			}
+		},
+		{
+			module: "MMM-SpyTrackerReport",
+			position: "top_right",
+			header: "SPY_TRACKER",
+			config: {
+				spyTrackerPath: "/mnt/c/Users/hyoni/Documents/Dev_Apps/spy_tracker",
+				updateInterval: 300000 // Update every 5 minutes
 			}
 		},
 		{
