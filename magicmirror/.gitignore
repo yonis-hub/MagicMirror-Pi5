@@ -74,6 +74,8 @@ Temporary Items
 !/modules/MMM-FaceIdentity/**
 !/modules/MMM-MarketTicker
 !/modules/MMM-MarketTicker/**
+!/modules/MMM-SpyTrackerReport
+!/modules/MMM-SpyTrackerReport/**
 /modules/MMM-QuranDisplay/__pycache__/
 /modules/MMM-QuranDisplay/**/*.pyc
 /modules/MMM-FaceIdentity/__pycache__/
