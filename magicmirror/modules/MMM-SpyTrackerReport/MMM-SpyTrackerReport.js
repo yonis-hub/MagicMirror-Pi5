@@ -6,7 +6,7 @@ Module.register("MMM-SpyTrackerReport", {
         updateInterval: 5 * 60 * 1000, // 5 minutes
         fadeSpeed: 500,
         currency: "$",
-        label: "Bot_Trades"
+        label: "Paper_Bot"
     },
 
     getStyles: function() {
@@ -60,9 +60,12 @@ Module.register("MMM-SpyTrackerReport", {
         label.textContent = this.config.label;
         wrapper.appendChild(label);
 
+        // Cumulative realized P&L across all trades — the actual return,
+        // not the paper account balance (the $50k starting point is noise).
+        var totalPnl = parseFloat(r.total_pnl) || 0;
         var acct = document.createElement("span");
-        acct.className = "spy-tick-price";
-        acct.textContent = cur + this._fmtMoney(r.total_account);
+        acct.className = "spy-tick-price " + (totalPnl > 0 ? "spy-tick-total-pos" : totalPnl < 0 ? "spy-tick-total-neg" : "");
+        acct.textContent = (totalPnl > 0 ? "+" : totalPnl < 0 ? "-" : "") + cur + this._fmtMoney(Math.abs(totalPnl));
         wrapper.appendChild(acct);
 
         var pnl = parseFloat(r.today_pnl) || 0;

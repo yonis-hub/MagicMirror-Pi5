@@ -93,6 +93,7 @@ module.exports = NodeHelper.create({
                 target: parseFloat(plan.target_profit) || 200,
                 max_loss: parseFloat(plan.max_daily_loss) || 500,
                 total_account: totalAccount,
+                total_pnl: totalRealized,
                 today_pnl: todayPnl,
                 today_ticker: todayTicker,
                 today_shares: todayShares,
