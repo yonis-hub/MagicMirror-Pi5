@@ -304,6 +304,20 @@ SURAH_DISPLAY_NAMES = {
     111: "Al-Masad", 112: "Al-Ikhlas", 113: "Al-Falaq", 114: "An-Nas",
 }
 
+# Canonical short spoken name per surah, derived from SURAH_DISPLAY_NAMES by
+# dropping the Arabic article prefix ("Al-Fatiha" -> "fatiha", "Ya-Sin" ->
+# "yasin", "Ali Imran" -> "imran"). Used to prime Whisper's initial_prompt
+# with the full 114-name vocabulary (see _build_stt_prompt). NOT derived from
+# SURAH_NAMES: that alias table has duplicate keys ("victory", "dawn", "time",
+# "inevitable" each map to two surahs) whose collapse corrupts any
+# first-alias-per-surah ordering.
+SURAH_SHORT_NAMES = {}
+for _num, _display in SURAH_DISPLAY_NAMES.items():
+    _short = re.sub(r"^(?:adh|ash|ali|al|an|at|as|ad|ar|az)[-\s]+", "", _display.lower())
+    _short = re.sub(r"[^a-z]", "", _short)
+    if _short:
+        SURAH_SHORT_NAMES[_num] = _short
+
 _ONES = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -401,17 +415,6 @@ COMMON_REPLACEMENTS = {
     "played": "play",
     "play it": "play",
     "play item": "play",
-    "mode": "mo",
-    "more": "mo",
-    "moe": "mo",
-    "mow": "mo",
-    "moh": "mo",
-    "oh play": "mo play",
-    "oh recite": "mo recite",
-    "oh stop": "mo stop",
-    "oh pause": "mo pause",
-    "oh resume": "mo resume",
-    "oh surah": "mo surah",
     "play to": "play 2",
     "play too": "play 2",
     "play tu": "play 2",
@@ -450,22 +453,7 @@ COMMON_REPLACEMENTS = {
     "malik": "mulk",
     "coffee": "kahf",
     "calf": "kahf",
-    "mirror": "mo",
-    "mira": "mo",
-    "mirae": "mo",
-    "move": "mo",
-    "mu": "mo",
-    "moo": "mo",
-    "muh": "mo",
-    "ma": "mo",
-    "me": "mo",
-    "my": "mo",
-    "no": "mo",
-    "know": "mo",
-    "go": "mo",
     "s2p": "stop",
-    "paws": "pause",
-    "pose": "pause",
     "poz": "pause",
     "pase": "pause",
     "stap": "stop",
@@ -473,7 +461,6 @@ COMMON_REPLACEMENTS = {
     "stock": "stop",
     "dtop": "stop",
     "dop": "stop",
-    "top": "stop",
     "resum": "resume",
     "rezum": "resume",
     "resoom": "resume",
@@ -482,8 +469,6 @@ COMMON_REPLACEMENTS = {
     "pley": "play",
     "plei": "play",
     "plai": "play",
-    "pray": "play",
-    "prey": "play",
     "resight": "recite",
     "resait": "recite",
     "raseet": "recite",
@@ -499,6 +484,9 @@ COMMON_REPLACEMENTS = {
 
 PHRASE_REPLACEMENTS = {k: v for k, v in COMMON_REPLACEMENTS.items() if " " in k}
 WORD_REPLACEMENTS = {k: v for k, v in COMMON_REPLACEMENTS.items() if " " not in k}
+PHRASE_REPLACEMENT_PATTERN = re.compile(
+    r"\b(" + "|".join(map(re.escape, PHRASE_REPLACEMENTS.keys())) + r")\b"
+) if PHRASE_REPLACEMENTS else None
 WORD_REPLACEMENT_PATTERN = re.compile(
     r"\b(" + "|".join(map(re.escape, WORD_REPLACEMENTS.keys())) + r")\b"
 ) if WORD_REPLACEMENTS else None
@@ -668,6 +656,15 @@ FUZZY_SURAH_THRESHOLD = 0.82
 DEFAULT_SILENCE_MAX_AMP = 60
 DEFAULT_SILENCE_RMS_AMP = 12
 DEFAULT_COMMAND_DEBOUNCE_SEC = 3.0
+# Hybrid-parser escalation: a local result at or above this confidence skips
+# the Ollama round-trip; below it (or action "none") Ollama gets a say.
+LOCAL_HIGH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_LOCAL_HIGH_CONF", "0.75"))))
+# Minimum confidence for accepting an Ollama parse over the local fallback.
+OLLAMA_MIN_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_OLLAMA_MIN_CONF", "0.5"))))
+# AGC (RMS level normalisation) applied to command audio before Whisper.
+# VOICE_AGC_TARGET_RMS=0 disables AGC entirely.
+AGC_TARGET_RMS = max(0.0, float(os.getenv("VOICE_AGC_TARGET_RMS", "3000")))
+AGC_MAX_GAIN = max(1.0, float(os.getenv("VOICE_AGC_MAX_GAIN", "6")))
 
 def clamp_confidence(value, default=DEFAULT_CONFIDENCE):
     try:
@@ -698,6 +695,21 @@ def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=
         "reason": reason,
         "follow_up": bool(follow_up)
     }
+
+def result_confidence(result):
+    """Confidence of a (action, value, intent) parser result.
+
+    Action-less results score 0 so that in hybrid arbitration any real
+    intent beats an unrecognized one, regardless of the stored default.
+    """
+    if not result or len(result) != 3:
+        return 0.0
+    action, _, intent = result
+    if not action or action == "none":
+        return 0.0
+    if isinstance(intent, dict):
+        return clamp_confidence(intent.get("confidence"), default=0.0)
+    return 0.0
 
 RANGE_PATTERN = re.compile(r"(verse|ayah)?\s*(\d+)(?:\s*(to|-)\s*(\d+))?", re.IGNORECASE)
 
@@ -1037,6 +1049,12 @@ class OllamaVoiceListener:
         self.silence_max_amp = max(0, int(silence_max_amp))
         self.silence_rms_amp = max(0, int(silence_rms_amp))
         self.command_debounce_sec = max(0.0, float(os.getenv("VOICE_COMMAND_DEBOUNCE_SEC", str(DEFAULT_COMMAND_DEBOUNCE_SEC))))
+        # silero-VAD command-capture tuning (only used when --use-vad is on)
+        self.vad_threshold = max(0.0, min(1.0, float(os.getenv("VOICE_VAD_THRESHOLD", "0.5"))))
+        self.vad_silence_tail_ms = max(0, int(os.getenv("VOICE_VAD_SILENCE_TAIL_MS", "900")))
+        self.vad_pre_roll_sec = max(0.0, float(os.getenv("VOICE_VAD_PREROLL_SEC", "0.5")))
+        self.vad_max_duration_sec = max(1.0, float(os.getenv("VOICE_VAD_MAX_DURATION_SEC", "8.0")))
+        self.vad_start_timeout_sec = max(0.5, float(os.getenv("VOICE_VAD_START_TIMEOUT_SEC", "3.0")))
         self.timing_history = deque(maxlen=100)
         self._last_listening_status = None
         self._last_recording_status = None
@@ -1059,17 +1077,9 @@ class OllamaVoiceListener:
         self._juz_cancel = None
         self._juz_worker = None
         self._juz_current = None
-        wake_words_prompt = " ".join(sorted(self.wake_words))
-        # Keep this SHORT. A long word list biases Whisper toward *emitting*
-        # those tokens on unclear audio, producing confident-but-wrong surah
-        # names. We list only the command grammar plus a handful of high-value
-        # terms — the normalize_speech() phonetic fixups handle the rest.
-        self.stt_prompt = (
-            "Voice command for Quran recitation. "
-            f"Wake words: {wake_words_prompt}. "
-            "Actions: play recite pause resume continue stop switch reciter. "
-            "Vocabulary: surah ayah verse juz para fatiha baqarah yasin rahman mulk ikhlas."
-        )
+        # Whisper priming prompt — built once here and cached on the instance.
+        # See _build_stt_prompt() for the construction and size rationale.
+        self.stt_prompt = self._build_stt_prompt()
 
         # Print audio device information
         print(f"🔊 Using audio device: {device}")
@@ -1082,14 +1092,7 @@ class OllamaVoiceListener:
 
         # Initialize Whisper (loads model into RAM once)
         print(f"⏳ Loading Whisper model ({self.stt_model})...")
-        # CTranslate2 only supports cpu / cuda / auto — the old "opencl" always
-        # threw and silently fell through to CPU. "auto" picks CUDA if present,
-        # else CPU, without the misleading exception.
-        try:
-            self.whisper = WhisperModel(self.stt_model, device="auto", compute_type="int8")
-        except Exception as e:
-            print(f"  Whisper 'auto' device failed ({e!r}); using cpu")
-            self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
+        self.whisper = self._load_whisper_model()
 
         # ---- Voice v2 components (all optional; failure -> fallback to v1) ----
         self.piper_tts = None
@@ -1132,6 +1135,61 @@ class OllamaVoiceListener:
                 print("  ✅ denoiser loaded")
             except Exception as e:
                 print(f"  ⚠️  denoiser unavailable: {e!r}")
+
+    def _load_whisper_model(self):
+        """Load the faster-whisper model into RAM.
+
+        CTranslate2 only supports cpu / cuda / auto — the old "opencl" device
+        always threw and silently fell through to CPU. "auto" picks CUDA if
+        present, else CPU, without the misleading exception. Shared by
+        __init__ and check_memory() so a memory-pressure reload picks the
+        device exactly the same way as the initial load.
+        """
+        try:
+            return WhisperModel(self.stt_model, device="auto", compute_type="int8")
+        except Exception as e:
+            print(f"  Whisper 'auto' device failed ({e!r}); using cpu")
+            return WhisperModel(self.stt_model, device="cpu", compute_type="int8")
+
+    def _build_stt_prompt(self):
+        """Compose the Whisper initial_prompt (called once, cached at init).
+
+        faster-whisper keeps the LAST ~224 tokens of an over-long prompt, and
+        this prompt is longer than that — so the exotic vocabulary goes at the
+        END where it survives trimming: the canonical short transliteration of
+        each of the 114 surahs (one name per surah, from SURAH_SHORT_NAMES —
+        not the full ~300-alias SURAH_NAMES list), then the reciter names/
+        aliases from reciters.json ("switch to Noreen Sedeeq" style commands).
+        The framing + action verbs at the front are what gets shed; that is
+        fine, they are common English words Whisper recognises without priming.
+        """
+        wake_words_prompt = " ".join(sorted(self.wake_words))
+        surah_names = " ".join(SURAH_SHORT_NAMES[n] for n in sorted(SURAH_SHORT_NAMES))
+        parts = [
+            "Voice command for Quran recitation.",
+            f"Wake words: {wake_words_prompt}.",
+            "Actions: play recite pause resume continue stop switch reciter.",
+            f"Vocabulary: surah ayah verse juz para {surah_names}.",
+        ]
+        try:
+            manifest = self._load_reciters_manifest()
+            reciter_terms = []
+            if manifest:
+                for key, info in manifest.get("reciters", {}).items():
+                    reciter_terms.append(key.replace("-", " "))
+                    name = info.get("name")
+                    if name:
+                        reciter_terms.append(name.lower())
+                    reciter_terms.extend(
+                        a.lower() for a in info.get("aliases", []) if a
+                    )
+            if reciter_terms:
+                seen = set()
+                unique_terms = [t for t in reciter_terms if not (t in seen or seen.add(t))]
+                parts.append("Reciters: " + " ".join(unique_terms) + ".")
+        except Exception as e:
+            print(f"  ⚠️  Could not add reciter names to STT prompt: {e!r}")
+        return " ".join(parts)
 
     def within_followup_window(self):
         return time.time() < self.followup_deadline
@@ -1431,15 +1489,25 @@ class OllamaVoiceListener:
     def _parse_command(self, command_text):
         local_result = self.parse_fallback(command_text, require_wake=False)
         local_action = local_result[0] if local_result and len(local_result) == 3 else None
+        local_confidence = result_confidence(local_result)
 
         if self.parser_mode == "local":
             return local_result
 
         if self.parser_mode == "hybrid":
-            if local_action and local_action != "none":
+            # Fast path: the local parser is sure of itself — skip the Ollama
+            # round-trip. Unrecognized or low-confidence local results get
+            # escalated so Ollama can try to do better; whichever result has
+            # the higher confidence wins (Ollama's is still gated inside
+            # parse_with_ollama, which falls back to the local parser on
+            # failure/low confidence, so an unreachable Ollama degrades to
+            # the local result as before).
+            if local_action and local_action != "none" and local_confidence >= LOCAL_HIGH_CONFIDENCE:
                 return local_result
             if self.ollama_available:
-                return self.parse_with_ollama(command_text, require_wake=False)
+                ollama_result = self.parse_with_ollama(command_text, require_wake=False)
+                if result_confidence(ollama_result) >= local_confidence:
+                    return ollama_result
             return local_result
 
         # parser_mode == "ollama"
@@ -2019,8 +2087,10 @@ class OllamaVoiceListener:
             return ""
         text = text.lower().strip()
 
-        # Handle "oh, play ..." style wake-word miss heard as "oh".
-        text = re.sub(r"\boh[\s,]+(?=(play|recite|stop|pause|resume|surah)\b)", "mo ", text)
+        # "oh, play ..." — Whisper sometimes renders a stray wake-word
+        # syllable as "oh" right before a command verb. Drop the "oh" so the
+        # plain command phrase remains (no wake-word token is injected here).
+        text = re.sub(r"\boh[\s,]+(?=(play|recite|stop|pause|resume|surah)\b)", "", text)
 
         # Whisper has no concept of "juz" (Arabic loanword, never in its
         # training transcripts). It tends to render it as "pledge", "juice",
@@ -2040,9 +2110,15 @@ class OllamaVoiceListener:
         # "juzz" / "juss" / "judge" + number → juz N (closer mishears).
         text = re.sub(r"\b(?:juzz|juss|judge)\s+(?=\d)", "juz ", text)
 
-        # Apply phrase replacements first (multi-word expressions)
-        for src, dst in PHRASE_REPLACEMENTS.items():
-            text = text.replace(src, dst)
+        # Apply phrase replacements first (multi-word expressions), with word
+        # boundaries like the word-level pass so substrings of longer words
+        # don't match.
+        if PHRASE_REPLACEMENT_PATTERN:
+            def replace_phrase(match):
+                phrase = match.group(0)
+                return PHRASE_REPLACEMENTS.get(phrase, phrase)
+
+            text = PHRASE_REPLACEMENT_PATTERN.sub(replace_phrase, text)
 
         # Apply word-level replacements with word boundaries to avoid partial hits
         if WORD_REPLACEMENT_PATTERN:
@@ -2146,20 +2222,78 @@ class OllamaVoiceListener:
             print(f"  Silence check error: {e}")
             return False
 
+    def _normalize_wav_level(self, path):
+        """RMS-normalize a 16 kHz mono S16_LE WAV in place (simple AGC).
+
+        Quiet far-field speech is boosted toward AGC_TARGET_RMS and over-hot
+        audio is attenuated to the target, so Whisper sees a consistent input
+        level. Boost gain is capped by AGC_MAX_GAIN and by the digital-clip
+        ceiling (32767/peak). AGC_TARGET_RMS=0 disables AGC entirely; empty
+        or zero-signal files are skipped silently, and any error leaves the
+        file unmodified.
+        """
+        target = AGC_TARGET_RMS
+        if target <= 0:
+            return
+        try:
+            import wave
+            with wave.open(path, "rb") as wf:
+                if wf.getnchannels() != 1 or wf.getsampwidth() != 2:
+                    return
+                params = wf.getparams()
+                data = wf.readframes(wf.getnframes())
+            samples = np.frombuffer(data, dtype=np.int16)
+            if samples.size == 0:
+                return
+            floats = samples.astype(np.float32)
+            rms = float(np.sqrt(np.mean(floats * floats)))
+            peak = float(np.max(np.abs(floats)))
+            if rms <= 0.0 or peak <= 0.0:
+                return
+            if rms < target:
+                gain = min(target / rms, AGC_MAX_GAIN, 32767.0 / peak)
+            elif rms > 2.0 * target:
+                gain = target / rms
+            else:
+                return  # already within the target band
+            if gain <= 0.0 or abs(gain - 1.0) < 1e-3:
+                return
+            scaled = np.clip(floats * gain, -32768.0, 32767.0).astype(np.int16)
+            with wave.open(path, "wb") as wf:
+                wf.setparams(params)
+                wf.writeframes(scaled.tobytes())
+            print(f"  AGC: rms {rms:.0f} -> gain x{gain:.2f}")
+        except Exception as e:
+            print(f"  AGC skipped ({e!r}); transcribing original audio")
+
     def transcribe_whisper(self, audio_file):
         """Transcribe audio using Faster-Whisper"""
         try:
             language = self.stt_language if self.stt_language else None
+            # Bring quiet/far-field speech up to a consistent level before
+            # decoding. Runs after denoise in the v2 path (denoise happens in
+            # listen_loop_v2 before this call), and right after arecord in v1.
+            self._normalize_wav_level(audio_file)
             # Silero-VAD already trims the clip in the v2 capture path, so
             # Whisper's own vad_filter would trim a second time and clip word
             # boundaries. Leave it off; re-enable via VOICE_WHISPER_VAD=1 only
             # if running the v1 fixed-window path without upstream VAD.
             whisper_vad = os.environ.get("VOICE_WHISPER_VAD", "0") == "1"
+            # Decode quality gates: when a pass fails one of these thresholds
+            # faster-whisper retries with the next temperature in the list,
+            # which rescues decodes that beam search at temp 0 fumbles.
+            log_prob_threshold = float(os.environ.get("VOICE_WHISPER_LOGPROB_THRESHOLD", "-1.0"))
+            compression_threshold = float(os.environ.get("VOICE_WHISPER_COMPRESSION_THRESHOLD", "2.4"))
+            no_speech_threshold = float(os.environ.get("VOICE_WHISPER_NO_SPEECH_THRESHOLD", "0.6"))
             segments, info = self.whisper.transcribe(
                 audio_file,
                 beam_size=5,
+                best_of=5,
                 language=language,
-                temperature=0,
+                temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                compression_ratio_threshold=compression_threshold,
+                log_prob_threshold=log_prob_threshold,
+                no_speech_threshold=no_speech_threshold,
                 vad_filter=whisper_vad,
                 vad_parameters={"min_silence_duration_ms": 250},
                 initial_prompt=self.stt_prompt,
@@ -2190,7 +2324,7 @@ class OllamaVoiceListener:
     # Cheap transport-command detector. Runs before any Ollama round-trip so
     # "stop"/"pause"/"resume" stay sub-second even with a 3B-class model.
     _TRANSPORT_FAST_PATH = re.compile(
-        r"^\s*(?:mo[\s,!.]+|hey\s+jarvis[\s,!.]+|hi\s+jarvis[\s,!.]+)?"
+        r"^\s*(?:hey\s+jarvis[\s,!.]+|hi\s+jarvis[\s,!.]+)?"
         r"(?P<verb>stop|halt|end\s+(?:it|playback)?|pause|hold(?:\s+on)?|wait|"
         r"resume|continue|unpause|go\s+on|keep\s+going|carry\s+on)"
         r"[\s,!.]*$",
@@ -2230,7 +2364,7 @@ class OllamaVoiceListener:
         try:
             context = self.get_context_summary()
             domain_hint = (
-                "Command vocabulary includes: mo, play, recite, pause, resume, stop, surah, verse. "
+                "Command vocabulary includes: play, recite, pause, resume, stop, surah, verse. "
                 "Common surah names: fatiha, baqarah, yasin, rahman, kahf, mulk, ikhlas, nas."
             )
             prompt = (
@@ -2261,7 +2395,7 @@ class OllamaVoiceListener:
                 if result:
                     action, value, intent = result
                     confidence = intent.get("confidence", DEFAULT_CONFIDENCE)
-                    if action in {"stop", "pause", "resume"} or confidence >= 0.35:
+                    if action in {"stop", "pause", "resume"} or confidence >= OLLAMA_MIN_CONFIDENCE:
                         return result
                     print(f"  Ollama low confidence ({confidence:.2f}); using fallback parser.")
         except requests.exceptions.Timeout:
@@ -2379,7 +2513,6 @@ class OllamaVoiceListener:
 
         wake_present = self.detect_wake_word(text)
         command_text = self.remove_wake_words(text)
-        words = tokenize_words(command_text)
 
         if require_wake and not wake_present:
             return (None, None, create_intent())
@@ -2432,10 +2565,11 @@ class OllamaVoiceListener:
             if surah_number:
                 return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
 
-            if any(token in {"quran", "koran", "quron"} for token in words):
-                return ("play", 1, create_intent(action="play", surah=1, confidence=0.5))
-
-            return ("play", 1, create_intent(action="play", surah=1, confidence=0.45))
+            # Bare play intent with no identifiable surah/verse: do NOT
+            # default to Surah 1. Returning "none" lets hybrid mode escalate
+            # to Ollama; if nothing identifies a surah the command is
+            # rejected instead of blasting Al-Fatiha uninvited.
+            return (None, None, create_intent(reason="bare play intent, no surah identified"))
 
         if contains_any_token(command_text, SEARCH_KEYWORDS) or contains_fuzzy_token(command_text, SEARCH_KEYWORDS, cutoff=0.74):
             topic = self.detect_topic_from_text(command_text)
@@ -2600,11 +2734,10 @@ class OllamaVoiceListener:
                 self.whisper = None
                 import gc
                 gc.collect()
-                # Reinitialize Whisper
-                try:
-                    self.whisper = WhisperModel(self.stt_model, device="opencl", compute_type="int8")
-                except Exception:
-                    self.whisper = WhisperModel(self.stt_model, device="cpu", compute_type="int8")
+                # Reinitialize Whisper with the same device/compute selection
+                # as the initial load (the old reload used device="opencl",
+                # which always threw — see _load_whisper_model).
+                self.whisper = self._load_whisper_model()
         except Exception as e:
             print(f"Memory check error: {e}")
 
@@ -2845,15 +2978,16 @@ class OllamaVoiceListener:
                     print("  Recording command (VAD-trimmed)...")
                     self.send_recording_status(True)
                     audio_file = self.vad.record_command(
-                        max_duration_sec=8.0,
+                        max_duration_sec=self.vad_max_duration_sec,
                         # 900ms tail: 700 was cutting off when the user paused
                         # briefly mid-command.
-                        silence_tail_ms=900,
-                        speech_start_timeout_sec=3.0,
+                        silence_tail_ms=self.vad_silence_tail_ms,
+                        speech_start_timeout_sec=self.vad_start_timeout_sec,
                         # 0.5s pre-roll: the spoken wake-ack runs just before
                         # this, so users often start talking over it; 0.3 was
                         # clipping the first word.
-                        pre_roll_sec=0.5,
+                        pre_roll_sec=self.vad_pre_roll_sec,
+                        threshold=self.vad_threshold,
                     )
                     self.send_recording_status(False)
                 else:

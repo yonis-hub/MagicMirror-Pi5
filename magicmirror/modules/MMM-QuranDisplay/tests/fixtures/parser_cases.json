@@ -1,21 +1,21 @@
 [
   {
     "name": "play_yasin",
-    "input": "mo play surah yasin",
+    "input": "hey jarvis play surah yasin",
     "require_wake": true,
     "expected_action": "play",
     "expected_surah": 36
   },
   {
     "name": "play_rahman",
-    "input": "mo play surah rahman",
+    "input": "hey jarvis play surah rahman",
     "require_wake": true,
     "expected_action": "play",
     "expected_surah": 55
   },
   {
     "name": "stop_with_wake",
-    "input": "mo stop",
+    "input": "hey jarvis stop",
     "require_wake": true,
     "expected_action": "stop",
     "expected_surah": null
@@ -36,23 +36,37 @@
   },
   {
     "name": "misheard_yes_seen",
-    "input": "mo play sir yes seen",
+    "input": "hey jarvis play sir yes seen",
     "require_wake": true,
     "expected_action": "play",
     "expected_surah": 36
   },
   {
     "name": "misheard_rock_man",
-    "input": "mo play surah rock man",
+    "input": "hey jarvis play surah rock man",
     "require_wake": true,
     "expected_action": "play",
     "expected_surah": 55
   },
   {
     "name": "numeric_surah",
-    "input": "mo play surah 55",
+    "input": "hey jarvis play surah 55",
     "require_wake": true,
     "expected_action": "play",
     "expected_surah": 55
+  },
+  {
+    "name": "bare_play_no_surah",
+    "input": "hey jarvis play",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "play_quran_no_surah1_default",
+    "input": "hey jarvis play quran",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
   }
 ]
