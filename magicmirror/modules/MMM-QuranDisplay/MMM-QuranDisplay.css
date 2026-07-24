@@ -481,3 +481,17 @@
   from { height: 6px; opacity: 0.6; }      /* +40% from 4px */
   to   { height: 25px; opacity: 1; }       /* +40% from 18px */
 }
+
+/* Show both raw + normalized text when the parser couldn't understand. */
+.mmm-quran-display .voice-transcript-sub {
+  color: #9f9f9f;
+  font-size: 0.68em;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+.mmm-quran-display .voice-transcript-raw {
+  color: #ffb377;   /* soft orange so 'what Whisper heard' stands out */
+  font-style: italic;
+}

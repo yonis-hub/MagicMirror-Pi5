@@ -259,15 +259,45 @@ Module.register("MMM-QuranDisplay", {
 		const transcriptDiv = document.createElement("div");
 		transcriptDiv.className = "voice-transcript";
 
+		const phase = String(this.voiceTranscript?.phase || "").toLowerCase();
+		const processed = String(this.voiceTranscript.text || "").trim();
+		const raw = String(this.voiceTranscript.rawText || "").trim();
+		const differsFromRaw = raw && raw.toLowerCase() !== processed.toLowerCase();
+
 		const labelDiv = document.createElement("div");
 		labelDiv.className = "voice-transcript-label";
 		labelDiv.textContent = this.getTranscriptPhaseLabel();
 		transcriptDiv.appendChild(labelDiv);
 
-		const textDiv = document.createElement("div");
-		textDiv.className = "voice-transcript-text";
-		textDiv.textContent = `"${this.voiceTranscript.text}"`;
-		transcriptDiv.appendChild(textDiv);
+		// On a failed parse, show BOTH what Whisper heard and what the
+		// normalizer turned it into — so the user can see the mistranslation
+		// and add the mishear to the normalizer if it's a common one.
+		if (phase === "unrecognized" && differsFromRaw) {
+			const heardLabel = document.createElement("div");
+			heardLabel.className = "voice-transcript-sub";
+			heardLabel.textContent = "Heard";
+			transcriptDiv.appendChild(heardLabel);
+
+			const heardText = document.createElement("div");
+			heardText.className = "voice-transcript-text voice-transcript-raw";
+			heardText.textContent = `"${raw}"`;
+			transcriptDiv.appendChild(heardText);
+
+			const understoodLabel = document.createElement("div");
+			understoodLabel.className = "voice-transcript-sub";
+			understoodLabel.textContent = "Interpreted as";
+			transcriptDiv.appendChild(understoodLabel);
+
+			const understoodText = document.createElement("div");
+			understoodText.className = "voice-transcript-text";
+			understoodText.textContent = `"${processed}"`;
+			transcriptDiv.appendChild(understoodText);
+		} else {
+			const textDiv = document.createElement("div");
+			textDiv.className = "voice-transcript-text";
+			textDiv.textContent = `"${processed}"`;
+			transcriptDiv.appendChild(textDiv);
+		}
 
 		wrapper.appendChild(transcriptDiv);
 	},
