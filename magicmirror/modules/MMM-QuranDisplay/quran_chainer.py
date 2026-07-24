@@ -19,6 +19,7 @@ import time
 import requests
 import signal
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 try:
@@ -852,17 +853,39 @@ class QuranChainer:
         # Per-verse layout: probe each verse to build a cumulative timeline.
         # This both gives us total duration (for the UI arc) and lets us
         # translate a resume position to (start_verse, within-verse offset).
+        # Probes run in parallel — ffprobe is I/O-bound and a 110-verse surah
+        # spawned sequentially took ~17s before the first note played.
+        t_probe_start = time.monotonic()
+        probe_targets = []  # (index_in_verses, audio_path)
+        for idx, v in enumerate(verses):
+            if v["number"] < start_verse:
+                continue
+            local_audio = v.get("audio")
+            if local_audio and os.path.exists(local_audio):
+                probe_targets.append((idx, local_audio))
+        durations_by_idx = {}
+        if probe_targets:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for idx, dur in zip(
+                    (t[0] for t in probe_targets),
+                    pool.map(self._probe_duration, (t[1] for t in probe_targets)),
+                ):
+                    durations_by_idx[idx] = dur
         verse_durations = []
         cumulative = 0.0
-        for v in verses:
+        for idx, v in enumerate(verses):
             if v["number"] < start_verse:
                 verse_durations.append((v["number"], 0.0, 0.0))
                 continue
-            local_audio = v.get("audio")
-            dur = self._probe_duration(local_audio) if (local_audio and os.path.exists(local_audio)) else 0.0
+            dur = durations_by_idx.get(idx, 0.0)
             verse_durations.append((v["number"], dur, cumulative))
             cumulative += dur
         total_duration = cumulative
+        print(
+            f"  ⏱ probed {len(probe_targets)} verse durations "
+            f"in {time.monotonic() - t_probe_start:.2f}s "
+            f"(total surah audio: {total_duration:.1f}s)"
+        )
 
         # Apply start_position_sec by translating into start_verse + offset
         offset = float(getattr(self, "start_position_sec", 0.0) or 0.0)
