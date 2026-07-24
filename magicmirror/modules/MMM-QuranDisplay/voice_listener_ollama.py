@@ -1463,10 +1463,13 @@ class OllamaVoiceListener:
         if not self.enable_voice or not text:
             return
         self._send_speaking_status(True)
+        print(f"  🗣  Speaking: {text!r}")
+        speak_started = time.monotonic()
         # Phase 2: try Piper neural TTS first (more natural voice)
         if self.piper_tts is not None:
             if self.piper_tts.speak(text):
                 self._tts_finished_at = time.monotonic()
+                print(f"  🗣  (piper {self._tts_finished_at - speak_started:.2f}s)")
                 self._send_speaking_status(False)
                 return
             # fall through to espeak on Piper failure
@@ -1481,6 +1484,7 @@ class OllamaVoiceListener:
                 timeout=10
             )
             self._tts_finished_at = time.monotonic()
+            print(f"  🗣  (espeak {self._tts_finished_at - speak_started:.2f}s)")
             self._send_speaking_status(False)
         except FileNotFoundError:
             # Fallback to pyttsx3 if espeak-ng not installed
