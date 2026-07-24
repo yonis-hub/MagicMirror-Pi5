@@ -1035,6 +1035,12 @@ class OllamaVoiceListener:
         self.ollama_available = False
         self.enable_beeps = enable_beeps
         self.enable_voice = enable_voice
+        # Verbal "I'm listening." after wake. Off by default — the ack takes
+        # ~1s to synthesise and play, and while it's blocking the mic is not
+        # yet recording, so a chained "hey jarvis play surah 18" spoken in
+        # one breath loses the command. UI already shows the state visually.
+        # Set VOICE_SPEAK_WAKE_ACK=1 to bring the spoken ack back.
+        self.speak_wake_ack = os.getenv("VOICE_SPEAK_WAKE_ACK", "0") == "1"
         self.tts_engine = None
         self.command_history = deque(maxlen=MAX_HISTORY)
         self.last_intent = create_intent()
@@ -1062,7 +1068,7 @@ class OllamaVoiceListener:
         self.vad_silence_tail_ms = max(0, int(os.getenv("VOICE_VAD_SILENCE_TAIL_MS", "900")))
         self.vad_pre_roll_sec = max(0.0, float(os.getenv("VOICE_VAD_PREROLL_SEC", "0.5")))
         self.vad_max_duration_sec = max(1.0, float(os.getenv("VOICE_VAD_MAX_DURATION_SEC", "8.0")))
-        self.vad_start_timeout_sec = max(0.5, float(os.getenv("VOICE_VAD_START_TIMEOUT_SEC", "3.0")))
+        self.vad_start_timeout_sec = max(0.5, float(os.getenv("VOICE_VAD_START_TIMEOUT_SEC", "4.0")))
         self.timing_history = deque(maxlen=100)
         self._last_listening_status = None
         self._last_recording_status = None
@@ -2965,6 +2971,10 @@ class OllamaVoiceListener:
 
                 print("  🟢 Wake fired")
                 self.send_transcript_status(self.primary_wake_word, phase="wake", raw_text=self.primary_wake_word)
+                # Flip UI to "recording" before we do anything else so the
+                # user sees the state change the instant the wake fires.
+                self.send_listening_status(False)
+                self.send_recording_status(True)
 
                 playback_active = (
                     self.current_process is not None
@@ -2974,30 +2984,35 @@ class OllamaVoiceListener:
                 # Pause OWW so we don't double-capture during command record / TTS
                 self.oww_detector.stop()
 
-                # Only ack out loud when nothing is playing — otherwise we'd
-                # talk over the recitation. We'll ack after verification if
-                # the wake turns out to be the user.
-                if self.enable_voice and not playback_active:
+                # Optional verbal ack. Off by default (see speak_wake_ack) —
+                # Piper is fully blocking, so speaking here would swallow the
+                # first ~1s of a chained "hey jarvis <command>". Turn on via
+                # VOICE_SPEAK_WAKE_ACK=1 if you prefer the spoken ack.
+                if self.enable_voice and self.speak_wake_ack and not playback_active:
                     self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
 
                 # Capture the command (VAD if available, otherwise fixed window)
                 audio_file = None
                 if self.vad is not None:
                     print("  Recording command (VAD-trimmed)...")
-                    self.send_recording_status(True)
                     audio_file = self.vad.record_command(
                         max_duration_sec=self.vad_max_duration_sec,
                         # 900ms tail: 700 was cutting off when the user paused
                         # briefly mid-command.
                         silence_tail_ms=self.vad_silence_tail_ms,
                         speech_start_timeout_sec=self.vad_start_timeout_sec,
-                        # 0.5s pre-roll: the spoken wake-ack runs just before
-                        # this, so users often start talking over it; 0.3 was
-                        # clipping the first word.
+                        # Pre-roll captures audio from the buffer just before
+                        # VAD detects speech — matters for chained
+                        # "hey jarvis <command>" flows so the first word isn't
+                        # clipped when the user is already speaking as wake
+                        # fires.
                         pre_roll_sec=self.vad_pre_roll_sec,
                         threshold=self.vad_threshold,
                     )
                     self.send_recording_status(False)
+                    # Recording done — reflect that on the UI. process_command
+                    # will flip us to "processing" if a command was captured.
+                    self.send_listening_status(True)
                 else:
                     audio_file = self.record_audio(self.command_window_sec, show_recording=True)
 
