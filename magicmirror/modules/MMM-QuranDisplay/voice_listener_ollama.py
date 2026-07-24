@@ -711,7 +711,15 @@ def result_confidence(result):
         return clamp_confidence(intent.get("confidence"), default=0.0)
     return 0.0
 
-RANGE_PATTERN = re.compile(r"(verse|ayah)?\s*(\d+)(?:\s*(to|-)\s*(\d+))?", re.IGNORECASE)
+# Require an explicit 'verse' / 'ayah' prefix so bare surah numbers ("play
+# surah 18") don't get parsed as verse ranges. Previously '(verse|ayah)?' was
+# optional and every naked digit matched, which turned every "play surah N"
+# into play_verse(surah=N, verse=N).
+RANGE_PATTERN = re.compile(
+    r"\b(?:from\s+)?(verse|verses|ayah|ayahs|ayat|ayats)\s+(\d+)"
+    r"(?:\s*(to|through|thru|-|until)\s*(\d+))?",
+    re.IGNORECASE,
+)
 
 def extract_slots(text):
     slots = {"numbers": [], "ranges": []}
