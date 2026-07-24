@@ -1078,6 +1078,7 @@ class OllamaVoiceListener:
         self._last_listening_status = None
         self._last_recording_status = None
         self._last_processing_status = None
+        self._last_starting_status = None
         self._last_transcript_payload = None
         self._last_memory_check = 0.0
         self._last_command_signature = None
@@ -1974,6 +1975,12 @@ class OllamaVoiceListener:
         self.send_transcript_status(command_text, phase="processing", raw_text=raw_text or command_text)
         self.send_processing_status(True)
         self.send_listening_status(False)
+        # Track whether this command spun up new playback. If so, the finally
+        # block skips re-arming the "Listening" indicator — the chainer will
+        # clear its own "starting" state once audio actually plays, and any
+        # transient "Listening" flash between the two would just confuse the
+        # user (they haven't stopped listening; they're waiting for playback).
+        started_playback = False
         try:
             # Reciter-switch check (runs before the general intent parser so
             # phrases like "use second reciter" / "noreen sedeeq" / "switch
@@ -2046,18 +2053,26 @@ class OllamaVoiceListener:
                 self._remember_command(signature)
                 self.play_confirmation()
                 self.stop_playback()
+                self._begin_starting_state()
+                started_playback = True
                 self.start_chainer(value)
             elif action == "play_verse" and value:
                 surah, verse = value
                 self._remember_command(signature)
                 self.play_confirmation()
                 self.stop_playback()
+                self._begin_starting_state()
+                started_playback = True
                 self.start_chainer(surah, verse_start=verse)
             elif action == "play_juz" and value:
                 self._remember_command(signature)
                 self.play_confirmation()
+                self._begin_starting_state()
+                started_playback = True
                 if not self.start_juz(value):
                     self.play_error()
+                    self.send_starting_status(False)
+                    started_playback = False
             elif action == "chat" and value:
                 self._remember_command(signature)
                 if self.enable_voice:
@@ -2086,7 +2101,23 @@ class OllamaVoiceListener:
                 print("  (Command not executed)")
         finally:
             self.send_processing_status(False)
-            self.send_listening_status(True)
+            if not started_playback:
+                self.send_listening_status(True)
+
+    def _begin_starting_state(self):
+        """Set the 'starting playback' UI flag and arm a safety timer that
+        clears it after a max window, in case the chainer never sends its
+        own clear (crash, sink init hang, etc)."""
+        self.send_starting_status(True)
+        try:
+            existing = getattr(self, "_starting_safety_timer", None)
+            if existing is not None:
+                existing.cancel()
+        except Exception:
+            pass
+        self._starting_safety_timer = threading.Timer(15.0, lambda: self.send_starting_status(False))
+        self._starting_safety_timer.daemon = True
+        self._starting_safety_timer.start()
 
     def check_ollama(self):
         """Check if Ollama is running"""
@@ -2693,6 +2724,23 @@ class OllamaVoiceListener:
             requests.post(url, json={"isProcessing": processing}, timeout=1)
         except Exception as e:
             print(f" Could not send processing status: {e}")
+
+    def send_starting_status(self, starting):
+        """Signal to the UI that a play command has been dispatched and the
+        chainer is spinning up. Cleared by the chainer itself when the first
+        audio starts (POST /api/quran/starting {isStarting:false} from
+        quran_chainer.play_audio). Bridges the gap between 'command
+        understood' and 'audio audible' — probes + mpv init take a couple
+        of seconds and the UI would otherwise flash 'Listening' during it."""
+        starting = bool(starting)
+        if self._last_starting_status == starting:
+            return
+        self._last_starting_status = starting
+        try:
+            url = f"{self.mirror_url}/api/quran/starting"
+            requests.post(url, json={"isStarting": starting}, timeout=1)
+        except Exception as e:
+            print(f" Could not send starting status: {e}")
 
     def send_transcript_status(self, text="", phase="idle", raw_text=""):
         """Send latest recognized phrase to MagicMirror"""

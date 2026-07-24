@@ -45,6 +45,7 @@ Module.register("MMM-QuranDisplay", {
 		this.isListening = false;
 		this.isRecording = false;
 		this.isProcessing = false;
+		this.isStarting = false;
 		this.isSpeaking = false;
 		this.adhkarStatus = {
 			isPlaying: false,
@@ -119,7 +120,7 @@ Module.register("MMM-QuranDisplay", {
 	},
 
 	renderStatusIndicators: function (wrapper) {
-		if (!this.isRecording && !this.isProcessing && !this.isListening && !this.adhanStatus?.isPlaying) {
+		if (!this.isRecording && !this.isProcessing && !this.isListening && !this.isStarting && !this.adhanStatus?.isPlaying) {
 			return;
 		}
 
@@ -165,9 +166,17 @@ Module.register("MMM-QuranDisplay", {
 			statusContainer.appendChild(processingDiv);
 		}
 
-		// Skip "Listening" while Jarvis is speaking — the new voice-speaking
-		// overlay already covers that state and the listener is in TTS cooldown.
-		if (this.isListening && !this.adhanStatus?.isPlaying && !this.isSpeaking) {
+		if (this.isStarting) {
+			const startingDiv = document.createElement("div");
+			startingDiv.className = "starting-indicator";
+			startingDiv.innerHTML = '<span class="starting-spinner" aria-hidden="true"></span><span class="status-text">Starting</span>';
+			statusContainer.appendChild(startingDiv);
+		}
+
+		// Skip "Listening" while Jarvis is speaking OR while playback is
+		// spinning up — the "Starting" indicator above already communicates
+		// the state and a stacked "Listening" would just add noise.
+		if (this.isListening && !this.isStarting && !this.adhanStatus?.isPlaying && !this.isSpeaking) {
 			const listeningDiv = document.createElement("div");
 			listeningDiv.className = "listening-indicator";
 			listeningDiv.innerHTML = '<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening</span>';
@@ -396,6 +405,9 @@ Module.register("MMM-QuranDisplay", {
 			this.updateDom(0);
 		} else if (notification === "PROCESSING_STATUS") {
 			this.isProcessing = payload.isProcessing;
+		} else if (notification === "STARTING_STATUS") {
+			this.isStarting = Boolean(payload && payload.isStarting);
+			this.updateDom(0);
 		} else if (notification === "VOICE_SPEAKING") {
 			this.isSpeaking = Boolean(payload && payload.isSpeaking);
 			this.renderSpeakingOverlay();

@@ -67,6 +67,9 @@ class QuranChainer:
         self.current_process = None
         self.stdin_thread = None
         self.surah_info_cache = {}
+        # Cleared on the first play_audio() invocation so the UI can hide the
+        # "▶ Starting…" indicator the listener set when the command dispatched.
+        self._starting_signal_cleared = False
         self.repo_root = self._find_repo_root()
         data_override = os.environ.get("QURAN_DATA_DIR")
         self.quran_data_dir = Path(data_override).expanduser().resolve() if data_override else self.repo_root / "quran_data"
@@ -765,6 +768,18 @@ class QuranChainer:
                 text=True
             )
             t_post_spawn = time.monotonic()
+            # First real audio is starting — release the "▶ Starting…" UI
+            # indicator the listener set when it dispatched this playback.
+            if not self._starting_signal_cleared:
+                self._starting_signal_cleared = True
+                try:
+                    requests.post(
+                        f"{self.mirror_url}/api/quran/starting",
+                        json={"isStarting": False},
+                        timeout=1,
+                    )
+                except Exception:
+                    pass
             print(
                 f"  ⏱ play_audio timing: prep={t_pre_sink - t_start:.2f}s "
                 f"sink={t_post_sink - t_pre_sink:.2f}s "

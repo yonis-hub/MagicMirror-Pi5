@@ -82,6 +82,16 @@ module.exports = NodeHelper.create({
 			res.status(200).json({ status: "success" });
 		});
 
+		// API endpoint: listener sets isStarting=true when a play command
+		// is dispatched, chainer clears it back to false the moment mpv
+		// begins the first audio. Bridges the ~2s of probe/init between
+		// "command understood" and "audio audible".
+		this.expressApp.post("/api/quran/starting", (req, res) => {
+			const isStarting = !!(req.body && req.body.isStarting);
+			this.sendSocketNotification("STARTING_STATUS", { isStarting });
+			res.status(200).json({ status: "success" });
+		});
+
 		// API endpoint for media-player-style control clicks (pause, resume,
 		// stop, next, previous). Writes a one-shot file the voice listener
 		// polls so the same control surface affects voice-started playback.
