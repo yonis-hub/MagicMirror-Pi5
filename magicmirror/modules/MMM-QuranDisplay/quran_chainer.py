@@ -879,6 +879,19 @@ class QuranChainer:
         if end_verse is not None:
             verses_to_play = [v for v in verses_to_play if v["number"] <= end_verse]
 
+        # Bismillah prelude: for every surah except Al-Fatiha (1) and
+        # At-Tawbah (9), Bismillah is customarily recited before verse 1.
+        # Al-Fatiha's own verse 1 already IS the Bismillah, so skip. Only
+        # play the prelude when starting from verse 1 — jumping into the
+        # middle of a surah shouldn't retroactively add it.
+        if start_verse == 1 and surah_number not in (1, 9):
+            bismillah_path = self.quran_data_dir / "001" / "001.mp3"
+            if bismillah_path.exists():
+                print(f"  🕋 Playing Bismillah prelude before Surah {surah_number}")
+                self.play_audio(str(bismillah_path))
+                if not self.is_stopped:
+                    time.sleep(0.3)   # small breath before verse 1
+
         for verse in verses_to_play:
             if self.is_stopped:
                 break
