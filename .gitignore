@@ -5,6 +5,9 @@ package-lock.json
 # Reciter audio packs (too large for GitHub — transfer to Pi via scp/rsync)
 quran_data/_reciters/
 
+# Per-surah verse-duration cache written by quran_chainer.py (regenerable).
+quran_data/*/durations.*.json
+
 # MagicMirror specific
 magicmirror/node_modules/
 magicmirror/modules/*/node_modules/

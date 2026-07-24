@@ -293,6 +293,61 @@ class QuranChainer:
             print(f"  ffprobe duration probe failed for {audio_path}: {e}")
         return 0.0
 
+    def _duration_cache_path(self, surah_number):
+        """Per-surah, per-reciter duration cache. Lives next to the audio
+        files so it moves with them and stays out of anything gitignored
+        differently."""
+        return (
+            self.quran_data_dir
+            / f"{surah_number:03d}"
+            / f"durations.{self.reciter_key}.json"
+        )
+
+    def _load_duration_cache(self, surah_number):
+        """Return dict of {verse_number(int): duration_sec(float)}, empty
+        on any error / missing file."""
+        path = self._duration_cache_path(surah_number)
+        if not path.exists():
+            return {}
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            raw = data.get("durations") or {}
+            out = {}
+            for k, v in raw.items():
+                try:
+                    n = int(k)
+                    d = float(v)
+                    if d > 0:  # skip zeros — treat as unprobed
+                        out[n] = d
+                except (TypeError, ValueError):
+                    continue
+            return out
+        except Exception as e:
+            print(f"  ⚠ duration cache read failed ({path.name}): {e}")
+            return {}
+
+    def _save_duration_cache(self, surah_number, verse_to_duration):
+        """Merge new probe results with any existing cache and write back."""
+        path = self._duration_cache_path(surah_number)
+        try:
+            existing = self._load_duration_cache(surah_number)
+            merged = {int(k): float(v) for k, v in existing.items()}
+            for k, v in verse_to_duration.items():
+                if v and v > 0:
+                    merged[int(k)] = float(v)
+            payload = {
+                "reciter": self.reciter_key,
+                "surah": int(surah_number),
+                "cached_at": int(time.time()),
+                "durations": {str(k): merged[k] for k in sorted(merged)},
+            }
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w") as f:
+                json.dump(payload, f, separators=(",", ":"))
+        except Exception as e:
+            print(f"  ⚠ duration cache write failed ({path.name}): {e}")
+
     def _clear_display(self):
         """Clear the verse display"""
         return self._send_to_mirror("clear", {})
@@ -868,24 +923,35 @@ class QuranChainer:
         # Per-verse layout: probe each verse to build a cumulative timeline.
         # This both gives us total duration (for the UI arc) and lets us
         # translate a resume position to (start_verse, within-verse offset).
-        # Probes run in parallel — ffprobe is I/O-bound and a 110-verse surah
-        # spawned sequentially took ~17s before the first note played.
+        # Probes hit ffprobe once per verse (~700ms each on the Pi), so
+        # results are cached to disk per (surah, reciter) — first play seeds
+        # the cache, subsequent plays skip ffprobe entirely.
         t_probe_start = time.monotonic()
-        probe_targets = []  # (index_in_verses, audio_path)
+        cache = self._load_duration_cache(surah_number)
+        probe_targets = []  # (verse_number, index_in_verses, audio_path)
+        durations_by_idx = {}
         for idx, v in enumerate(verses):
             if v["number"] < start_verse:
                 continue
+            cached = cache.get(v["number"])
+            if cached and cached > 0:
+                durations_by_idx[idx] = cached
+                continue
             local_audio = v.get("audio")
             if local_audio and os.path.exists(local_audio):
-                probe_targets.append((idx, local_audio))
-        durations_by_idx = {}
+                probe_targets.append((v["number"], idx, local_audio))
+
         if probe_targets:
             with ThreadPoolExecutor(max_workers=8) as pool:
-                for idx, dur in zip(
-                    (t[0] for t in probe_targets),
-                    pool.map(self._probe_duration, (t[1] for t in probe_targets)),
-                ):
-                    durations_by_idx[idx] = dur
+                probed = list(pool.map(self._probe_duration, (t[2] for t in probe_targets)))
+            fresh = {}
+            for (vnum, idx, _path), dur in zip(probe_targets, probed):
+                durations_by_idx[idx] = dur
+                if dur > 0:
+                    fresh[vnum] = dur
+            if fresh:
+                self._save_duration_cache(surah_number, fresh)
+
         verse_durations = []
         cumulative = 0.0
         for idx, v in enumerate(verses):
@@ -896,8 +962,9 @@ class QuranChainer:
             verse_durations.append((v["number"], dur, cumulative))
             cumulative += dur
         total_duration = cumulative
+        cache_hits = len(durations_by_idx) - len(probe_targets)
         print(
-            f"  ⏱ probed {len(probe_targets)} verse durations "
+            f"  ⏱ verse durations: {cache_hits} cached, {len(probe_targets)} probed "
             f"in {time.monotonic() - t_probe_start:.2f}s "
             f"(total surah audio: {total_duration:.1f}s)"
         )
