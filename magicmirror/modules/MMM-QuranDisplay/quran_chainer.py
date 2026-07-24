@@ -708,6 +708,7 @@ class QuranChainer:
             time.sleep(3)  # Fallback delay for display viewing
             return False
 
+        t_start = time.monotonic()
         try:
             # Use mpv for playback; allow explicit audio backend/device overrides.
             mpv_cmd = ["mpv", "--no-video", "--really-quiet"]
@@ -723,7 +724,9 @@ class QuranChainer:
             except ValueError:
                 mpv_volume = 100.0
 
+            t_pre_sink = time.monotonic()
             effective_sink = self._prepare_pulse_sink(mpv_ao, mpv_audio_device)
+            t_post_sink = time.monotonic()
             uses_pulse = mpv_ao == "pulse" or mpv_audio_device.startswith("pulse/")
             if uses_pulse and effective_sink:
                 # Route mpv at the sink the resolver actually prepared. This makes
@@ -753,11 +756,18 @@ class QuranChainer:
             mpv_cmd.append(audio_url)
             print(f"  mpv playback command: {' '.join(mpv_cmd)}")
 
+            t_pre_spawn = time.monotonic()
             self.current_process = subprocess.Popen(
                 mpv_cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 text=True
+            )
+            t_post_spawn = time.monotonic()
+            print(
+                f"  ⏱ play_audio timing: prep={t_pre_sink - t_start:.2f}s "
+                f"sink={t_post_sink - t_pre_sink:.2f}s "
+                f"mpv_spawn={t_post_spawn - t_pre_spawn:.2f}s"
             )
 
             # Wait for playback to complete
@@ -781,7 +791,10 @@ class QuranChainer:
                     stderr_text = ""
 
             self.current_process = None
-            print(f"  mpv exited with code {return_code}")
+            print(
+                f"  mpv exited with code {return_code} "
+                f"(total play_audio={time.monotonic() - t_start:.2f}s)"
+            )
             if return_code != 0:
                 if stderr_text:
                     print(f"mpv exited with code {return_code}: {stderr_text}")

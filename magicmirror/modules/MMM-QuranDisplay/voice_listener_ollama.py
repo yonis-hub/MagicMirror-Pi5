@@ -1041,6 +1041,11 @@ class OllamaVoiceListener:
         # one breath loses the command. UI already shows the state visually.
         # Set VOICE_SPEAK_WAKE_ACK=1 to bring the spoken ack back.
         self.speak_wake_ack = os.getenv("VOICE_SPEAK_WAKE_ACK", "0") == "1"
+        # Verbal "Playing X, right away." feedback after a command is parsed.
+        # Off by default — blocks 2-3s (often via espeak fallback) before the
+        # chainer even launches. Chainer's own visual/audio playback is the
+        # real confirmation. Set VOICE_SPEAK_INTENT_ACK=1 to re-enable.
+        self.speak_intent_ack = os.getenv("VOICE_SPEAK_INTENT_ACK", "0") == "1"
         self.tts_engine = None
         self.command_history = deque(maxlen=MAX_HISTORY)
         self.last_intent = create_intent()
@@ -1444,7 +1449,7 @@ class OllamaVoiceListener:
             message = "Command not recognized."
 
         print(f"🎧 {message}")
-        if self.enable_voice:
+        if self.enable_voice and self.speak_intent_ack:
             self.speak(message)
 
     def _send_speaking_status(self, is_speaking):
