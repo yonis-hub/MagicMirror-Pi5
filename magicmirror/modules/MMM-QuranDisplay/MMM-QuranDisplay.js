@@ -51,6 +51,8 @@ Module.register("MMM-QuranDisplay", {
 		this.isProcessing = false;
 		this.isStarting = false;
 		this.isSpeaking = false;
+		this.stageRailHoldUntil = 0;
+		this.stageRailTimer = null;
 		this.adhkarStatus = {
 			isPlaying: false,
 			period: null,
@@ -153,8 +155,109 @@ Module.register("MMM-QuranDisplay", {
 		return imageWrap;
 	},
 
+	// The stages of one voice turn, in order. The rail draws all of them at
+	// once: a single changing label tells you what is happening now, but not
+	// whether anything is still coming — which is what makes a 4-second wait
+	// feel like a hang. Seeing "Thinking" sit between a finished "Hearing you"
+	// and a pending "Playing" reads as progress.
+	voiceStages: [
+		{ key: "hearing", label: "Hearing you" },
+		{ key: "thinking", label: "Thinking" },
+		{ key: "starting", label: "Starting" },
+		{ key: "playing", label: "Playing" }
+	],
+
+	getVoiceStage: function () {
+		if (this.isRecording) {
+			return "hearing";
+		}
+		if (this.isProcessing) {
+			return "thinking";
+		}
+		if (this.isStarting) {
+			return "starting";
+		}
+		if (this.stageRailHoldUntil && Date.now() < this.stageRailHoldUntil) {
+			return "playing";
+		}
+		return null;
+	},
+
+	holdStageRail: function () {
+		const holdMs = 2500;
+		this.stageRailHoldUntil = Date.now() + holdMs;
+		clearTimeout(this.stageRailTimer);
+		this.stageRailTimer = setTimeout(() => {
+			this.stageRailHoldUntil = 0;
+			this.updateDom(400);
+		}, holdMs + 100);
+	},
+
+	buildStageRail: function (activeStage) {
+		const rail = document.createElement("div");
+		rail.className = "voice-stage-rail";
+		const activeIndex = this.voiceStages.findIndex((stage) => stage.key === activeStage);
+
+		this.voiceStages.forEach((stage, index) => {
+			if (index > 0) {
+				const link = document.createElement("span");
+				link.className = "stage-link";
+				link.dataset.state = index <= activeIndex ? "done" : "pending";
+				rail.appendChild(link);
+			}
+
+			const step = document.createElement("div");
+			step.className = "voice-stage";
+			step.dataset.stage = stage.key;
+			step.dataset.state = index < activeIndex ? "done" : index === activeIndex ? "active" : "pending";
+
+			const dot = document.createElement("span");
+			dot.className = "stage-dot";
+			dot.setAttribute("aria-hidden", "true");
+			step.appendChild(dot);
+
+			const label = document.createElement("span");
+			label.className = "stage-label";
+			label.textContent = stage.label;
+			step.appendChild(label);
+
+			rail.appendChild(step);
+		});
+
+		return rail;
+	},
+
+	renderAmbientGlow: function () {
+		// A full-screen edge glow keyed to the current stage. The rail is only
+		// legible up close; on a wall mirror this is the part you can read from
+		// across the room. Mounted on <body> so it isn't clipped by the
+		// module's own region.
+		const stage = this.getVoiceStage();
+		let glow = document.getElementById("mm-voice-ambient-glow");
+		if (!stage) {
+			if (glow) {
+				glow.remove();
+			}
+			return;
+		}
+		if (!glow) {
+			glow = document.createElement("div");
+			glow.id = "mm-voice-ambient-glow";
+			document.body.appendChild(glow);
+		}
+		glow.dataset.stage = stage;
+	},
+
 	renderStatusIndicators: function (wrapper) {
-		if (!this.isRecording && !this.isProcessing && !this.isListening && !this.isStarting && !this.adhanStatus?.isPlaying) {
+		const stage = this.getVoiceStage();
+		const showAdhan = Boolean(this.config.showAdhanIndicator && this.adhanStatus?.isPlaying);
+		// "Listening" is the resting state, so it only shows when no turn is in
+		// flight — stacking it under the rail would contradict it.
+		const showListening = Boolean(
+			this.isListening && !stage && !showAdhan && !this.isSpeaking
+		);
+
+		if (!stage && !showListening && !showAdhan) {
 			return;
 		}
 
@@ -186,31 +289,9 @@ Module.register("MMM-QuranDisplay", {
 			statusContainer.appendChild(adhanDiv);
 		}
 
-		if (this.isRecording) {
-			const recordingDiv = document.createElement("div");
-			recordingDiv.className = "recording-indicator";
-			recordingDiv.innerHTML = '<span class="recording-dot" aria-hidden="true"></span><span class="status-text">Recording</span>';
-			statusContainer.appendChild(recordingDiv);
-		}
-
-		if (this.isProcessing) {
-			const processingDiv = document.createElement("div");
-			processingDiv.className = "processing-indicator";
-			processingDiv.innerHTML = '<span class="processing-dot" aria-hidden="true"></span><span class="status-text">Thinking</span>';
-			statusContainer.appendChild(processingDiv);
-		}
-
-		if (this.isStarting) {
-			const startingDiv = document.createElement("div");
-			startingDiv.className = "starting-indicator";
-			startingDiv.innerHTML = '<span class="starting-spinner" aria-hidden="true"></span><span class="status-text">Starting</span>';
-			statusContainer.appendChild(startingDiv);
-		}
-
-		// Skip "Listening" while Jarvis is speaking OR while playback is
-		// spinning up — the "Starting" indicator above already communicates
-		// the state and a stacked "Listening" would just add noise.
-		if (this.isListening && !this.isStarting && !this.adhanStatus?.isPlaying && !this.isSpeaking) {
+		if (stage) {
+			statusContainer.appendChild(this.buildStageRail(stage));
+		} else if (showListening) {
 			const listeningDiv = document.createElement("div");
 			listeningDiv.className = "listening-indicator";
 			listeningDiv.innerHTML = '<span class="mic-icon" aria-hidden="true"></span><span class="status-text">Listening</span>';
@@ -271,11 +352,14 @@ Module.register("MMM-QuranDisplay", {
 	},
 
 	getWaitingText: function () {
+		if (this.isStarting) {
+			return "Got it — cueing up the recitation.";
+		}
 		if (this.isProcessing) {
-			return "Hold on... finding your request.";
+			return "Got that. Working out what you asked for...";
 		}
 		if (this.isRecording) {
-			return "Recording command...";
+			return "Listening — go ahead.";
 		}
 		return 'Say "Hey Jarvis, play Surah 1"';
 	},
@@ -346,6 +430,7 @@ Module.register("MMM-QuranDisplay", {
 	},
 
 	getDom: function () {
+		this.renderAmbientGlow();
 		const wrapper = document.createElement("div");
 		wrapper.className = "mmm-quran-display";
 		const imageWidth = Number.isFinite(Number(this.config.bismillahImageWidthPx)) ? Math.max(140, Number(this.config.bismillahImageWidthPx)) : 250;
@@ -438,9 +523,20 @@ Module.register("MMM-QuranDisplay", {
 			this.isRecording = payload.isRecording;
 			this.updateDom(0);
 		} else if (notification === "PROCESSING_STATUS") {
-			this.isProcessing = payload.isProcessing;
+			// Every other status handler repaints; this one didn't, so the
+			// "Thinking" indicator was set but never drawn — the UI went quiet
+			// for exactly the seconds the user most needs to see it working.
+			this.isProcessing = Boolean(payload && payload.isProcessing);
+			this.updateDom(0);
 		} else if (notification === "STARTING_STATUS") {
+			const wasStarting = this.isStarting;
 			this.isStarting = Boolean(payload && payload.isStarting);
+			// Hold the rail on "Playing" for a beat after startup finishes, so
+			// the turn visibly completes instead of the indicator just
+			// vanishing mid-thought.
+			if (wasStarting && !this.isStarting) {
+				this.holdStageRail();
+			}
 			this.updateDom(0);
 		} else if (notification === "VOICE_SPEAKING") {
 			this.isSpeaking = Boolean(payload && payload.isSpeaking);

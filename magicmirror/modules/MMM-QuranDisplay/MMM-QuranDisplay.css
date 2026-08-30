@@ -321,10 +321,8 @@
   pointer-events: none;    /* don't intercept clicks on the kiosk */
 }
 
+
 .listening-indicator,
-.recording-indicator,
-.processing-indicator,
-.starting-indicator,
 .adhan-indicator {
   display: flex;
   align-items: center;
@@ -340,36 +338,6 @@
 .listening-indicator {
   color: #4fc3f7;
   animation: pulse 1s infinite;
-}
-
-.recording-indicator {
-  color: #ff5252;
-  font-weight: 600;
-}
-
-.processing-indicator {
-  color: #ffd166;
-  font-weight: 600;
-}
-
-.starting-indicator {
-  color: #b39ddb;
-  font-weight: 600;
-  border-color: rgb(179 157 219 / 45%);
-}
-
-.starting-spinner {
-  width: 10px;
-  height: 10px;
-  border: 2px solid rgb(179 157 219 / 35%);
-  border-top-color: #b39ddb;
-  border-radius: 50%;
-  display: inline-block;
-  animation: starting-spin 0.8s linear infinite;
-}
-
-@keyframes starting-spin {
-  to { transform: rotate(360deg); }
 }
 
 .adhan-indicator {
@@ -390,24 +358,155 @@
   line-height: 1;
 }
 
-.recording-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #ff1744;
-  border-radius: 50%;
-  box-shadow: 0 0 8px rgb(255 23 68 / 90%);
-  animation: pulse 0.8s infinite;
-  display: inline-block;
+/* ---- voice stage rail -------------------------------------------------- */
+
+.voice-stage-rail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgb(0 0 0 / 62%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  backdrop-filter: blur(3px);
 }
 
-.processing-dot {
+.voice-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  transition: color 220ms ease, opacity 220ms ease;
+}
+
+.voice-stage[data-state="pending"] {
+  color: rgb(255 255 255 / 35%);
+  opacity: 0.7;
+}
+
+.voice-stage[data-state="done"] {
+  color: rgb(255 255 255 / 62%);
+}
+
+/* The active stage is the one the user is waiting on, so it gets the colour
+   and the motion; everything else stays quiet. */
+.voice-stage[data-state="active"] {
+  font-weight: 600;
+}
+
+.voice-stage[data-state="active"][data-stage="hearing"] {
+  color: #ff5252;
+}
+
+.voice-stage[data-state="active"][data-stage="thinking"] {
+  color: #ffd166;
+}
+
+.voice-stage[data-state="active"][data-stage="starting"] {
+  color: #b39ddb;
+}
+
+.voice-stage[data-state="active"][data-stage="playing"] {
+  color: #7be38d;
+}
+
+.stage-dot {
   width: 8px;
   height: 8px;
-  background-color: #ffb703;
   border-radius: 50%;
-  box-shadow: 0 0 8px rgb(255 183 3 / 90%);
-  animation: pulse 0.8s infinite;
   display: inline-block;
+  background: currentcolor;
+  flex: none;
+}
+
+.voice-stage[data-state="pending"] .stage-dot {
+  background: none;
+  border: 1.5px solid currentcolor;
+}
+
+.voice-stage[data-state="done"] .stage-dot {
+  background: rgb(255 255 255 / 55%);
+  box-shadow: none;
+}
+
+/* Only the active dot animates — a rail of four pulsing dots reads as noise
+   rather than as progress. */
+.voice-stage[data-state="active"] .stage-dot {
+  box-shadow: 0 0 9px currentcolor;
+  animation: stage-dot-pulse 1s ease-in-out infinite;
+}
+
+.voice-stage[data-state="active"][data-stage="starting"] .stage-dot,
+.voice-stage[data-state="active"][data-stage="thinking"] .stage-dot {
+  animation: stage-dot-pulse 0.7s ease-in-out infinite;
+}
+
+@keyframes stage-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.45);
+    opacity: 0.55;
+  }
+}
+
+.stage-link {
+  width: 16px;
+  height: 1px;
+  flex: none;
+  background: rgb(255 255 255 / 20%);
+  transition: background 220ms ease;
+}
+
+.stage-link[data-state="done"] {
+  background: rgb(255 255 255 / 50%);
+}
+
+/* ---- ambient edge glow ------------------------------------------------- */
+
+/* Readable from across the room, where the rail's 0.85em text is not. Pure
+   inset shadow so it tints the screen edge without covering any module. */
+#mm-voice-ambient-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  transition: box-shadow 300ms ease;
+  animation: ambient-glow-breathe 2.4s ease-in-out infinite;
+}
+
+#mm-voice-ambient-glow[data-stage="hearing"] {
+  box-shadow: inset 0 0 90px 12px rgb(255 82 82 / 26%);
+}
+
+#mm-voice-ambient-glow[data-stage="thinking"] {
+  box-shadow: inset 0 0 90px 12px rgb(255 209 102 / 24%);
+}
+
+#mm-voice-ambient-glow[data-stage="starting"] {
+  box-shadow: inset 0 0 90px 12px rgb(179 157 219 / 24%);
+}
+
+#mm-voice-ambient-glow[data-stage="playing"] {
+  box-shadow: inset 0 0 90px 12px rgb(123 227 141 / 22%);
+  animation: none;
+}
+
+@keyframes ambient-glow-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .mic-icon {
