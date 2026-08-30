@@ -659,6 +659,12 @@ DEFAULT_COMMAND_DEBOUNCE_SEC = 3.0
 # Hybrid-parser escalation: a local result at or above this confidence skips
 # the Ollama round-trip; below it (or action "none") Ollama gets a say.
 LOCAL_HIGH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_LOCAL_HIGH_CONF", "0.75"))))
+# Resolution sources from extract_surah_number_with_source() that identify a
+# surah exactly rather than by fuzzy similarity. An exact hit is scored above
+# LOCAL_HIGH_CONFIDENCE so hybrid mode answers it locally, with no round-trip.
+EXACT_SURAH_SOURCES = frozenset({"alias", "prefix", "digits", "words"})
+EXACT_SURAH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_EXACT_SURAH_CONF", "0.92"))))
+FUZZY_SURAH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_FUZZY_SURAH_CONF", "0.72"))))
 # Minimum confidence for accepting an Ollama parse over the local fallback.
 OLLAMA_MIN_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_OLLAMA_MIN_CONF", "0.5"))))
 # AGC (RMS level normalisation) applied to command audio before Whisper.
@@ -892,7 +898,22 @@ _SURAH_PREFIX_RE = re.compile(
 
 
 def extract_surah_number(text):
-    """Extract a surah number from free-form text.
+    """Extract a surah number from free-form text (number only).
+
+    Thin wrapper over extract_surah_number_with_source() for callers that only
+    need to know whether a surah was named at all.
+    """
+    number, _source = extract_surah_number_with_source(text)
+    return number
+
+
+def extract_surah_number_with_source(text):
+    """Extract a surah number and report which step resolved it.
+
+    Returns (number_or_None, source) where source is one of "alias", "prefix",
+    "digits", "words", "fuzzy". Callers use it to tell an exact match apart
+    from a fuzzy guess -- the difference between trusting the local parse
+    outright and paying for an LLM round-trip to second-guess it.
 
     Resolution order (each step is a cheap short-circuit):
       1. Exact known surah-name alias  ("al fatiha", "baqarah")
@@ -902,37 +923,38 @@ def extract_surah_number(text):
       5. Fuzzy alias match              (misheard 'al-baqara' -> 'al baqra')
     """
     if not text:
-        return None
+        return (None, None)
 
     lowered = re.sub(r"\s+", " ", text.lower().strip())
 
     # 1) Exact alias phrase match — single regex search across all 114 names.
     alias_hit = _SURAH_ALIAS_PATTERN.search(lowered)
     if alias_hit:
-        return _SURAH_ALIAS_TO_NUMBER[alias_hit.group(1)]
+        return (_SURAH_ALIAS_TO_NUMBER[alias_hit.group(1)], "alias")
 
     # 2) Explicit numeric reference like "surah 55" / "chapter 55" / "number 55".
     m = _SURAH_PREFIX_RE.search(lowered)
     if m:
         number = int(m.group(1))
         if 1 <= number <= 114:
-            return number
+            return (number, "prefix")
 
     # 3) Any bare digit in the utterance — common case ("play 9", "put 19 on").
     digit_match = re.search(r"\b(\d{1,3})\b", lowered)
     if digit_match:
         number = int(digit_match.group(1))
         if 1 <= number <= 114:
-            return number
+            return (number, "digits")
 
     # 4) Composed English number words ("twenty four", "one hundred fourteen",
     #    "ninth", "fifty third"). One call, no per-token loop.
     composed = parse_number_words(lowered)
     if composed and 1 <= composed <= 114:
-        return composed
+        return (composed, "words")
 
     # 5) Fuzzy match for misheard aliases (threshold fixed for determinism).
-    return _fuzzy_surah_lookup(tokenize_words(lowered))
+    fuzzy = _fuzzy_surah_lookup(tokenize_words(lowered))
+    return (fuzzy, "fuzzy" if fuzzy else None)
 
 def check_server_ready():
     for _ in range(10):
@@ -1045,7 +1067,12 @@ class OllamaVoiceListener:
         # Off by default — blocks 2-3s (often via espeak fallback) before the
         # chainer even launches. Chainer's own visual/audio playback is the
         # real confirmation. Set VOICE_SPEAK_INTENT_ACK=1 to re-enable.
-        self.speak_intent_ack = os.getenv("VOICE_SPEAK_INTENT_ACK", "0") == "1"
+        # On by default: the spoken "Playing Al-Baqarah" is the only feedback
+        # that confirms the command was understood while the chainer spins up.
+        # It was silenced in b842b06 because speak() blocks and so added
+        # latency to the very gap it exists to cover -- acknowledge_intent()
+        # now goes through speak_async(), so it no longer delays playback.
+        self.speak_intent_ack = os.getenv("VOICE_SPEAK_INTENT_ACK", "1") == "1"
         self.tts_engine = None
         self.command_history = deque(maxlen=MAX_HISTORY)
         self.last_intent = create_intent()
@@ -1451,7 +1478,7 @@ class OllamaVoiceListener:
 
         print(f"🎧 {message}")
         if self.enable_voice and self.speak_intent_ack:
-            self.speak(message)
+            self.speak_async(message)
 
     def _send_speaking_status(self, is_speaking):
         """Tell MagicMirror that Jarvis is/isn't actively speaking right now,
@@ -1464,6 +1491,20 @@ class OllamaVoiceListener:
             )
         except Exception:
             pass
+
+    def speak_async(self, text):
+        """Speak without blocking the command pipeline.
+
+        Piper is fully blocking, so speaking the intent ack inline would push
+        playback later by exactly the length of the ack. Running it on a daemon
+        thread lets "Playing Al-Baqarah" land while stop_playback() and
+        start_chainer() are still doing their work.
+        """
+        if not self.enable_voice or not text:
+            return None
+        thread = threading.Thread(target=self.speak, args=(text,), daemon=True)
+        thread.start()
+        return thread
 
     def speak(self, text):
         if not self.enable_voice or not text:
@@ -2104,6 +2145,16 @@ class OllamaVoiceListener:
             if not started_playback:
                 self.send_listening_status(True)
 
+    def _return_to_idle(self):
+        """Drop the busy indicators and go back to showing "Listening".
+
+        Used on every abort path after recording has stopped, so a discarded
+        command (silence, wrong speaker, empty transcript) cannot strand the
+        UI on "Processing".
+        """
+        self.send_processing_status(False)
+        self.send_listening_status(True)
+
     def _begin_starting_state(self):
         """Set the 'starting playback' UI flag and arm a safety timer that
         clears it after a max window, in case the chainer never sends its
@@ -2339,10 +2390,18 @@ class OllamaVoiceListener:
             log_prob_threshold = float(os.environ.get("VOICE_WHISPER_LOGPROB_THRESHOLD", "-1.0"))
             compression_threshold = float(os.environ.get("VOICE_WHISPER_COMPRESSION_THRESHOLD", "2.4"))
             no_speech_threshold = float(os.environ.get("VOICE_WHISPER_NO_SPEECH_THRESHOLD", "0.6"))
+            # Greedy decode by default. For a short command utterance primed
+            # with initial_prompt, beam search multiplies decode time for
+            # almost no accuracy gain -- and decode is the largest single slice
+            # of the wake-to-playback wait. Raise VOICE_WHISPER_BEAM_SIZE back
+            # to 5 if misrecognitions show up.
+            beam_size = max(1, int(os.environ.get("VOICE_WHISPER_BEAM_SIZE", "1")))
+            best_of = max(1, int(os.environ.get("VOICE_WHISPER_BEST_OF", str(beam_size))))
+            stt_started_at = time.perf_counter()
             segments, info = self.whisper.transcribe(
                 audio_file,
-                beam_size=5,
-                best_of=5,
+                beam_size=beam_size,
+                best_of=best_of,
                 language=language,
                 temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
                 compression_ratio_threshold=compression_threshold,
@@ -2354,6 +2413,7 @@ class OllamaVoiceListener:
                 condition_on_previous_text=False
             )
             segments = list(segments)
+            stt_ms = (time.perf_counter() - stt_started_at) * 1000
             text = " ".join(segment.text for segment in segments)
             language_detected = getattr(info, "language", "unknown")
             language_prob = getattr(info, "language_probability", 0.0)
@@ -2361,7 +2421,7 @@ class OllamaVoiceListener:
                 avg_no_speech = sum(getattr(s, "no_speech_prob", 0.0) for s in segments) / len(segments)
             else:
                 avg_no_speech = 1.0
-            print(f"  Whisper language={language_detected} prob={language_prob:.2f} no_speech={avg_no_speech:.2f}")
+            print(f"  Whisper language={language_detected} prob={language_prob:.2f} no_speech={avg_no_speech:.2f} stt_ms={stt_ms:.0f} beam={beam_size}")
             # Loosened 0.6 -> 0.7: denoise artifacts can nudge no_speech_prob up
             # on a valid command, and 0.6 was discarding real speech.
             if avg_no_speech > 0.7:
@@ -2605,10 +2665,22 @@ class OllamaVoiceListener:
             confidence = 0.75 if wake_present else 0.65
             return ("resume", None, create_intent(action="resume", confidence=confidence))
 
-        surah_number = extract_surah_number(command_text)
+        surah_number, surah_source = extract_surah_number_with_source(command_text)
+        # A surah resolved exactly -- by name alias, "surah 12", bare digits or
+        # number words -- is not something the LLM can improve on, so score it
+        # above LOCAL_HIGH_CONFIDENCE and answer locally. This is the whole
+        # "play surah N" latency win: the old flat 0.72 sat just under the 0.75
+        # threshold, so every play command paid for an Ollama round-trip to
+        # confirm what the regex had already read correctly. Fuzzy name guesses
+        # keep the low score and still get escalated.
+        surah_confidence = (
+            EXACT_SURAH_CONFIDENCE
+            if surah_source in EXACT_SURAH_SOURCES
+            else FUZZY_SURAH_CONFIDENCE
+        )
 
         if surah_number and (wake_present or not require_wake):
-            return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
+            return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=surah_confidence))
 
         play_intent = (
             contains_any_token(command_text, PLAY_KEYWORDS)
@@ -2617,7 +2689,7 @@ class OllamaVoiceListener:
         )
         if play_intent:
             if surah_number:
-                return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=0.72))
+                return ("play", surah_number, create_intent(action="play", surah=surah_number, confidence=surah_confidence))
 
             # Bare play intent with no identifiable surah/verse: do NOT
             # default to Surah 1. Returning "none" lets hybrid mode escalate
@@ -3027,6 +3099,7 @@ class OllamaVoiceListener:
                     continue
 
                 print("  🟢 Wake fired")
+                turn_started_at = time.perf_counter()
                 self.send_transcript_status(self.primary_wake_word, phase="wake", raw_text=self.primary_wake_word)
                 # Flip UI to "recording" before we do anything else so the
                 # user sees the state change the instant the wake fires.
@@ -3067,14 +3140,19 @@ class OllamaVoiceListener:
                         threshold=self.vad_threshold,
                     )
                     self.send_recording_status(False)
-                    # Recording done — reflect that on the UI. process_command
-                    # will flip us to "processing" if a command was captured.
-                    self.send_listening_status(True)
+                    # Recording done. Go straight to "Processing" -- speaker
+                    # verification, denoise and Whisper all still have to run,
+                    # and showing "Listening" across those seconds is exactly
+                    # what makes people repeat the wake word mid-command.
+                    self.send_processing_status(True)
                 else:
                     audio_file = self.record_audio(self.command_window_sec, show_recording=True)
+                    self.send_recording_status(False)
+                    self.send_processing_status(True)
 
                 if not audio_file:
                     print("  No command audio captured (silence / timeout)")
+                    self._return_to_idle()
                     self.oww_detector.start()
                     continue
 
@@ -3090,6 +3168,7 @@ class OllamaVoiceListener:
                             os.unlink(audio_file)
                         except Exception:
                             pass
+                        self._return_to_idle()
                         self.oww_detector.start()
                         continue
 
@@ -3116,6 +3195,7 @@ class OllamaVoiceListener:
                 text = self.transcribe_whisper(audio_file)
                 if not text:
                     print("  Empty transcription")
+                    self._return_to_idle()
                     self.oww_detector.start()
                     continue
 
@@ -3126,7 +3206,10 @@ class OllamaVoiceListener:
 
                 if command_text and self.confirm_command(command_text):
                     self.send_transcript_status(command_text, phase="captured", raw_text=text)
+                    print(f"  ⏱  wake→command {(time.perf_counter() - turn_started_at) * 1000:.0f}ms")
                     self.process_command(command_text, raw_text=text)
+                else:
+                    self._return_to_idle()
 
                 # Resume continuous wake detection
                 self.oww_detector.start()
