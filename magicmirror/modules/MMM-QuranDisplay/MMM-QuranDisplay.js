@@ -13,7 +13,11 @@ Module.register("MMM-QuranDisplay", {
 		hideBismillahForSurah9: true,
 		bismillahText: "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064e\u0651\u0647\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0652\u0645\u064e\u0646\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0650\u064a\u0645\u0650",
 		bismillahRenderMode: "image", // "text" or "image"
-		bismillahImageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Bismillah_Calligraphy6.svg",
+		// Module-relative so the calligraphy never depends on a live network
+		// fetch; an absolute http(s) or / URL is still honoured if configured.
+		bismillahImageUrl: "assets/bismillah.svg",
+		bismillahImageRetryCount: 4,
+		bismillahImageRetryDelayMs: 3000,
 		bismillahImageWidthPx: 250,
 		bismillahImageFilter: "brightness(0) saturate(100%) invert(64%) sepia(55%) saturate(562%) hue-rotate(80deg) brightness(98%) contrast(90%)",
 		bismillahImageBackgroundColor: "#000000",
@@ -102,6 +106,19 @@ Module.register("MMM-QuranDisplay", {
 		return bismillahDiv;
 	},
 
+	// Absolute URLs (remote or server-root) are used as-is; anything else is
+	// treated as a path inside this module folder and served by MagicMirror.
+	resolveBismillahImageUrl: function () {
+		const raw = String(this.config.bismillahImageUrl || "").trim();
+		if (!raw) {
+			return "";
+		}
+		if (/^(https?:)?\/\//i.test(raw) || raw.startsWith("/")) {
+			return raw;
+		}
+		return this.file(raw);
+	},
+
 	createBismillahImageNode: function () {
 		const imageWrap = document.createElement("div");
 		imageWrap.className = "bismillah-image-wrap";
@@ -109,12 +126,29 @@ Module.register("MMM-QuranDisplay", {
 		const image = document.createElement("img");
 		image.className = "bismillah-image";
 		image.alt = "Bismillah calligraphy";
-		image.src = this.config.bismillahImageUrl;
+
+		const imageUrl = this.resolveBismillahImageUrl();
+		const maxRetries = Math.max(0, Number(this.config.bismillahImageRetryCount) || 0);
+		const retryDelay = Math.max(250, Number(this.config.bismillahImageRetryDelayMs) || 3000);
+		let attempt = 0;
+
+		// Retry before degrading to the plain text line: a single transient
+		// failure used to strand the calligraphy until the next browser restart.
 		image.addEventListener("error", () => {
+			if (attempt < maxRetries) {
+				attempt += 1;
+				Log.warn(`MMM-QuranDisplay: bismillah image failed, retry ${attempt}/${maxRetries}`);
+				setTimeout(() => {
+					image.src = `${imageUrl}${imageUrl.includes("?") ? "&" : "?"}retry=${attempt}`;
+				}, retryDelay * attempt);
+				return;
+			}
+			Log.error("MMM-QuranDisplay: bismillah image unavailable, falling back to text");
 			const fallback = this.createBismillahTextNode();
 			imageWrap.replaceWith(fallback);
 		});
 
+		image.src = imageUrl;
 		imageWrap.appendChild(image);
 		return imageWrap;
 	},

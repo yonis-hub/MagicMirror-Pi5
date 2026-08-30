@@ -50,7 +50,7 @@ let config = {
 			config: {
 				stylePreset: "classical-naskh",
 				fontScale: 1.25,
-				textColor: "#ffffff",
+				textColor: "#7be38d",
 				showLigature: false,
 				showTransliteration: false
 			}

@@ -49,7 +49,7 @@ pip3 install sentence-transformers psutil
     hideBismillahForSurah9: true,
     bismillahText: "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
     bismillahRenderMode: "image", // "image" or "text"
-    bismillahImageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Bismillah_Calligraphy6.svg",
+    bismillahImageUrl: "assets/bismillah.svg",
     bismillahImageWidthPx: 250,
     arabicFontFamily: "\"Aref Ruqaa Ink\", \"Aref Ruqaa\", \"Scheherazade New\", Amiri, \"Traditional Arabic\", serif",
     arabicFontWeight: "700",
