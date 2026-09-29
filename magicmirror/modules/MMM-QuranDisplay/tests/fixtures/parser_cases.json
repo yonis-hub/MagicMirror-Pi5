@@ -185,5 +185,21 @@
     "expected_action": "play",
     "expected_surah": 95,
     "expected_min_confidence": 0.75
+  },
+  {
+    "name": "base_en_arrow_is_surah_digit",
+    "input": "place arrow 1",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 1,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "base_en_arrow_is_surah_by_name",
+    "input": "play arrow yasin",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 36,
+    "expected_min_confidence": 0.75
   }
 ]

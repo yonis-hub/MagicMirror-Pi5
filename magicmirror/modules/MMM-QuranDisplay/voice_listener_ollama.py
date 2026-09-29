@@ -441,6 +441,11 @@ COMMON_REPLACEMENTS = {
     "surat": "surah",
     "sutra": "surah",
     "sora": "surah",
+    # base.en renders "surah" as "arrow" ("Place arrow 1." in the logs). Without
+    # this the prefix step misses and only a bare digit rescues the parse, so
+    # "play arrow yasin" would fail outright. No legitimate command says "arrow".
+    "arrow": "surah",
+    "aero": "surah",
     "fatah": "fatiha",
     "fatihat": "fatiha",
     "for to her": "fatiha",
