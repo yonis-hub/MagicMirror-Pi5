@@ -5,11 +5,18 @@ drawn for each calendar day and rotate on screen all day; tomorrow draws a fresh
 ten. Replaces the `compliments` module, alongside [MMM-Greeting](../MMM-Greeting).
 
 ```
-        ERAYADA MAANTA · WORDS OF THE DAY   🍛 CUNTADA / FOOD   ●●●●○○○○○○
+                ERAYADA MAANTA · WORDS OF THE DAY
 
                         basal · onion  [ba-sal]
+
                    Basal iyo yaanyo. — Onion and tomato.
+
+                 ( 🍛 CUNTADA / FOOD )   ●●●●○○○○○○
 ```
+
+The title, word and example form one centred column. The category and the
+progress dots are asides, so they share a small row at the bottom rather than
+crowding the title off centre.
 
 ## How the daily draw works
 
@@ -33,10 +40,10 @@ change.
 | `rotateInterval`      | `30000`                               | How long each word holds the line, in ms. Ten words at 30s loop every 5 minutes.                   |
 | `fadeSpeed`           | `1200`                                | Cross-fade between words, in ms.                                                                   |
 | `showHeader`          | `true`                                | The `ERAYADA MAANTA` label line.                                                                   |
-| `showCategory`        | `true`                                | The category pill (`🍛 CUNTADA / FOOD`).                                                           |
+| `showCategory`        | `true`                                | The category pill, in the footer row.                                                              |
 | `showPronunciation`   | `true`                                | The `[ba-sal]` respelling.                                                                         |
 | `showExample`         | `true`                                | The example sentence. **Turning this off shortens the bottom bar by ~24px.**                       |
-| `showProgress`        | `true`                                | The dots showing how far through today's ten you are.                                              |
+| `showProgress`        | `true`                                | The dots showing how far through today's ten you are, in the footer row.                           |
 | `dayRolloverHour`     | `0`                                   | Hour at which a new day starts. Raise it (e.g. `4`) so a late-night viewer still sees today's ten. |
 | `labelSo` / `labelEn` | `Erayada Maanta` / `Words of the Day` | Header wording.                                                                                    |
 | `wordsFile`           | `words.json`                          | Word list, relative to this folder.                                                                |
@@ -86,8 +93,9 @@ were added.
 
 The bar grows upward from the bottom of the screen, so the ticker rows below stay
 where they are and only the content above moves. This module plus MMM-Greeting
-occupies about 90px more than the single `compliments` line did.
+occupies about 124px more than the single `compliments` line did.
 
-Measured at 1920×1080: bottom bar **277px** tall, versus **187px** before. Set
-`showExample: false` to get roughly 24px of that back, or lower
-`--wotd-word-size` in `MMM-WordOfTheDay.css`.
+Measured at 1920×1080: bottom bar **311px** tall, versus **187px** before. Set
+`showExample: false` to get roughly 24px of that back; turning off both
+`showCategory` and `showProgress` drops the footer row entirely for another
+~26px. Lowering `--wotd-word-size` in `MMM-WordOfTheDay.css` is the other lever.

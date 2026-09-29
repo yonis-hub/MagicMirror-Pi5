@@ -182,7 +182,13 @@ Module.register("MMM-WordOfTheDay", {
 		return el;
 	},
 
-	buildHeader: function (category) {
+	/**
+	 * The title line. It holds nothing else, so it stays optically centred above
+	 * the word rather than being pushed off to one side by a neighbour.
+	 *
+	 * @returns {HTMLElement} the title row
+	 */
+	buildHeader: function () {
 		const head = document.createElement("div");
 		head.className = "wotd-head";
 
@@ -192,6 +198,21 @@ Module.register("MMM-WordOfTheDay", {
 		label.appendChild(this.span("wotd-mid", "·"));
 		label.appendChild(this.span("wotd-label-en", this.config.labelEn));
 		head.appendChild(label);
+
+		return head;
+	},
+
+	/**
+	 * The small row beneath the example: which family this word belongs to, and
+	 * how far through today's ten we are. Both are asides, so they sit together
+	 * at the bottom and leave the title, word and example as one centred column.
+	 *
+	 * @param {object|null} category the category entry for today's word
+	 * @returns {HTMLElement} the footer row, possibly empty
+	 */
+	buildFooter: function (category) {
+		const footer = document.createElement("div");
+		footer.className = "wotd-footer";
 
 		if (this.config.showCategory && category) {
 			const tag = document.createElement("span");
@@ -204,14 +225,14 @@ Module.register("MMM-WordOfTheDay", {
 				tag.appendChild(this.span("wotd-mid", "/"));
 			}
 			tag.appendChild(this.span("wotd-cat-en", category.en || ""));
-			head.appendChild(tag);
+			footer.appendChild(tag);
 		}
 
 		if (this.config.showProgress) {
-			head.appendChild(this.buildProgress());
+			footer.appendChild(this.buildProgress());
 		}
 
-		return head;
+		return footer;
 	},
 
 	buildProgress: function () {
@@ -270,13 +291,19 @@ Module.register("MMM-WordOfTheDay", {
 		const category = this.categories[word.cat] || null;
 
 		if (this.config.showHeader) {
-			wrapper.appendChild(this.buildHeader(category));
+			wrapper.appendChild(this.buildHeader());
 		}
 
 		wrapper.appendChild(this.buildWord(word));
 
 		if (this.config.showExample && word.exSo && word.exEn) {
 			wrapper.appendChild(this.buildExample(word));
+		}
+
+		// Only take the extra line when there is actually something to put on it.
+		const footer = this.buildFooter(category);
+		if (footer.childElementCount > 0) {
+			wrapper.appendChild(footer);
 		}
 
 		return wrapper;

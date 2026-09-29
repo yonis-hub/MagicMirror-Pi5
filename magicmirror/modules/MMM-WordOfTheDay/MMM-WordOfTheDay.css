@@ -35,13 +35,9 @@
   margin-top: 7px;
 }
 
-/* ---- header: what this is, which family the word belongs to, how far through today's ten ---- */
+/* ---- title: on its own, so it stays centred over the word ---- */
 
 .MMM-WordOfTheDay .wotd-head {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.4em;
   font-size: var(--wotd-head-size);
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -168,6 +164,21 @@
 .MMM-WordOfTheDay .wotd-ex-en {
   color: var(--wotd-example) !important;
   opacity: 0.8;
+}
+
+/* ---- footer: the category this word belongs to, and how far through today's ten ---- */
+
+.MMM-WordOfTheDay .wotd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4em;
+  margin-top: 7px;
+  font-size: var(--wotd-head-size);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wotd-meta) !important;
+  line-height: 1.4;
 }
 
 .MMM-WordOfTheDay .wotd-placeholder {
