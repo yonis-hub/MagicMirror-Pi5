@@ -101,6 +101,20 @@ export QURAN_MPV_VOLUME="${QURAN_MPV_VOLUME:-25}"
 export QURAN_MPV_ENABLE_DYNAUDNORM="${QURAN_MPV_ENABLE_DYNAUDNORM:-0}"
 export VOICE_SILENCE_MAX_AMP
 export VOICE_SILENCE_RMS_AMP
+# Prefer the -low Piper voice: -medium was measured at 3.4-7.6s per ack on this
+# Pi, well over espeak's ~3.0s, and -low is several times faster for the same
+# voice character. Chosen by what is actually on disk, NOT by name alone --
+# PiperTTS raises Unavailable when the .onnx is missing, which silently drops
+# every utterance to espeak. Run setup_voice_v2.sh to fetch the -low model.
+if [ -z "${PIPER_VOICE:-}" ]; then
+    for _voice in en_US-amy-low en_US-amy-medium; do
+        if [ -f "$SCRIPT_DIR/voices/${_voice}.onnx" ]; then
+            PIPER_VOICE="$_voice"
+            break
+        fi
+    done
+fi
+export PIPER_VOICE="${PIPER_VOICE:-en_US-amy-medium}"
 # KEEP THIS AT 1. The logs show stt_ms of 8000-45000 for a ~3s clip while
 # transcription accuracy is already perfect ("Play Surah 2." verbatim) -- the
 # failure mode here is latency, not misrecognition. Beam search multiplies

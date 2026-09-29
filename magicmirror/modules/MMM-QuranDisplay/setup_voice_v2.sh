@@ -14,8 +14,18 @@ cd "$SCRIPT_DIR"
 VENV_DIR="${VENV_DIR:-$SCRIPT_DIR/venv}"
 VOICES_DIR="${VOICES_DIR:-$SCRIPT_DIR/voices}"
 WAKE_MODELS_DIR="${WAKE_MODELS_DIR:-$SCRIPT_DIR/wake_models}"
-PIPER_VOICE="${PIPER_VOICE:-en_US-amy-medium}"
-PIPER_VOICE_BASE_URL="${PIPER_VOICE_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium}"
+PIPER_VOICE="${PIPER_VOICE:-en_US-amy-low}"
+# Derive the download path from the voice name rather than hardcoding a quality
+# level. This URL used to end in ".../amy/medium", so setting
+# PIPER_VOICE=en_US-amy-low on its own fetched
+# ".../amy/medium/en_US-amy-low.onnx" -- a 404, which aborts the whole setup
+# under `curl --fail`.  en_US-amy-low  ->  en / en_US / amy / low
+_piper_locale="${PIPER_VOICE%%-*}"
+_piper_rest="${PIPER_VOICE#*-}"
+_piper_name="${_piper_rest%%-*}"
+_piper_quality="${_piper_rest##*-}"
+_piper_lang="${_piper_locale%%_*}"
+PIPER_VOICE_BASE_URL="${PIPER_VOICE_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/${_piper_lang}/${_piper_locale}/${_piper_name}/${_piper_quality}}"
 
 log()  { echo "[$(date '+%H:%M:%S')] $*"; }
 fail() { echo "❌ $*" >&2; exit 1; }
@@ -39,11 +49,21 @@ pip install --upgrade pip wheel
 # the default piwheels build of torchaudio sometimes ships a binary that
 # fails to load against the Pi's libc. Force the CPU build from PyTorch's
 # official index first so torchaudio matches torch.
-log "Installing CPU torch + torchaudio (aarch64-compatible)..."
-pip install --upgrade --index-url https://download.pytorch.org/whl/cpu \
+#
+# PINNED, and pinned to the same version on purpose. The previous
+# `--upgrade torch torchaudio` (no versions) took torch to 2.14.0 while leaving
+# torchaudio at 2.11.0, because there is no cp313/aarch64 torchaudio wheel for
+# 2.14 -- pip upgraded what it could and silently left the pair mismatched,
+# which is the exact failure the comment above says this block exists to
+# prevent. The two ship in lockstep and torchaudio links against a specific
+# torch ABI, so bump them together or not at all. Override with
+# TORCH_VERSION=... to test a newer pair.
+TORCH_VERSION="${TORCH_VERSION:-2.11.0}"
+log "Installing CPU torch + torchaudio ${TORCH_VERSION} (aarch64-compatible)..."
+pip install --index-url https://download.pytorch.org/whl/cpu \
     --extra-index-url https://pypi.org/simple \
-    torch torchaudio || \
-    pip install --upgrade torch torchaudio
+    "torch==${TORCH_VERSION}" "torchaudio==${TORCH_VERSION}" || \
+    pip install "torch==${TORCH_VERSION}" "torchaudio==${TORCH_VERSION}"
 
 pip install -r requirements_v2.txt
 
