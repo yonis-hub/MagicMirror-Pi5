@@ -694,6 +694,13 @@ FUZZY_CONTROL_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_FUZZY_CONTRO
 # VOICE_QUIET_DURING_PLAYBACK. Handled separately from speak()'s guard because
 # the chainer has not launched yet when acknowledge_intent() runs.
 PLAYBACK_STARTING_ACTIONS = frozenset({"play", "play_verse", "play_juz", "resume"})
+# How long to ignore wake fires after one that captured no command while a
+# surah was playing. The mic sits at full preamp gain (32dB) so it hears the
+# recitation through the speaker clearly, and openWakeWord scores that audio
+# 0.93-1.00 -- as high as a genuine wake, so no threshold can separate the two.
+# Without a backoff the loop re-arms immediately and fires again ~4s later,
+# indefinitely, and each cycle burns a capture window a real command needed.
+EMPTY_WAKE_COOLDOWN_SEC = max(0.0, float(os.getenv("VOICE_EMPTY_WAKE_COOLDOWN_SEC", "10")))
 # Minimum confidence for accepting an Ollama parse over the local fallback.
 OLLAMA_MIN_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_OLLAMA_MIN_CONF", "0.5"))))
 # AGC (RMS level normalisation) applied to command audio before Whisper.
@@ -926,8 +933,14 @@ def _fuzzy_surah_lookup(tokens, threshold=FUZZY_SURAH_THRESHOLD):
             return SURAH_NAMES[matches[0]]
     return None
 
+# The optional ordinal suffix matters: Whisper writes a spoken surah number as
+# an ordinal often enough to matter ("play surah 19th", logged verbatim as
+# "This is our 19th." and "Please, sir, 11th."). Without it the trailing "th"
+# is a word character, so the \b after the digits never matches and the whole
+# utterance fails to resolve on any STT model.
+_ORDINAL_SUFFIX = r"(?:st|nd|rd|th)?"
 _SURAH_PREFIX_RE = re.compile(
-    r"\b(?:surah|sura|chapter|number|num|no\.?)\s+(\d{1,3})\b",
+    r"\b(?:surah|sura|chapter|number|num|no\.?)\s+(\d{1,3})" + _ORDINAL_SUFFIX + r"\b",
     re.IGNORECASE,
 )
 
@@ -1014,7 +1027,8 @@ def extract_surah_number_with_source(text):
             return (number, "prefix")
 
     # 3) Any bare digit in the utterance — common case ("play 9", "put 19 on").
-    digit_match = re.search(r"\b(\d{1,3})\b", lowered)
+    #    Accepts an ordinal suffix for the same reason as _SURAH_PREFIX_RE.
+    digit_match = re.search(r"\b(\d{1,3})" + _ORDINAL_SUFFIX + r"\b", lowered)
     if digit_match:
         number = int(digit_match.group(1))
         if 1 <= number <= 114:
@@ -1201,6 +1215,7 @@ class OllamaVoiceListener:
         self._last_command_signature = None
         self._last_command_ts = 0.0
         self._tts_finished_at = 0.0  # used to suppress self-wake right after our own TTS
+        self._empty_wake_until = 0.0  # backoff after a self-triggered wake during playback
         self.last_played_surah = None  # remembered so UI toggle can restart after stop
         self._chainer_paused = False   # mirrors chainer's pause state for UI toggle
         # Wall-clock playback tracking so STOP can also preserve position
@@ -3237,6 +3252,16 @@ class OllamaVoiceListener:
                     print("  🔇 Wake fired within TTS cooldown — ignoring (self-trigger)")
                     continue
 
+                # Same idea, for the recitation rather than our own TTS. See
+                # EMPTY_WAKE_COOLDOWN_SEC: the mic hears the speaker and
+                # openWakeWord scores the recitation 0.93-1.00, so a wake that
+                # captured nothing during playback earns a backoff instead of
+                # re-arming instantly and looping every few seconds.
+                if time.monotonic() < self._empty_wake_until:
+                    remaining = self._empty_wake_until - time.monotonic()
+                    print(f"  🔇 Wake ignored — {remaining:.0f}s left of empty-wake cooldown")
+                    continue
+
                 # External-mute flag (e.g. set by MagicMirror during adhan).
                 if os.path.exists("/tmp/mm-voice-muted"):
                     try:
@@ -3300,6 +3325,16 @@ class OllamaVoiceListener:
 
                 if not audio_file:
                     print("  No command audio captured (silence / timeout)")
+                    # Only back off when a surah is playing. With nothing
+                    # playing an empty capture is usually a real wake followed
+                    # by hesitation, and locking the user out for 10s would be
+                    # worse than the occasional wasted window.
+                    if playback_active and EMPTY_WAKE_COOLDOWN_SEC > 0:
+                        self._empty_wake_until = time.monotonic() + EMPTY_WAKE_COOLDOWN_SEC
+                        print(
+                            f"  🔇 Empty wake during playback — ignoring wakes for "
+                            f"{EMPTY_WAKE_COOLDOWN_SEC:.0f}s (self-trigger)"
+                        )
                     self._return_to_idle()
                     self.oww_detector.start()
                     continue

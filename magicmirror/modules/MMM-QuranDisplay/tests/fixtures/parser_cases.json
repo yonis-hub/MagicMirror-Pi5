@@ -201,5 +201,52 @@
     "expected_action": "play",
     "expected_surah": 36,
     "expected_min_confidence": 0.75
+  },
+  {
+    "name": "ordinal_digit_surah_19th",
+    "input": "play surah 19th",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 19,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "ordinal_bare_digit_11th",
+    "input": "play 11th",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 11,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "ordinal_1st",
+    "input": "play surah 1st",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 1,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "ordinal_3rd",
+    "input": "play surah 3rd",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 3,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "ordinal_2nd",
+    "input": "play surah 2nd",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 2,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "ordinal_does_not_match_junk_suffix",
+    "input": "play surah 19x",
+    "require_wake": false,
+    "expected_action": "none",
+    "expected_surah": null
   }
 ]
