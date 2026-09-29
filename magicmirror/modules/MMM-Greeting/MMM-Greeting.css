@@ -1,0 +1,106 @@
+/* MMM-Greeting — the calligraphic welcome line above MMM-WordOfTheDay.
+ *
+ * Keeps the handwriting look the compliments module had, and carries the accent
+ * green of MMM-BismillahBanner / MMM-WordOfTheDay on the Somali side so the
+ * three modules read as one design.
+ *
+ * The font is vendored under assets/ rather than pulled from Google Fonts at
+ * runtime, for the same reason the Bismillah calligraphy is: the kiosk runs for
+ * weeks and must not depend on a font request succeeding. The compliments
+ * module @imported it from fonts.googleapis.com and was rendering in a serif
+ * fallback on the Pi.
+ *
+ * The `color` declarations carry !important on purpose — see the longer note in
+ * MMM-WordOfTheDay.css about the global text boost in css/main.css. */
+
+@font-face {
+  font-family: "MM Script";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("assets/dancing-script-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "MM Script";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("assets/dancing-script-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+.MMM-Greeting {
+  --greet-accent: #eafff0; /* the greeting itself stays near-white */
+  --greet-english: #93a3ab;
+  --greet-rule: rgb(123 227 141 / 55%); /* accent green, as the hairline below */
+  --greet-ornament: #7be38d;
+  --greet-size: 2.8rem;
+  --greet-english-size: 0.85rem;
+}
+
+/* The bottom bar is left-aligned so the two tickers can share one row
+   (see MMM-SpyTrackerReport.css); the greeting keeps its own centred line. */
+.MMM-Greeting .greet {
+  text-align: center;
+}
+
+.MMM-Greeting .greet-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.7em;
+}
+
+.MMM-Greeting .greet-so {
+  font-family: "MM Script", "Dancing Script", "Great Vibes", "URW Chancery L", "Lucida Handwriting", "Brush Script MT", cursive;
+  font-size: var(--greet-size);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: 0.01em;
+  color: var(--greet-accent) !important;
+  text-shadow: 0 0 1px rgb(255 255 255 / 45%), 0 0 3px rgb(255 255 255 / 22%), 0 0 8px rgb(255 255 255 / 10%);
+}
+
+.MMM-Greeting .greet-en {
+  font-size: var(--greet-english-size);
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--greet-english) !important;
+  /* Lift off the script baseline, which sits low because of the descenders. */
+  transform: translateY(-0.25em);
+}
+
+/* Ornament that ties the greeting to the word of the day underneath it: a
+   hairline fading out at both ends, with a small diamond at the centre. Drawn
+   with backgrounds rather than text, so the global text boost in css/main.css
+   cannot wash it out. */
+.MMM-Greeting .greet-rule {
+  position: relative;
+  width: min(460px, 48vw);
+  height: 7px;
+  margin: 9px auto 0;
+}
+
+.MMM-Greeting .greet-rule::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--greet-rule) 30%, var(--greet-rule) 70%, transparent 100%);
+}
+
+.MMM-Greeting .greet-rule::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--greet-ornament);
+  box-shadow: 0 0 6px rgb(123 227 141 / 55%);
+}

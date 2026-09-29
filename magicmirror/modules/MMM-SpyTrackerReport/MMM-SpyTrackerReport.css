@@ -6,13 +6,17 @@
    container (js/main.js updateWrapperStates), so the container can't be
    flexed from a stylesheet — instead the two ticker modules themselves
    become inline-flex boxes, which flow side by side in the block container.
-   Compliments stays a block module and keeps its own full-width line. */
+   MMM-Greeting and MMM-WordOfTheDay stay block modules above this row and keep
+   their own full-width lines. */
 .region.bottom.bar > .container {
     text-align: left;
 }
 
-/* Undo the left-align for compliments — it keeps its centered line. */
-.region.bottom.bar .container .module.compliments {
+/* Undo the left-align for the two centred modules above this row. Each also
+   re-centres itself in its own stylesheet, so removing either module from the
+   config leaves nothing dangling here. */
+.region.bottom.bar .container .module.MMM-Greeting,
+.region.bottom.bar .container .module.MMM-WordOfTheDay {
     text-align: center;
 }
 

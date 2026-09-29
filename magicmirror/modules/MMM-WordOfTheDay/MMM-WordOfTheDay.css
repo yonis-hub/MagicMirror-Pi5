@@ -1,0 +1,176 @@
+/* MMM-WordOfTheDay — bilingual Af-Soomaali / English vocabulary strip.
+ *
+ * Shares the mirror's accent green with MMM-BismillahBanner and MMM-Greeting so
+ * the Somali side of every module reads as one voice. Sized to sit in the
+ * bottom bar underneath the greeting — see the height notes in README.md
+ * before growing any of these sizes.
+ *
+ * Every `color` here carries !important on purpose. css/main.css has a local
+ * "global text boost" rule on `.module *` that mixes currentColor 25% with
+ * white, also !important. Because it matches every element and reads the
+ * colour it inherits, the whitening compounds once per nesting level — and
+ * this module's text sits five levels deep, so without !important every colour
+ * below resolves to pure white. The default compliments.css did the same. */
+
+.MMM-WordOfTheDay {
+  --wotd-accent: #7be38d; /* Somali side — same green as the banner */
+  --wotd-english: #f2f7ff; /* English side */
+  --wotd-meta: #8c9aa4; /* labels, pronunciation, separators */
+  --wotd-example: #b9c4cc;
+  --wotd-head-size: 0.7rem;
+  --wotd-word-size: 2.2rem;
+  --wotd-example-size: 0.85rem;
+}
+
+/* The bottom bar is left-aligned so the two tickers can share one row
+   (see MMM-SpyTrackerReport.css); this block keeps its own centred line. */
+.MMM-WordOfTheDay .wotd {
+  text-align: center;
+  line-height: 1.15;
+}
+
+/* Sit close under the greeting so the pair reads as a single panel, instead of
+   taking the full --gap-modules the region would otherwise apply. */
+.region.bottom.bar .module.MMM-WordOfTheDay {
+  margin-top: 7px;
+}
+
+/* ---- header: what this is, which family the word belongs to, how far through today's ten ---- */
+
+.MMM-WordOfTheDay .wotd-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4em;
+  font-size: var(--wotd-head-size);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wotd-meta) !important;
+  line-height: 1.4;
+}
+
+.MMM-WordOfTheDay .wotd-label-so {
+  color: var(--wotd-accent) !important;
+  opacity: 0.75;
+}
+
+/* The label and the category tag lay their parts out inline, so unlike the rows
+   below they get no flex gap — space the separators by hand. */
+.MMM-WordOfTheDay .wotd-label .wotd-mid,
+.MMM-WordOfTheDay .wotd-tag .wotd-mid {
+  margin: 0 0.45em;
+}
+
+.MMM-WordOfTheDay .wotd-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 1px 9px;
+  border: 1px solid rgb(123 227 141 / 28%);
+  border-radius: 999px;
+  background: rgb(123 227 141 / 8%);
+  letter-spacing: 0.1em;
+}
+
+.MMM-WordOfTheDay .wotd-emoji {
+  /* Emoji ignore letter-spacing and colour, but do inherit the size. */
+  font-size: 1.15em;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.MMM-WordOfTheDay .wotd-cat-so {
+  color: var(--wotd-accent) !important;
+}
+
+.MMM-WordOfTheDay .wotd-cat-en {
+  color: var(--wotd-meta) !important;
+}
+
+.MMM-WordOfTheDay .wotd-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.MMM-WordOfTheDay .wotd-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 16%);
+  transition: background 400ms ease, box-shadow 400ms ease;
+}
+
+.MMM-WordOfTheDay .wotd-dot.is-past {
+  background: rgb(123 227 141 / 34%);
+}
+
+.MMM-WordOfTheDay .wotd-dot.is-now {
+  background: var(--wotd-accent);
+  box-shadow: 0 0 6px rgb(123 227 141 / 70%);
+}
+
+/* ---- the word itself ---- */
+
+.MMM-WordOfTheDay .wotd-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.42em;
+  margin-top: 2px;
+  font-size: var(--wotd-word-size);
+}
+
+.MMM-WordOfTheDay .wotd-so {
+  color: var(--wotd-accent) !important;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  text-shadow: 0 0 2px rgb(123 227 141 / 30%), 0 0 12px rgb(123 227 141 / 14%);
+}
+
+.MMM-WordOfTheDay .wotd-en {
+  color: var(--wotd-english) !important;
+  font-weight: 300;
+}
+
+.MMM-WordOfTheDay .wotd-pron {
+  color: var(--wotd-meta) !important;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  /* Nudge down so it sits with the x-height rather than the cap line. */
+  transform: translateY(-0.15em);
+}
+
+.MMM-WordOfTheDay .wotd-mid {
+  color: var(--wotd-meta) !important;
+  opacity: 0.55;
+}
+
+/* ---- example sentence ---- */
+
+.MMM-WordOfTheDay .wotd-example {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  margin-top: 3px;
+  font-size: var(--wotd-example-size);
+  line-height: 1.4;
+  color: var(--wotd-example) !important;
+}
+
+.MMM-WordOfTheDay .wotd-ex-so {
+  color: rgb(123 227 141 / 78%) !important;
+}
+
+.MMM-WordOfTheDay .wotd-ex-en {
+  color: var(--wotd-example) !important;
+  opacity: 0.8;
+}
+
+.MMM-WordOfTheDay .wotd-placeholder {
+  font-size: 0.85rem;
+  color: var(--wotd-meta) !important;
+}

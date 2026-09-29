@@ -103,68 +103,82 @@ let config = {
 			}
 		},
 		{
-			module: "compliments",
-			position: "bottom_bar",
+			module: "MMM-Greeting",
+			position: "bottom_bar",            // above the word of the day (declared earlier in array)
 			config: {
 				identityDisplayNames: {
 					yonis: "Yonis",
 					hodan: "Hodan",
 					both: "Yonis iyo Hodan"
 				},
-				identityProfiles: {
+				// Offered alongside the module's own generic lines whenever
+				// MMM-FaceIdentity recognises this person.
+				identityGreetings: {
 					yonis: {
 						morning: [
-							"Subax wanaagsan, {name}.",
-							"{name}, maanta waxaad leedahay tamar fiican.",
-							"{name}, Ilaahay ha kuu barakeeyo maalintaada."
+							{ so: "{name}, maanta waxaad leedahay tamar fiican", en: "{name}, you have good energy today" },
+							{ so: "{name}, Ilaahay ha kuu barakeeyo maalintaada", en: "{name}, may God bless your day" }
 						],
 						afternoon: [
-							"{name}, sii wad dadaalka quruxda badan.",
-							"{name}, nasasho yar qaado haddii aad u baahan tahay."
+							{ so: "{name}, sii wad dadaalka quruxda badan", en: "{name}, keep up that fine effort" },
+							{ so: "{name}, nasasho yar qaado haddii aad u baahan tahay", en: "{name}, take a short rest if you need one" }
 						],
 						evening: [
-							"{name}, alxamdulillaah maanta si fiican baad u martay.",
-							"{name}, habeen deggan ha kuu noqdo."
+							{ so: "{name}, alxamdulillaah maanta si fiican baad u martay", en: "{name}, alhamdulillah, today went well" }
+						],
+						night: [
+							{ so: "{name}, habeen deggan ha kuu noqdo", en: "{name}, may your night be calm" }
 						],
 						anytime: [
-							"{name}, degganaantaadu waxay qurxisaa guriga.",
-							"{name}, dadaalkaaga waa la dareemaa."
+							{ so: "{name}, degganaantaadu waxay qurxisaa guriga", en: "{name}, your calm makes this home beautiful" },
+							{ so: "{name}, dadaalkaaga waa la dareemaa", en: "{name}, your effort is felt" }
 						]
 					},
 					hodan: {
 						morning: [
-							"Subax wanaagsan, {name}.",
-							"{name}, dhoolla-caddeyntaadu waa iftiin.",
-							"{name}, Ilaahay ha kuu barakeeyo saaka."
+							{ so: "{name}, dhoolla-caddeyntaadu waa iftiin", en: "{name}, your smile is light" },
+							{ so: "{name}, Ilaahay ha kuu barakeeyo saaka", en: "{name}, may God bless your morning" }
 						],
 						afternoon: [
-							"{name}, galabtaadu ha noqoto mid fudud oo qurux badan.",
-							"{name}, waad mudan tahay kalsooni iyo nasasho."
+							{ so: "{name}, galabtaadu ha noqoto mid fudud oo qurux badan", en: "{name}, may your afternoon be easy and lovely" },
+							{ so: "{name}, waad mudan tahay kalsooni iyo nasasho", en: "{name}, you deserve confidence and rest" }
 						],
 						evening: [
-							"{name}, habeen barako leh ha kuu noqdo.",
-							"{name}, maanta waxaad keentay degganaan iyo iftiin."
+							{ so: "{name}, maanta waxaad keentay degganaan iyo iftiin", en: "{name}, today you brought calm and light" }
+						],
+						night: [
+							{ so: "{name}, habeen barako leh ha kuu noqdo", en: "{name}, may your night be blessed" }
 						],
 						anytime: [
-							"{name}, joogitaankaagu guriga wuu dejiyaa.",
-							"{name}, qalbigaagu waa naxariis."
+							{ so: "{name}, joogitaankaagu guriga wuu dejiyaa", en: "{name}, your presence settles this home" },
+							{ so: "{name}, qalbigaagu waa naxariis", en: "{name}, your heart is mercy" }
 						]
 					},
 					both: {
 						morning: [
-							"Subax wanaagsan, {name}.",
-							"Ilaahay ha idiinka dhigo maanta maalin khayr leh."
+							{ so: "Ilaahay ha idiinka dhigo maanta maalin khayr leh", en: "May God make today a day of goodness for you both" }
 						],
 						evening: [
-							"{name}, habeen deggan oo barako leh ha idiin noqdo.",
-							"Alxamdulillaah, wadajirkiinnu waa nimco."
+							{ so: "Alxamdulillaah, wadajirkiinnu waa nimco", en: "Alhamdulillah, your togetherness is a grace" }
+						],
+						night: [
+							{ so: "{name}, habeen deggan oo barako leh ha idiin noqdo", en: "{name}, may you both have a calm, blessed night" }
 						],
 						anytime: [
-							"{name}, gurigiinnu wuxuu leeyahay degganaan qurux badan.",
-							"{name}, isku duubnidiinnu waa barako."
+							{ so: "{name}, gurigiinnu wuxuu leeyahay degganaan qurux badan", en: "{name}, your home has a beautiful calm" },
+							{ so: "{name}, isku duubnidiinnu waa barako", en: "{name}, your closeness is a blessing" }
 						]
 					}
 				}
+			}
+		},
+		{
+			module: "MMM-WordOfTheDay",
+			position: "bottom_bar",            // directly under the greeting
+			config: {
+				wordsPerDay: 10,               // ten words a day; 240 words = 24 days per full pass
+				rotateInterval: 30000,         // each word holds the line for 30s
+				showExample: true              // set false to drop the example line and shorten the bar
 			}
 		},
 		{
@@ -203,7 +217,7 @@ let config = {
 		},
 		{
 			module: "MMM-MarketTicker",
-			position: "bottom_bar",            // below compliments (declared earlier in array)
+			position: "bottom_bar",            // below the word of the day (declared earlier in array)
 			config: {
 				displayMode: "static",         // both symbols side-by-side, no motion
 				symbols: [

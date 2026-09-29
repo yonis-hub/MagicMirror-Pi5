@@ -20,7 +20,8 @@ The MagicMirror is fully operational on Raspberry Pi 5 with the following module
 | Clock | ✅ Working | Date and time display |
 | MMM-WebSpeechTTS | ✅ Working | Text-to-speech capability |
 | Newsfeed | ✅ Working | BBC World + TechCrunch |
-| Compliments | ✅ Working | Random greetings |
+| MMM-Greeting | ✅ Working | Bilingual Somali/English greeting, by name when a face is recognised |
+| MMM-WordOfTheDay | ✅ Working | 10 Af-Soomaali / English words a day, rotating; 240-word list |
 
 ---
 
