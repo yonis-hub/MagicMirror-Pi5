@@ -86,10 +86,19 @@ if [[ "${UPDATED}" -eq 1 ]]; then
     )
   fi
 
-  if systemctl list-unit-files | grep -q "^magicmirror@${TARGET_USER}\\.service"; then
-    log "Restarting magicmirror@${TARGET_USER}.service"
-    systemctl restart "magicmirror@${TARGET_USER}.service"
-  fi
+  # Restart the server so it picks up the new module code. This used to restart
+  # magicmirror@${TARGET_USER}.service -- the retired Electron launcher -- and
+  # the list-unit-files guard passed as long as that unit file was still sitting
+  # in /etc/systemd/system, so this was a live second path to starting a
+  # duplicate mirror. mm-server is a USER unit, hence the runuser hop; the kiosk
+  # reloads the page on its own and does not need restarting.
+  target_uid="$(id -u "${TARGET_USER}")"
+  log "Restarting mm-server.service for ${TARGET_USER}"
+  runuser -u "${TARGET_USER}" -- \
+    env "XDG_RUNTIME_DIR=/run/user/${target_uid}" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${target_uid}/bus" \
+    systemctl --user restart mm-server.service \
+    || log "WARN: could not restart mm-server.service"
 else
   log "MMM-MyScoreboard already up to date"
 fi

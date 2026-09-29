@@ -177,44 +177,43 @@ Voice (future) → Ollama → Parse Surah           MMM-QuranDisplay
 - **Al Quran Cloud:** `http://api.alquran.cloud/v1/surah/{surah}/ar.alafasy`
 - **Reciter:** Mishary Rashid Al-Afasy
 
-### Autostart (MagicMirror + Voice Listener with `venv`)
+### Autostart (systemd)
 
-Use this when you want the Pi to boot straight into the MagicMirror server and the Quran voice listener (inside its Python virtual environment):
+The Pi boots straight into the mirror via systemd. There are two scopes, and
+mixing them up is the usual source of confusion:
+
+| Unit | Scope | What it runs |
+|---|---|---|
+| `mm-server.service` | **user** | `node serveronly` (the MagicMirror server) |
+| `mm-kiosk.service` | **user** | Chromium in kiosk mode against `localhost:8080` |
+| `quran-voice@<user>.service` | **system** | the voice listener, inside its venv |
+| `mm-healthcheck@<user>.timer` | **system** | every-minute watchdog over all of the above |
+
+User units need no `sudo` and are managed with `systemctl --user`; system units
+need `sudo`. Full install steps are in [AUTOSTART_GUIDE.md](AUTOSTART_GUIDE.md).
 
 ```bash
-# 1. Create combined startup script (Pi)
-cat > ~/start_mirror_with_venv.sh << 'EOF'
-#!/bin/bash
+# status
+systemctl --user status mm-server mm-kiosk --no-pager
+sudo systemctl status quran-voice@$USER --no-pager
 
-# Start MagicMirror server
-cd ~/MagicMirror-Pi5/magicmirror
-npm run server &
-
-# Start voice listener (activate venv first)
-cd ~/MagicMirror-Pi5/magicmirror/modules/MMM-QuranDisplay
-source venv/bin/activate
-python3 voice_listener_ollama.py
-EOF
-
-# 2. Make it executable
-chmod +x ~/start_mirror_with_venv.sh
-
-# 3. Add to desktop autostart
-mkdir -p ~/.config/autostart
-cat > ~/.config/autostart/magicmirror.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=MagicMirror with Voice Listener (VENV)
-Exec=/bin/bash -c "~/start_mirror_with_venv.sh"
-X-GNOME-Autostart-enabled=true
-EOF
-
-# 4. (Optional) Test immediately without rebooting
-~/start_mirror_with_venv.sh &
+# restart after pulling changes
+systemctl --user restart mm-server.service
+sudo systemctl restart quran-voice@$USER.service
 ```
 
-**Disable later:** `rm ~/.config/autostart/magicmirror.desktop`  
-**Modify startup logic:** `nano ~/start_mirror_with_venv.sh`
+> Earlier revisions of this guide told you to autostart the mirror from
+> `~/.config/autostart/magicmirror.desktop` or `magicmirror@<user>.service`,
+> both of which ran `npm run start` and launched a **second**, Electron-based
+> copy of the mirror alongside the kiosk. Both have been removed. If either is
+> still on your Pi, retire it:
+>
+> ```bash
+> rm -f ~/.config/autostart/magicmirror.desktop
+> sudo systemctl disable --now magicmirror@$USER.service 2>/dev/null || true
+> sudo rm -f /etc/systemd/system/magicmirror@.service
+> sudo systemctl daemon-reload
+> ```
 
 ---
 

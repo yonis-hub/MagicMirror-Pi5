@@ -4,7 +4,9 @@ This setup keeps the mirror UI and voice control running all day with auto-resta
 
 ## Recommended architecture
 
-- `magicmirror@<user>.service`: always-on MagicMirror UI process
+- `mm-server.service` + `mm-kiosk.service` (**user** units): the MagicMirror
+  server and the Chromium kiosk. These replaced the retired
+  `magicmirror@<user>.service` Electron launcher.
 - `quran-voice@<user>.service`: always-on wake-word + Quran voice listener
 - `mm-healthcheck@<user>.timer`: every-minute watchdog that restarts unhealthy services
 - `ollama.service`: low-memory tuned override for Pi stability
@@ -18,8 +20,20 @@ git pull
 
 ## 2) Install systemd unit templates
 
+The mirror itself runs as two **user** units (`mm-server` = `node serveronly`,
+`mm-kiosk` = Chromium). They are installed under `~/.config/systemd/user/`, not
+`/etc/systemd/system/`, and are controlled with `systemctl --user` (no sudo).
+
 ```bash
-sudo cp ~/MagicMirror-Pi5/deploy/systemd/magicmirror@.service /etc/systemd/system/
+mkdir -p ~/.config/systemd/user
+cp ~/MagicMirror-Pi5/deploy/systemd/user/mm-server.service ~/.config/systemd/user/
+cp ~/MagicMirror-Pi5/deploy/systemd/user/mm-kiosk.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+```
+
+The voice listener, healthcheck and scoreboard updater are **system** units:
+
+```bash
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/quran-voice@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.timer /etc/systemd/system/
@@ -40,7 +54,7 @@ sudo systemctl restart ollama
 ## 4) Enable always-on services
 
 ```bash
-sudo systemctl enable --now magicmirror@hyonis.service
+systemctl --user enable --now mm-server.service mm-kiosk.service
 sudo systemctl enable --now quran-voice@hyonis.service
 sudo systemctl enable --now mm-healthcheck@hyonis.timer
 sudo systemctl enable --now myscoreboard-update@hyonis.timer
@@ -51,7 +65,7 @@ Replace `hyonis` with your actual Pi username.
 ## 5) Verify status
 
 ```bash
-systemctl status magicmirror@hyonis --no-pager
+systemctl --user status mm-server mm-kiosk --no-pager
 systemctl status quran-voice@hyonis --no-pager
 systemctl status mm-healthcheck@hyonis.timer --no-pager
 systemctl status myscoreboard-update@hyonis.timer --no-pager

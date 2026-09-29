@@ -5,7 +5,10 @@ Use these templates to keep MagicMirror, Quran voice control, and Ollama stable 
 ## 1) Install/refresh unit files
 
 ```bash
-sudo cp ~/MagicMirror-Pi5/deploy/systemd/magicmirror@.service /etc/systemd/system/
+mkdir -p ~/.config/systemd/user
+cp ~/MagicMirror-Pi5/deploy/systemd/user/mm-server.service ~/.config/systemd/user/
+cp ~/MagicMirror-Pi5/deploy/systemd/user/mm-kiosk.service ~/.config/systemd/user/
+systemctl --user daemon-reload
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/quran-voice@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.service /etc/systemd/system/
 sudo cp ~/MagicMirror-Pi5/deploy/systemd/mm-healthcheck@.timer /etc/systemd/system/
@@ -26,7 +29,7 @@ sudo systemctl restart ollama
 ## 3) Enable always-on services
 
 ```bash
-sudo systemctl enable --now magicmirror@hyonis.service
+systemctl --user enable --now mm-server.service mm-kiosk.service
 sudo systemctl enable --now quran-voice@hyonis.service
 sudo systemctl enable --now mm-healthcheck@hyonis.timer
 sudo systemctl enable --now myscoreboard-update@hyonis.timer
@@ -47,12 +50,12 @@ bluetoothctl devices
 ## 4) Verify runtime health
 
 ```bash
-systemctl status magicmirror@hyonis --no-pager
+systemctl --user status mm-server mm-kiosk --no-pager
 systemctl status quran-voice@hyonis --no-pager
 systemctl status mm-healthcheck@hyonis.timer --no-pager
 systemctl status myscoreboard-update@hyonis.timer --no-pager
 systemctl status ollama --no-pager
-journalctl -u magicmirror@hyonis -n 100 --no-pager
+journalctl --user -u mm-server -n 100 --no-pager
 journalctl -u quran-voice@hyonis -n 100 --no-pager
 journalctl -u myscoreboard-update@hyonis.service -n 100 --no-pager
 ```
@@ -69,7 +72,7 @@ sudo systemctl start myscoreboard-update@hyonis.service
 sudo systemctl disable --now mm-healthcheck@hyonis.timer
 sudo systemctl disable --now myscoreboard-update@hyonis.timer
 sudo systemctl disable --now quran-voice@hyonis.service
-sudo systemctl disable --now magicmirror@hyonis.service
+systemctl --user disable --now mm-server.service mm-kiosk.service
 ```
 
 ## Notes
