@@ -3118,7 +3118,10 @@ class OllamaVoiceListener:
                             )
                             if playback_active:
                                 self.send_chainer_command("PAUSE")
-                            if self.enable_voice:
+                            # Honour VOICE_SPEAK_WAKE_ACK here too: it defaults
+                            # to off, and two of the three ack sites used to
+                            # ignore it, so the ack was spoken against config.
+                            if self.enable_voice and self.speak_wake_ack:
                                 self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
                     elif followup_active and command_hint_present:
                         should_handle = True
@@ -3321,7 +3324,10 @@ class OllamaVoiceListener:
                 # and give a delayed audible ack.
                 if playback_active:
                     self.send_chainer_command("PAUSE")
-                    if self.enable_voice:
+                    # Same flag as the non-playback branch above. Speaking an
+                    # ack *because* a surah is playing is the one case the user
+                    # least wants it; speak() also guards this, belt and braces.
+                    if self.enable_voice and self.speak_wake_ack:
                         self.speak(random.choice(WAKE_ACKNOWLEDGEMENTS))
 
                 # Denoise before transcription for cleaner Whisper output
