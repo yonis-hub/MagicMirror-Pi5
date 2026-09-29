@@ -693,7 +693,13 @@ OLLAMA_MIN_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_OLLAMA_MIN_CONF
 # AGC (RMS level normalisation) applied to command audio before Whisper.
 # VOICE_AGC_TARGET_RMS=0 disables AGC entirely.
 AGC_TARGET_RMS = max(0.0, float(os.getenv("VOICE_AGC_TARGET_RMS", "3000")))
-AGC_MAX_GAIN = max(1.0, float(os.getenv("VOICE_AGC_MAX_GAIN", "6")))
+# 24, up from 6: with a measured input RMS of ~73 the AGC wants a gain of ~41 to
+# reach AGC_TARGET_RMS, so a ceiling of 6 bound every single clip -- the logs read
+# "gain x6.00" verbatim, which is the AGC reporting it gave up short of target.
+# Raising the ceiling is safe because _normalize_wav_level also clamps by
+# 32767/peak, so the digital-clip guard takes over before the audio distorts;
+# the effective gain becomes whatever the waveform's own headroom allows.
+AGC_MAX_GAIN = max(1.0, float(os.getenv("VOICE_AGC_MAX_GAIN", "24")))
 
 def clamp_confidence(value, default=DEFAULT_CONFIDENCE):
     try:

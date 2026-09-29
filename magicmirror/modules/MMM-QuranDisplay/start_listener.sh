@@ -48,9 +48,22 @@ VOICE_SINK="${VOICE_SINK:-auto}"
 VOICE_DEVICE_FALLBACK="${VOICE_DEVICE_FALLBACK:-plughw:CARD=W1,DEV=0}"
 VOICE_PULSE_WAIT_SEC="${VOICE_PULSE_WAIT_SEC:-30}"
 VOICE_REQUIRE_PULSE="${VOICE_REQUIRE_PULSE:-1}"
-# 75%: 50% gave a low-SNR clip on the wall mic, which hurt Whisper accuracy.
-# Raise further if the listener's printed RMS is still low; back off if it clips.
-VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-75%}"
+# 100%, up from 75%: the listener was printing "AGC: rms 73 -> gain x6.00" --
+# an input RMS of ~73 out of 32768 is roughly -53 dBFS, about 30 dB below where
+# speech should sit, with the AGC pinned at its ceiling trying to compensate.
+#
+# NOTE: this value is authoritative. It is applied when the source is pinned at
+# startup AND re-applied by start_audio_heal_loop every
+# VOICE_AUTO_HEAL_INTERVAL_SEC (5s), so a manual `pactl set-source-volume` is
+# reverted within seconds -- change it here or export VOICE_SOURCE_VOLUME.
+#
+# Above 100% PulseAudio/PipeWire applies pure software gain, which amplifies
+# noise with the signal; at or below 100% it generally maps to the USB mic's
+# hardware capture control, which is the cleaner gain. If RMS is still low at
+# 100%, raise the mic's ALSA capture control rather than pushing this past 100.
+# This is also the only lever that helps openWakeWord: the AGC runs on the
+# captured command clip, well after wake detection has already scored the stream.
+VOICE_SOURCE_VOLUME="${VOICE_SOURCE_VOLUME:-100%}"
 VOICE_SILENCE_MAX_AMP="${VOICE_SILENCE_MAX_AMP:-180}"
 VOICE_SILENCE_RMS_AMP="${VOICE_SILENCE_RMS_AMP:-35}"
 VOICE_SINK_VOLUME="${VOICE_SINK_VOLUME:-50%}"
