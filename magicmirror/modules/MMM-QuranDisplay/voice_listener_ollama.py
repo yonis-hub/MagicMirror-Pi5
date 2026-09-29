@@ -652,6 +652,13 @@ DEFAULT_STT_LANGUAGE = "en"
 DEFAULT_WAKE_WINDOW_SEC = 1.5
 DEFAULT_COMMAND_WINDOW_SEC = 2.5
 DEFAULT_MEMORY_CHECK_INTERVAL_SEC = 60
+# System-memory percentage above which check_memory() will drop and reload the
+# Whisper model. Raised from a hard-coded 80: an Ollama escalation loads a ~2-3GB
+# model and crosses 80% routinely, which made the reload fire during normal use
+# and turned the next decode into a 20-45s stall. Freeing the idle ~1.1GB on the
+# host (the leaked wf-panel-pi and the duplicate MagicMirror) raises the real
+# headroom further.
+MEMORY_RELOAD_PERCENT = max(50.0, min(99.0, float(os.getenv("VOICE_MEMORY_RELOAD_PCT", "92"))))
 FUZZY_SURAH_THRESHOLD = 0.82
 DEFAULT_SILENCE_MAX_AMP = 60
 DEFAULT_SILENCE_RMS_AMP = 12
@@ -662,9 +669,20 @@ LOCAL_HIGH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_LOCAL_HIGH_CONF
 # Resolution sources from extract_surah_number_with_source() that identify a
 # surah exactly rather than by fuzzy similarity. An exact hit is scored above
 # LOCAL_HIGH_CONFIDENCE so hybrid mode answers it locally, with no round-trip.
-EXACT_SURAH_SOURCES = frozenset({"alias", "prefix", "digits", "words"})
+# "homophone" counts as exact: it only fires in the slot directly after an
+# explicit surah prefix, which makes it unambiguous in this domain even though
+# the token itself is a mishear (see _SURAH_HOMOPHONE_RE).
+EXACT_SURAH_SOURCES = frozenset({"alias", "prefix", "digits", "words", "homophone"})
 EXACT_SURAH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_EXACT_SURAH_CONF", "0.92"))))
 FUZZY_SURAH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_FUZZY_SURAH_CONF", "0.72"))))
+# Control verbs (stop/pause/resume) get the same exact-vs-fuzzy split as
+# surahs. By the time parse_fallback scores one, wake is already confirmed --
+# either require_wake=True returned early above without it, or openWakeWord
+# matched out-of-band and stripped the phrase before _parse_command ran -- so an
+# exact keyword hit is as trustworthy as an exact surah hit and should likewise
+# skip the Ollama round-trip. Fuzzy hits stay below LOCAL_HIGH_CONFIDENCE.
+EXACT_CONTROL_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_EXACT_CONTROL_CONF", "0.9"))))
+FUZZY_CONTROL_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_FUZZY_CONTROL_CONF", "0.65"))))
 # Minimum confidence for accepting an Ollama parse over the local fallback.
 OLLAMA_MIN_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_OLLAMA_MIN_CONF", "0.5"))))
 # AGC (RMS level normalisation) applied to command audio before Whisper.
@@ -896,6 +914,44 @@ _SURAH_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Whisper renders a small spoken number after "surah" as a same-sounding
+# ordinary word often enough to be a leading cause of a failed first-try
+# "play surah 2" -- greedy decoding picks "to"/"too" over "two".
+# parse_number_words() cannot help: these are not number words.
+#
+# COMMON_REPLACEMENTS already covers the "surah to/too/tu" phrases, but that
+# table matches literal phrases only, so it misses the other prefix spellings
+# _SURAH_PREFIX_RE accepts ("sura to", "chapter too") -- the phrase pass runs
+# before the word pass that would canonicalise the prefix. This step catches
+# those and the digits the phrase table has no entries for.
+#
+# SCOPING IS THE SAFETY PROPERTY. These tokens are only read as digits when
+# they sit directly after a surah prefix; mapping them globally (here or in
+# parse_number_words) would turn "go to the next verse" into surah 2. Genuine
+# numeric forms are resolved by the digit and number-word steps first, so this
+# table is consulted only after those miss.
+#
+# Two deliberate omissions:
+#   "for"/"fore" -> 4  : "play a surah for me" / "a surah for sleep" are natural
+#                        phrasings that would silently become surah 4.
+#   "tin" -> 10        : "tin" is the alias for At-Tin (95), resolved by the
+#                        alias step above; mapping it here would be both dead
+#                        and wrong.
+_SURAH_HOMOPHONES = {
+    "to": 2, "too": 2, "tu": 2,
+    "free": 3, "tree": 3,
+    "sex": 6, "sicks": 6,
+    "ate": 8,
+    "won": 1,
+    "tan": 10,
+}
+_SURAH_HOMOPHONE_RE = re.compile(
+    r"\b(?:surah|sura|chapter|number|num|no\.?)\s+("
+    + "|".join(sorted(_SURAH_HOMOPHONES, key=len, reverse=True))
+    + r")(?!\w)",
+    re.IGNORECASE,
+)
+
 
 def extract_surah_number(text):
     """Extract a surah number from free-form text (number only).
@@ -911,16 +967,17 @@ def extract_surah_number_with_source(text):
     """Extract a surah number and report which step resolved it.
 
     Returns (number_or_None, source) where source is one of "alias", "prefix",
-    "digits", "words", "fuzzy". Callers use it to tell an exact match apart
-    from a fuzzy guess -- the difference between trusting the local parse
-    outright and paying for an LLM round-trip to second-guess it.
+    "digits", "words", "homophone", "fuzzy". Callers use it to tell an exact
+    match apart from a fuzzy guess -- the difference between trusting the local
+    parse outright and paying for an LLM round-trip to second-guess it.
 
     Resolution order (each step is a cheap short-circuit):
       1. Exact known surah-name alias  ("al fatiha", "baqarah")
       2. Explicit numeric reference     ("surah 9", "chapter 9", "number 9")
       3. Bare digits                    ("9")
       4. Composed English number words  ("ninety nine", "one hundred fourteen")
-      5. Fuzzy alias match              (misheard 'al-baqara' -> 'al baqra')
+      5. Prefixed digit homophone       ("surah too" -> 2)
+      6. Fuzzy alias match              (misheard 'al-baqara' -> 'al baqra')
     """
     if not text:
         return (None, None)
@@ -952,7 +1009,17 @@ def extract_surah_number_with_source(text):
     if composed and 1 <= composed <= 114:
         return (composed, "words")
 
-    # 5) Fuzzy match for misheard aliases (threshold fixed for determinism).
+    # 5) Digit homophone in the slot right after an explicit surah prefix
+    #    ("surah too" -> 2). Deliberately after steps 3 and 4 so any real digit
+    #    or number word in the utterance is preferred; see _SURAH_HOMOPHONES for
+    #    why this must stay anchored to the prefix.
+    homophone_hit = _SURAH_HOMOPHONE_RE.search(lowered)
+    if homophone_hit:
+        number = _SURAH_HOMOPHONES[homophone_hit.group(1).lower()]
+        if 1 <= number <= 114:
+            return (number, "homophone")
+
+    # 6) Fuzzy match for misheard aliases (threshold fixed for determinism).
     fuzzy = _fuzzy_surah_lookup(tokenize_words(lowered))
     return (fuzzy, "fuzzy" if fuzzy else None)
 
@@ -1571,7 +1638,10 @@ class OllamaVoiceListener:
                 return local_result
             if self.ollama_available:
                 ollama_result = self.parse_with_ollama(command_text, require_wake=False)
-                if result_confidence(ollama_result) >= local_confidence:
+                # Strictly greater: on a tie the deterministic parse wins. An
+                # LLM guess that merely matches the local score is not evidence
+                # the local read was wrong, and the local one is reproducible.
+                if result_confidence(ollama_result) > local_confidence:
                     return ollama_result
             return local_result
 
@@ -2641,28 +2711,34 @@ class OllamaVoiceListener:
                 reason="local juz fast-path",
             ))
 
-        if (
+        # Exact keyword/phrase hits score above LOCAL_HIGH_CONFIDENCE so hybrid
+        # mode answers "stop" locally. The old `0.7 if wake_present else 0.6`
+        # could never clear the gate from _parse_command: it calls with
+        # require_wake=False after openWakeWord has already stripped the wake
+        # phrase, so wake_present was always False and every stop/pause/resume
+        # paid an Ollama round-trip to confirm the word "stop".
+        exact_stop = (
             contains_any_token(command_text, STOP_KEYWORDS)
             or contains_phrase(command_text, STOP_PHRASES)
-            or contains_fuzzy_token(command_text, STOP_KEYWORDS, cutoff=0.74)
-        ):
-            confidence = 0.7 if wake_present else 0.6
+        )
+        if exact_stop or contains_fuzzy_token(command_text, STOP_KEYWORDS, cutoff=0.74):
+            confidence = EXACT_CONTROL_CONFIDENCE if exact_stop else FUZZY_CONTROL_CONFIDENCE
             return ("stop", None, create_intent(action="stop", confidence=confidence))
 
-        if (
+        exact_pause = (
             contains_any_token(command_text, PAUSE_KEYWORDS)
             or contains_phrase(command_text, PAUSE_PHRASES)
-            or contains_fuzzy_token(command_text, PAUSE_KEYWORDS, cutoff=0.74)
-        ):
-            confidence = 0.75 if wake_present else 0.65
+        )
+        if exact_pause or contains_fuzzy_token(command_text, PAUSE_KEYWORDS, cutoff=0.74):
+            confidence = EXACT_CONTROL_CONFIDENCE if exact_pause else FUZZY_CONTROL_CONFIDENCE
             return ("pause", None, create_intent(action="pause", confidence=confidence))
 
-        if (
+        exact_resume = (
             contains_any_token(command_text, RESUME_KEYWORDS)
             or contains_phrase(command_text, RESUME_PHRASES)
-            or contains_fuzzy_token(command_text, RESUME_KEYWORDS, cutoff=0.74)
-        ):
-            confidence = 0.75 if wake_present else 0.65
+        )
+        if exact_resume or contains_fuzzy_token(command_text, RESUME_KEYWORDS, cutoff=0.74):
+            confidence = EXACT_CONTROL_CONFIDENCE if exact_resume else FUZZY_CONTROL_CONFIDENCE
             return ("resume", None, create_intent(action="resume", confidence=confidence))
 
         surah_number, surah_source = extract_surah_number_with_source(command_text)
@@ -2872,15 +2948,32 @@ class OllamaVoiceListener:
 
         try:
             mem = psutil.virtual_memory()
-            if mem.percent > 80:  # If memory usage is over 80%
-                print("High memory usage! Clearing cache...")
-                self.whisper = None
-                import gc
-                gc.collect()
-                # Reinitialize Whisper with the same device/compute selection
-                # as the initial load (the old reload used device="opencl",
-                # which always threw — see _load_whisper_model).
-                self.whisper = self._load_whisper_model()
+            if mem.percent <= MEMORY_RELOAD_PERCENT:
+                return
+
+            # Dropping the model and immediately reloading it hands back the
+            # same ~480MB within milliseconds, so this never relieved pressure
+            # for longer than the reload itself -- it only cost a full model
+            # load (10-20s of stt_ms in the logs, the 20-45s outliers). Collect
+            # first and re-measure; only reload if that genuinely didn't help,
+            # which is the near-OOM case where a slow decode beats being killed.
+            import gc
+            gc.collect()
+            mem = psutil.virtual_memory()
+            if mem.percent <= MEMORY_RELOAD_PERCENT:
+                print(f"Memory at {mem.percent:.0f}% after gc; model kept warm")
+                return
+
+            print(
+                f"High memory usage ({mem.percent:.0f}% > {MEMORY_RELOAD_PERCENT}%)! "
+                "Reloading Whisper — expect one slow decode."
+            )
+            self.whisper = None
+            gc.collect()
+            # Reinitialize Whisper with the same device/compute selection
+            # as the initial load (the old reload used device="opencl",
+            # which always threw — see _load_whisper_model).
+            self.whisper = self._load_whisper_model()
         except Exception as e:
             print(f"Memory check error: {e}")
 

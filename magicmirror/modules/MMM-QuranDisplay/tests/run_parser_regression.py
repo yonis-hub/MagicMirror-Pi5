@@ -51,6 +51,35 @@ def install_stubs():
         module.MPV = DummyMPV
         sys.modules["python_mpv_jsonipc"] = module
 
+    if "requests" not in sys.modules:
+        # The parser path never makes HTTP calls -- Ollama is only reached from
+        # parse_with_ollama(), which these cases bypass via parser_mode="local".
+        # Stubbing it keeps the suite runnable on a bare Python with no venv.
+        module = types.ModuleType("requests")
+
+        class StubConnectionError(Exception):
+            pass
+
+        class StubTimeout(Exception):
+            pass
+
+        def unavailable(*args, **kwargs):
+            raise StubConnectionError("requests is stubbed in parser regression tests")
+
+        exceptions = types.ModuleType("requests.exceptions")
+        exceptions.Timeout = StubTimeout
+        exceptions.ConnectionError = StubConnectionError
+        exceptions.RequestException = Exception
+
+        module.ConnectionError = StubConnectionError
+        module.Timeout = StubTimeout
+        module.RequestException = Exception
+        module.exceptions = exceptions
+        module.get = unavailable
+        module.post = unavailable
+        sys.modules["requests"] = module
+        sys.modules["requests.exceptions"] = exceptions
+
 
 def load_cases(cases_path):
     with cases_path.open("r", encoding="utf-8") as handle:
@@ -103,12 +132,25 @@ def main():
         require_wake = case.get("require_wake", True)
         expected_action = case.get("expected_action", "none")
         expected_surah = case.get("expected_surah")
+        # Optional floor on the local parser's confidence. Matters because
+        # hybrid mode only skips the Ollama round-trip when the local result
+        # scores >= LOCAL_HIGH_CONFIDENCE; a case can return the right action
+        # and still be a latency regression if it scores below the gate.
+        expected_min_confidence = case.get("expected_min_confidence")
 
-        action, value, intent = listener.parse_fallback(normalized_text, require_wake=require_wake)
+        result = listener.parse_fallback(normalized_text, require_wake=require_wake)
+        action, value, intent = result
+        actual_confidence = listener_module.result_confidence(result)
         action = normalize_action(action)
         actual_surah = extract_surah(action, value, intent)
 
-        if action != expected_action or actual_surah != expected_surah:
+        mismatch = action != expected_action or actual_surah != expected_surah
+        low_confidence = (
+            expected_min_confidence is not None
+            and actual_confidence < expected_min_confidence
+        )
+
+        if mismatch or low_confidence:
             failures.append({
                 "name": case.get("name", original_text),
                 "input": original_text,
@@ -116,14 +158,24 @@ def main():
                 "expected_action": expected_action,
                 "actual_action": action,
                 "expected_surah": expected_surah,
-                "actual_surah": actual_surah
+                "actual_surah": actual_surah,
+                "expected_min_confidence": expected_min_confidence,
+                "actual_confidence": actual_confidence
             })
-            print(
-                f"FAIL {case.get('name', original_text)}: "
-                f"expected ({expected_action}, {expected_surah}) got ({action}, {actual_surah})"
-            )
+            if mismatch:
+                print(
+                    f"FAIL {case.get('name', original_text)}: "
+                    f"expected ({expected_action}, {expected_surah}) got ({action}, {actual_surah})"
+                )
+            else:
+                print(
+                    f"FAIL {case.get('name', original_text)}: confidence "
+                    f"{actual_confidence:.2f} < required {expected_min_confidence:.2f} "
+                    f"(would escalate to Ollama)"
+                )
         else:
-            print(f"PASS {case.get('name', original_text)}")
+            suffix = f" [conf {actual_confidence:.2f}]" if expected_min_confidence is not None else ""
+            print(f"PASS {case.get('name', original_text)}{suffix}")
 
     print(f"\nSummary: {len(cases) - len(failures)}/{len(cases)} passing")
     if failures:

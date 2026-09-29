@@ -68,5 +68,122 @@
     "require_wake": true,
     "expected_action": "none",
     "expected_surah": null
+  },
+  {
+    "name": "exact_numeric_surah_skips_ollama",
+    "input": "play surah 2",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 2,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "number_word_surah_skips_ollama",
+    "input": "play surah two",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 2,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "homophone_too_is_surah_2",
+    "input": "play surah too",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 2,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "homophone_to_is_surah_2",
+    "input": "hey jarvis play surah to",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 2,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "homophone_ate_is_surah_8",
+    "input": "play surah ate",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 8,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "scoping_bare_to_is_not_surah_2",
+    "input": "go to the next verse",
+    "require_wake": false,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "scoping_bare_for_is_not_surah_4",
+    "input": "wait for it",
+    "require_wake": false,
+    "expected_action": "pause",
+    "expected_surah": null
+  },
+  {
+    "name": "stop_exact_skips_ollama",
+    "input": "stop",
+    "require_wake": false,
+    "expected_action": "stop",
+    "expected_surah": null,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "pause_exact_skips_ollama",
+    "input": "pause",
+    "require_wake": false,
+    "expected_action": "pause",
+    "expected_surah": null,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "resume_exact_skips_ollama",
+    "input": "resume",
+    "require_wake": false,
+    "expected_action": "resume",
+    "expected_surah": null,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "homophone_won_is_surah_1",
+    "input": "play surah won",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 1,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "homophone_works_on_sura_prefix",
+    "input": "play sura too",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 2,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "real_digit_beats_homophone",
+    "input": "play sura ate 5",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 5,
+    "expected_min_confidence": 0.75
+  },
+  {
+    "name": "scoping_surah_for_me_is_not_surah_4",
+    "input": "play a surah for me",
+    "require_wake": false,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "at_tin_alias_not_homophone_10",
+    "input": "play surah tin",
+    "require_wake": false,
+    "expected_action": "play",
+    "expected_surah": 95,
+    "expected_min_confidence": 0.75
   }
 ]

@@ -33,7 +33,10 @@ if [ ! -f "$SCRIPT_DIR/$LISTENER_SCRIPT" ]; then
 fi
 
 # Constrain thread fanout for stable Pi thermals and predictable latency.
-export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
+# 3 of 4 cores, not 2: Whisper decode is the single most latency-critical step
+# and 2 was leaving half the Pi idle during it. One core stays free for the
+# kiosk renderer and FaceIdentity. Temps were 59C with plenty of headroom.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-3}"
 export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-2}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
@@ -85,6 +88,15 @@ export QURAN_MPV_VOLUME="${QURAN_MPV_VOLUME:-25}"
 export QURAN_MPV_ENABLE_DYNAUDNORM="${QURAN_MPV_ENABLE_DYNAUDNORM:-0}"
 export VOICE_SILENCE_MAX_AMP
 export VOICE_SILENCE_RMS_AMP
+# KEEP THIS AT 1. The logs show stt_ms of 8000-45000 for a ~3s clip while
+# transcription accuracy is already perfect ("Play Surah 2." verbatim) -- the
+# failure mode here is latency, not misrecognition. Beam search multiplies
+# decode time 2-3x to buy accuracy that is not the problem.
+export VOICE_WHISPER_BEAM_SIZE="${VOICE_WHISPER_BEAM_SIZE:-1}"
+# Capture window for the command after the wake word. Silero-VAD trims trailing
+# silence in the v2 path, so a wider window only costs on a genuine timeout --
+# 3.0s was clipping commands spoken with any hesitation after the wake chime.
+VOICE_COMMAND_WINDOW_SEC="${VOICE_COMMAND_WINDOW_SEC:-4.5}"
 
 AUTO_HEAL_PID=""
 start_audio_heal_loop() {
@@ -240,14 +252,17 @@ if [ "$#" -eq 0 ]; then
     # v2 stack: openWakeWord + silero-VAD + Piper TTS + Resemblyzer + noisereduce.
     # Each component falls back to v1 behaviour individually if its model isn't
     # installed yet, so this is safe to keep on once setup_voice_v2.sh has run.
-    # small.en = best Whisper accuracy that fits comfortably on Pi 5 (~480MB).
+    # base.en, not small.en: small.en was costing 8-45s per decode on this Pi
+    # (see the stt_ms figures in logs/voice_listener.log) while transcribing
+    # commands perfectly, so there was accuracy headroom to trade for roughly
+    # 3x less latency. Compare with VOICE_STT_MODEL=small.en.
     set -- \
         --device "$VOICE_DEVICE" \
         --parser-mode hybrid \
-        --stt-model small.en \
+        --stt-model "${VOICE_STT_MODEL:-base.en}" \
         --stt-language en \
         --wake-window-sec 1.5 \
-        --command-window-sec 3.0 \
+        --command-window-sec "$VOICE_COMMAND_WINDOW_SEC" \
         --use-piper \
         --use-vad \
         --use-oww \
