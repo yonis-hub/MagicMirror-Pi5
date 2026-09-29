@@ -30,10 +30,17 @@ DEFAULT_MIRROR_URL = os.environ.get("MIRROR_URL", "http://localhost:8080")
 DEFAULT_VOICEPRINTS_DIR = Path(__file__).parent / "voiceprints"
 SAMPLE_DURATION_SEC = 5
 NUM_SAMPLES = 3
+# Kept in step with WAKE_WORDS in voice_listener_ollama.py. These prompts used
+# to hardcode "Hey Mo", the wake word from before the openWakeWord switch, which
+# just confused anyone enrolling. The phrase does not actually affect the
+# result -- Resemblyzer embeds voice characteristics, not words -- but reading
+# the real wake phrase in your normal voice is the most representative sample.
+WAKE_PHRASE = os.environ.get("VOICE_WAKE_WORD", "Hey Jarvis")
+_ASSISTANT_NAME = WAKE_PHRASE.split()[-1].title() if WAKE_PHRASE.split() else "Jarvis"
 PROMPTS = [
     "Read this clearly: The morning sun rises over the eastern hills as birds begin to sing.",
-    "Now in your normal voice: Hey Mo, play Surah Al Fatihah at a slow pace please.",
-    "One more, talk casually: I'd like to hear the recitation of the Quran whenever I ask Mo.",
+    f"Now in your normal voice: {WAKE_PHRASE}, play Surah Al Fatihah at a slow pace please.",
+    f"One more, talk casually: I'd like to hear the recitation of the Quran whenever I ask {_ASSISTANT_NAME}.",
 ]
 
 
