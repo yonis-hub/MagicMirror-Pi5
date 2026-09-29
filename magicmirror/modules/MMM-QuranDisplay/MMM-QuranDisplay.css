@@ -383,7 +383,7 @@
 }
 
 .listening-indicator {
-  color: #4fc3f7;
+  color: #7be38d !important;
   animation: pulse 1s infinite;
 }
 
@@ -559,7 +559,11 @@
 .mic-icon {
   width: 7px;
   height: 15px;
-  border: 2px solid #4fc3f7;
+  /* Restate the colour rather than inheriting it. The global text boost in
+     main.css re-mixes `color` on every element, so currentColor here would
+     resolve to a washed-out green a step lighter than the label beside it. */
+  color: #7be38d !important;
+  border: 2px solid currentColor;
   border-radius: 4px;
   position: relative;
   display: inline-block;
@@ -573,7 +577,7 @@
   bottom: -5px;
   width: 10px;
   height: 7px;
-  border-bottom: 2px solid #4fc3f7;
+  border-bottom: 2px solid currentColor;
   border-radius: 0 0 10px 10px;
 }
 
@@ -601,7 +605,10 @@
 .mm-voice-speaking-overlay {
   position: fixed;
   left: 50%;
-  bottom: 165px;            /* moved up 50% from original 110px */
+  /* Fallback only. positionSpeakingOverlay() overwrites this inline from the
+     measured height of the bottom bar, so the overlay clears the greeting and
+     the word of the day whatever size they end up. */
+  bottom: 165px;
   transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
@@ -629,7 +636,11 @@
   width: 4px;               /* +40% from 3px */
   height: 8px;              /* +40% from 6px (idle) */
   border-radius: 2px;
-  background: linear-gradient(180deg, #7ad9ff 0%, #2e8bff 100%);
+  /* Accent green, not the old blue: this overlay sits directly above the
+     greeting and the word of the day, and was the last blue left on screen.
+     Literal rather than a var because the overlay lives on <body>, outside
+     .mmm-quran-display, so it cannot inherit the module's tokens. */
+  background: linear-gradient(180deg, #b6f5c4 0%, #7be38d 100%);
   animation: mm-voice-bar-pulse 0.7s ease-in-out infinite alternate;
 }
 

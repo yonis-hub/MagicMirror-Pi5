@@ -794,9 +794,9 @@ Module.register("MMM-QuranDisplay", {
 	},
 
 	renderSpeakingOverlay: function () {
-		// Mounted directly on <body> so it isn't bound to this module's
-		// region — sits as a fixed-position overlay just above the
-		// compliments area (which lives in lower_third / bottom_bar).
+		// Mounted directly on <body>, not in this module's region: being outside
+		// the region keeps it genuinely viewport-fixed, and surviving our own
+		// re-renders keeps the bar animation from restarting mid-phrase.
 		let overlay = document.getElementById("mm-voice-speaking-overlay");
 		if (!overlay) {
 			overlay = document.createElement("div");
@@ -809,7 +809,35 @@ Module.register("MMM-QuranDisplay", {
 			}
 			document.body.appendChild(overlay);
 		}
+
+		this.positionSpeakingOverlay(overlay);
 		overlay.classList.toggle("is-active", !!this.isSpeaking);
+	},
+
+	/**
+	 * Park the overlay just above the bottom bar.
+	 *
+	 * Measured rather than hard-coded. The bar holds the greeting, the word of
+	 * the day and the two tickers, so its height moves whenever any of those
+	 * change — and a fixed offset here had already been bumped once (110px to
+	 * 165px) and still ended up sitting on top of the word of the day. Reading
+	 * the bar means it cannot collide again whatever goes in there.
+	 *
+	 * @param {HTMLElement} overlay the overlay element
+	 */
+	positionSpeakingOverlay: function (overlay) {
+		const bar = document.querySelector(".region.bottom.bar");
+		if (!bar) {
+			return; // leave the stylesheet's fallback offset in place
+		}
+
+		const barTop = bar.getBoundingClientRect().top;
+		if (!Number.isFinite(barTop) || barTop <= 0) {
+			return;
+		}
+
+		const clearance = Math.round(window.innerHeight - barTop) + 24;
+		overlay.style.bottom = `${clearance}px`;
 	},
 
 	setVoiceMute: function (muted, reason) {
