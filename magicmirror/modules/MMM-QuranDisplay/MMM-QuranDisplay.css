@@ -341,16 +341,29 @@
   animation: pulse 1.4s infinite;
 }
 
+/* Hangs just below whatever the module rendered, so the stage rail clears the
+   player instead of landing on the Bluetooth pill.
+   This was `position: fixed; bottom: 22px`, meaning to sit at the bottom of the
+   screen — but it never did. main.css gives `.region.middle.center` a
+   `transform: translateY(-50%)`, and a transformed ancestor becomes the
+   containing block for fixed descendants, so it was really positioning against
+   the region all along. Anchoring to the module's own bottom edge says what is
+   actually happening, and unlike a pixel offset it keeps clearing the content
+   when the player grows or shrinks. */
 .status-indicators {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 22px;            /* sits along the bottom edge, below speaking overlay (165px) */
+  top: calc(100% + 12px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: row;     /* horizontal row instead of stacked column */
   align-items: center;
   justify-content: center;
   gap: 10px;
+  /* The module is only 420px wide and the four-stage rail is wider than that.
+     Size to content and let it overhang, rather than wrapping onto two lines. */
+  width: max-content;
+  max-width: 90vw;
   z-index: 1000;
   pointer-events: none;    /* don't intercept clicks on the kiosk */
 }
