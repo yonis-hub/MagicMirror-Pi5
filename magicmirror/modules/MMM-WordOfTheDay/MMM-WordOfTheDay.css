@@ -20,12 +20,18 @@
   --wotd-head-size: 0.7rem;
   --wotd-word-size: 2.2rem;
   --wotd-example-size: 0.85rem;
+  /* Pulls the block left of the bar's right edge so it lands under the camera
+     preview. Matches MMM-FaceIdentity's previewOffsetX in config.js.template —
+     change both together, or set to 0 to sit flush right. */
+  --wotd-inset-right: 110px;
 }
 
 /* The bottom bar is left-aligned so the two tickers can share one row
-   (see MMM-SpyTrackerReport.css); this block keeps its own centred line. */
+   (see MMM-SpyTrackerReport.css). This block sits right instead, under the
+   camera preview, leaving the left of the bar to the tickers. */
 .MMM-WordOfTheDay .wotd {
-  text-align: center;
+  text-align: right;
+  padding-right: var(--wotd-inset-right);
   line-height: 1.15;
 }
 
@@ -40,7 +46,7 @@
 .MMM-WordOfTheDay .wotd-head {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 1.4em;
   font-size: var(--wotd-head-size);
   letter-spacing: 0.16em;
@@ -115,7 +121,7 @@
 .MMM-WordOfTheDay .wotd-main {
   display: flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.42em;
   margin-top: 2px;
@@ -152,7 +158,7 @@
 .MMM-WordOfTheDay .wotd-example {
   display: flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.6em;
   margin-top: 3px;

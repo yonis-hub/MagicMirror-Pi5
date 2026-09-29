@@ -38,18 +38,23 @@
   --greet-ornament: #7be38d;
   --greet-size: 2.8rem;
   --greet-english-size: 0.85rem;
+  /* Pulls the block left of the bar's right edge so it lands under the camera
+     preview. Matches MMM-FaceIdentity's previewOffsetX in config.js.template —
+     change both together, or set to 0 to sit flush right. */
+  --greet-inset-right: 110px;
 }
 
 /* The bottom bar is left-aligned so the two tickers can share one row
-   (see MMM-SpyTrackerReport.css); the greeting keeps its own centred line. */
+   (see MMM-SpyTrackerReport.css). The greeting sits right, under the camera. */
 .MMM-Greeting .greet {
-  text-align: center;
+  text-align: right;
+  padding-right: var(--greet-inset-right);
 }
 
 .MMM-Greeting .greet-line {
   display: flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.7em;
 }
@@ -80,9 +85,11 @@
    cannot wash it out. */
 .MMM-Greeting .greet-rule {
   position: relative;
-  width: min(460px, 48vw);
+  width: min(460px, 34vw);
   height: 7px;
-  margin: 9px auto 0;
+  /* auto on the left only, so the ornament hangs off the right edge with the
+     rest of the block rather than centring in the full-width bar. */
+  margin: 9px 0 0 auto;
 }
 
 .MMM-Greeting .greet-rule::before {

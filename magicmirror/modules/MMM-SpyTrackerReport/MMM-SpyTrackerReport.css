@@ -12,12 +12,12 @@
     text-align: left;
 }
 
-/* Undo the left-align for the two centred modules above this row. Each also
-   re-centres itself in its own stylesheet, so removing either module from the
-   config leaves nothing dangling here. */
+/* The two modules above this row sit right, under the camera preview. Each also
+   sets its own alignment in its own stylesheet, so removing either module from
+   the config leaves nothing dangling here. */
 .region.bottom.bar .container .module.MMM-Greeting,
 .region.bottom.bar .container .module.MMM-WordOfTheDay {
-    text-align: center;
+    text-align: right;
 }
 
 .region.bottom.bar .container .module.MMM-MarketTicker,
