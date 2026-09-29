@@ -1161,6 +1161,8 @@ class OllamaVoiceListener:
         # spoken as playback begins lands squarely on top of the opening ayah.
         # Set VOICE_QUIET_DURING_PLAYBACK=0 to get the old behaviour back.
         self._quiet_during_playback = os.getenv("VOICE_QUIET_DURING_PLAYBACK", "1") == "1"
+        # Serialises speak(); see the comment in speak() for why.
+        self._speak_lock = threading.Lock()
         self.tts_engine = None
         self.command_history = deque(maxlen=MAX_HISTORY)
         self.last_intent = create_intent()
@@ -1614,47 +1616,59 @@ class OllamaVoiceListener:
         if self._quiet_during_playback and self._playback_active():
             print(f"  🤫 Playback active — not speaking: {text!r}")
             return
-        self._send_speaking_status(True)
-        print(f"  🗣  Speaking: {text!r}")
-        speak_started = time.monotonic()
-        # Phase 2: try Piper neural TTS first (more natural voice)
-        if self.piper_tts is not None:
-            if self.piper_tts.speak(text):
-                self._tts_finished_at = time.monotonic()
-                print(f"  🗣  (piper {self._tts_finished_at - speak_started:.2f}s)")
-                self._send_speaking_status(False)
-                return
-            # fall through to espeak on Piper failure
+        # One utterance at a time. speak_async() runs on a daemon thread, so
+        # a wake ack can start while an intent ack is still playing -- the log
+        # showed two "Speaking:" lines resolving as two overlapping piper runs,
+        # i.e. two aplay streams mixed into each other. Dropping the newcomer
+        # beats queueing it: an ack that plays seconds late describes a state
+        # the mirror has already moved on from.
+        if not self._speak_lock.acquire(blocking=False):
+            print(f"  🤫 Already speaking — dropping: {text!r}")
+            return
         try:
-            # espeak-ng: fast, no init overhead, available on all Pi/Raspbian installs
-            # -s 145 = speech rate, -p 40 = pitch (slightly lower = less robotic),
-            # -a 80 = amplitude, -g 8 = word gap (slight pause between words)
-            subprocess.run(
-                ["espeak-ng", "-s", "145", "-p", "40", "-a", "80", "-g", "8", text],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=10
-            )
-            self._tts_finished_at = time.monotonic()
-            print(f"  🗣  (espeak {self._tts_finished_at - speak_started:.2f}s)")
-            self._send_speaking_status(False)
-        except FileNotFoundError:
-            # Fallback to pyttsx3 if espeak-ng not installed
+            self._send_speaking_status(True)
+            print(f"  🗣  Speaking: {text!r}")
+            speak_started = time.monotonic()
+            # Phase 2: try Piper neural TTS first (more natural voice)
+            if self.piper_tts is not None:
+                if self.piper_tts.speak(text):
+                    self._tts_finished_at = time.monotonic()
+                    print(f"  🗣  (piper {self._tts_finished_at - speak_started:.2f}s)")
+                    self._send_speaking_status(False)
+                    return
+                # fall through to espeak on Piper failure
             try:
-                if self.tts_engine is None:
-                    import pyttsx3
-                    self.tts_engine = pyttsx3.init()
-                    self.tts_engine.setProperty("rate", 150)
-                self.tts_engine.say(text)
-                self.tts_engine.runAndWait()
+                # espeak-ng: fast, no init overhead, available on all Pi/Raspbian installs
+                # -s 145 = speech rate, -p 40 = pitch (slightly lower = less robotic),
+                # -a 80 = amplitude, -g 8 = word gap (slight pause between words)
+                subprocess.run(
+                    ["espeak-ng", "-s", "145", "-p", "40", "-a", "80", "-g", "8", text],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10
+                )
+                self._tts_finished_at = time.monotonic()
+                print(f"  🗣  (espeak {self._tts_finished_at - speak_started:.2f}s)")
                 self._send_speaking_status(False)
+            except FileNotFoundError:
+                # Fallback to pyttsx3 if espeak-ng not installed
+                try:
+                    if self.tts_engine is None:
+                        import pyttsx3
+                        self.tts_engine = pyttsx3.init()
+                        self.tts_engine.setProperty("rate", 150)
+                    self.tts_engine.say(text)
+                    self.tts_engine.runAndWait()
+                    self._send_speaking_status(False)
+                except Exception as e:
+                    print(f"TTS error: {e}")
+                    self.enable_voice = False
+                    self._send_speaking_status(False)
             except Exception as e:
                 print(f"TTS error: {e}")
-                self.enable_voice = False
                 self._send_speaking_status(False)
-        except Exception as e:
-            print(f"TTS error: {e}")
-            self._send_speaking_status(False)
+        finally:
+            self._speak_lock.release()
 
     def _parse_command(self, command_text):
         local_result = self.parse_fallback(command_text, require_wake=False)
