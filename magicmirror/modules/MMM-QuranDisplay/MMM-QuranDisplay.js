@@ -351,6 +351,31 @@ Module.register("MMM-QuranDisplay", {
 		return true;
 	},
 
+	/**
+	 * Whether there is a recitation worth showing the player for.
+	 *
+	 * `currentVerse` on its own is not enough to decide this. It outlives the
+	 * audio: when the chainer exits, node_helper sends PLAYBACK_STATUS with
+	 * isPlaying false but no CLEAR_DISPLAY, and a stop that zeroes the clock
+	 * leaves it set too. The player then sat at 0:00 indefinitely instead of
+	 * going back to the wake-word prompt.
+	 *
+	 * A genuinely paused track still counts — it has elapsed time on the clock
+	 * and it is worth seeing where you left off. Only a track that is stopped
+	 * *and* at zero is treated as idle.
+	 *
+	 * @returns {boolean} true when the media widget should be shown
+	 */
+	hasActivePlayback: function () {
+		if (!this.currentVerse) {
+			return false;
+		}
+		if (this.isPlaying) {
+			return true;
+		}
+		return this.computePlaybackProgress().elapsedSec > 0;
+	},
+
 	getWaitingText: function () {
 		if (this.isStarting) {
 			return "Got it — cueing up the recitation.";
@@ -446,7 +471,13 @@ Module.register("MMM-QuranDisplay", {
 
 		const hasAdhkarNowPlaying = this.renderAdhkarNowPlaying(wrapper);
 
-		if (!this.currentVerse) {
+		if (!this.hasActivePlayback()) {
+			// The widget is not in the tree any more, so drop the refs the
+			// half-second timer writes through rather than leaving it updating
+			// detached nodes until something plays again.
+			this._barFill = null;
+			this._timeText = null;
+
 			if (!hasAdhkarNowPlaying) {
 				const waitingDiv = document.createElement("div");
 				waitingDiv.className = "waiting";
