@@ -688,6 +688,12 @@ FUZZY_SURAH_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_FUZZY_SURAH_CO
 # skip the Ollama round-trip. Fuzzy hits stay below LOCAL_HIGH_CONFIDENCE.
 EXACT_CONTROL_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_EXACT_CONTROL_CONF", "0.9"))))
 FUZZY_CONTROL_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_FUZZY_CONTROL_CONF", "0.65"))))
+# Actions whose whole point is to start audio. Their spoken ack would play over
+# the first seconds of the recitation it is announcing, and the recitation
+# starting IS the confirmation, so it is suppressed under
+# VOICE_QUIET_DURING_PLAYBACK. Handled separately from speak()'s guard because
+# the chainer has not launched yet when acknowledge_intent() runs.
+PLAYBACK_STARTING_ACTIONS = frozenset({"play", "play_verse", "play_juz", "resume"})
 # Minimum confidence for accepting an Ollama parse over the local fallback.
 OLLAMA_MIN_CONFIDENCE = max(0.0, min(1.0, float(os.getenv("VOICE_OLLAMA_MIN_CONF", "0.5"))))
 # AGC (RMS level normalisation) applied to command audio before Whisper.
@@ -1151,6 +1157,10 @@ class OllamaVoiceListener:
         # latency to the very gap it exists to cover -- acknowledge_intent()
         # now goes through speak_async(), so it no longer delays playback.
         self.speak_intent_ack = os.getenv("VOICE_SPEAK_INTENT_ACK", "1") == "1"
+        # Never talk over a recitation. Piper takes 3-7s on this Pi, so an ack
+        # spoken as playback begins lands squarely on top of the opening ayah.
+        # Set VOICE_QUIET_DURING_PLAYBACK=0 to get the old behaviour back.
+        self._quiet_during_playback = os.getenv("VOICE_QUIET_DURING_PLAYBACK", "1") == "1"
         self.tts_engine = None
         self.command_history = deque(maxlen=MAX_HISTORY)
         self.last_intent = create_intent()
@@ -1555,6 +1565,11 @@ class OllamaVoiceListener:
             message = "Command not recognized."
 
         print(f"🎧 {message}")
+        # speak()'s own guard cannot catch these: the chainer has not been
+        # launched yet, so _playback_active() is still False at this point.
+        if self._quiet_during_playback and action in PLAYBACK_STARTING_ACTIONS:
+            print("  🤫 Starting playback — skipping spoken ack")
+            return
         if self.enable_voice and self.speak_intent_ack:
             self.speak_async(message)
 
@@ -1584,8 +1599,20 @@ class OllamaVoiceListener:
         thread.start()
         return thread
 
+    def _playback_active(self):
+        """True while a quran_chainer process is actually playing."""
+        return self.current_process is not None and self.current_process.poll() is None
+
     def speak(self, text):
         if not self.enable_voice or not text:
+            return
+        # Stay quiet while a recitation is playing. This is what silences the
+        # wake ack ("Yes?") that listen_loop_v2 speaks *because* playback is
+        # active, plus any "Command not recognized." that would otherwise land
+        # mid-surah. Deliberately before _send_speaking_status(True) so the UI
+        # does not get stuck showing a talking indicator for speech we skipped.
+        if self._quiet_during_playback and self._playback_active():
+            print(f"  🤫 Playback active — not speaking: {text!r}")
             return
         self._send_speaking_status(True)
         print(f"  🗣  Speaking: {text!r}")
