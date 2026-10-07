@@ -13,6 +13,11 @@ Module.register("MMM-WordOfTheDay", {
 	defaults: {
 		wordsFile: "words.json",
 		wordsPerDay: 10,
+		// Which difficulty tiers to draw from. An entry with no "level" in
+		// words.json counts as "core", so the original word list needs no edit.
+		// ["advanced"] alone gives only the harder tier; a short list means a
+		// short pass, since the pass length follows the active pool.
+		levels: ["core", "advanced"],
 		rotateInterval: 30 * 1000,
 		fadeSpeed: 1200,
 		labelSo: "Erayada Maanta",
@@ -96,51 +101,106 @@ Module.register("MMM-WordOfTheDay", {
 	},
 
 	/**
-	 * A stable shuffle of every index in the list. The same pass always produces
-	 * the same order, which is what keeps the daily draw reproducible.
+	 * mulberry32 — a small deterministic PRNG. The same seed yields the same
+	 * sequence on every machine, which is what lets the daily draw be random
+	 * to look at yet reproducible without storing anything.
 	 *
-	 * @param {number} total number of words in the list
-	 * @param {number} pass which sweep through the whole list we are on
-	 * @returns {number[]} shuffled indices
+	 * @param {number} seed any 32-bit integer
+	 * @returns {Function} generator returning floats in [0, 1)
 	 */
-	shuffledOrder: function (total, pass) {
-		let seed = Math.imul(pass + 1, 0x9e3779b1);
-		const random = function () {
-			seed = (seed + 0x6d2b79f5) | 0;
-			let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+	seededRandom: function (seed) {
+		let state = seed | 0;
+		return function () {
+			state = (state + 0x6d2b79f5) | 0;
+			let t = Math.imul(state ^ (state >>> 15), 1 | state);
 			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
 			return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 		};
+	},
 
-		const order = Array.from({ length: total }, (_, i) => i);
-		for (let i = total - 1; i > 0; i--) {
-			const j = Math.floor(random() * (i + 1));
-			[order[i], order[j]] = [order[j], order[i]];
+	/**
+	 * The words eligible for a draw, after the difficulty filter.
+	 *
+	 * An entry with no "level" counts as "core" — that is what lets the original
+	 * hand-written list stay untouched. A filter that matches nothing falls back
+	 * to the whole list rather than leaving the bottom bar empty over a typo.
+	 *
+	 * @returns {object[]} words matching config.levels
+	 */
+	activeWords: function () {
+		const wanted = Array.isArray(this.config.levels) ? this.config.levels : null;
+		if (!wanted || wanted.length === 0) {
+			return this.words;
 		}
 
-		return order;
+		const allowed = new Set(wanted.map((level) => String(level).toLowerCase()));
+		const pool = this.words.filter((word) => allowed.has(String(word.level || "core").toLowerCase()));
+		if (pool.length === 0) {
+			Log.warn(`${this.name}: levels ${JSON.stringify(wanted)} matched no words; using the full list`);
+			return this.words;
+		}
+
+		return pool;
 	},
 
 	/**
 	 * The words for one specific day.
 	 *
+	 * Each day draws without replacement from whatever this pass has not used
+	 * yet, seeded from the pass *and* the day. So the grouping is decided per
+	 * day rather than being a fixed slice of one shuffle taken when the pass
+	 * began, while every word still appears exactly once per pass. It stays a
+	 * pure function of dayKey, so a restart mid-day — or a second mirror — draws
+	 * the same set.
+	 *
 	 * @param {number} dayKey day index from dayNumber()
-	 * @returns {object[]} today's slice of the list
+	 * @returns {object[]} today's words
 	 */
 	pickForDay: function (dayKey) {
-		const total = this.words.length;
+		const pool = this.activeWords();
+		const total = pool.length;
+		if (total === 0) {
+			return [];
+		}
+
 		const perDay = Math.max(1, Math.min(Number(this.config.wordsPerDay) || 1, total));
 		const daysPerPass = Math.ceil(total / perDay);
 		const pass = Math.floor(dayKey / daysPerPass);
 		const slot = dayKey - pass * daysPerPass;
-		const order = this.shuffledOrder(total, pass);
 
-		const picked = [];
-		for (let i = 0; i < perDay; i++) {
-			picked.push(this.words[order[(slot * perDay + i) % total]]);
+		let remaining = pool.map((_, i) => i);
+		let picked = [];
+
+		// Replay the pass from its first day so the exclusions are correct.
+		// At most daysPerPass-1 extra draws, and only once a day.
+		for (let day = 0; day <= slot; day++) {
+			const random = this.seededRandom(
+				Math.imul(pass + 1, 0x9e3779b1) ^ Math.imul(day + 1, 0x85ebca6b)
+			);
+			picked = [];
+
+			for (let i = 0; i < perDay; i++) {
+				if (remaining.length === 0) {
+					// total is not a multiple of perDay, so daysPerPass*perDay
+					// exceeds total and some repetition inside the pass is
+					// arithmetically forced (240 words at 7/day = 245 draws).
+					// Refill from whatever today has not taken, so the forced
+					// repeats land on random words instead of always being the
+					// first few of the pass, and the day stays perDay distinct.
+					const takenToday = new Set(picked);
+					remaining = pool.map((_, idx) => idx).filter((idx) => !takenToday.has(idx));
+					if (remaining.length === 0) {
+						break;
+					}
+				}
+
+				const j = Math.floor(random() * remaining.length);
+				picked.push(remaining[j]);
+				remaining.splice(j, 1);
+			}
 		}
 
-		return picked;
+		return picked.map((i) => pool[i]);
 	},
 
 	/**

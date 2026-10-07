@@ -20,13 +20,26 @@ crowding the title off centre.
 
 ## How the daily draw works
 
-`words.json` holds 240 words. The module shuffles the whole list, walks through
-it ten a day, and only reshuffles once every word has had its turn — so a word
-comes round again every **24 days**, never twice in the same pass.
+`words.json` holds 300 words in two tiers — 240 everyday words and 60 harder
+ones (see **Difficulty tiers** below). Each day draws ten at random from
+whatever the current pass has not used yet, so no word repeats until all of them
+have had a turn: with the default settings a word comes round again every
+**30 days**.
 
 The draw is derived from the date alone, so it is stable: restarting the mirror
 mid-morning shows the same ten words, in the same order, and a second mirror on
-the same network shows the same ten.
+the same network shows the same ten. Nothing is stored between runs — the day
+index seeds a small deterministic PRNG, which is what lets the draw look random
+and still be reproducible.
+
+Each day is seeded from the pass *and* the day, so the ten are grouped per day
+rather than being a fixed slice decided when the pass began.
+
+If `wordsPerDay` does not divide the pool evenly, `ceil(total / wordsPerDay)`
+days hold more slots than there are words, and that many repeats inside the pass
+are unavoidable — 300 words at 7 a day is 43 days × 7 = 301 draws. The draw
+spreads those forced repeats rather than always re-showing the pass's first few,
+and every single day is still `wordsPerDay` distinct words.
 
 The day index is built from the local calendar date rather than a raw
 millisecond count, so it does not slide by an hour across a daylight-saving
@@ -37,6 +50,7 @@ change.
 | Option                | Default                               | Description                                                                                        |
 | --------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `wordsPerDay`         | `10`                                  | Words drawn per day. Fewer words means more days per pass.                                         |
+| `levels`              | `["core", "advanced"]`                | Difficulty tiers to draw from. `["advanced"]` gives only the harder 60. See **Difficulty tiers**.  |
 | `rotateInterval`      | `30000`                               | How long each word holds the line, in ms. Ten words at 30s loop every 5 minutes.                   |
 | `fadeSpeed`           | `1200`                                | Cross-fade between words, in ms.                                                                   |
 | `showHeader`          | `true`                                | The `ERAYADA MAANTA` label line.                                                                   |
@@ -59,6 +73,37 @@ Append to the `words` array in `words.json`:
 `cat` must be a key in the `categories` object at the top of the file. Adding
 words changes the pass length automatically (`ceil(total / wordsPerDay)` days);
 nothing else needs updating.
+
+## Difficulty tiers
+
+Every entry has a `level`. **A missing `level` means `core`**, which is why the
+original 240 entries carry no such field — only the harder tier is tagged:
+
+```json
+{ "so": "murti", "en": "wisdom", "pron": "mur-ti", "cat": "maskax",
+  "exSo": "Murti iyo aqoon.", "exEn": "Wisdom and knowledge.",
+  "level": "advanced", "review": true }
+```
+
+`levels` in the config picks which tiers are in play. A value matching nothing
+falls back to the whole list rather than leaving the bar empty, so a typo cannot
+blank the display. The pass length follows the *active* pool, so
+`levels: ["advanced"]` means 60 words and a 6-day pass.
+
+### `review: true`
+
+The 60 advanced entries were drafted rather than verified. `review: true` marks
+them so they can be audited or removed without disturbing anything else:
+
+```bash
+# list everything still awaiting a native check
+python -c "import json;d=json.load(open('words.json',encoding='utf-8'));[print(w['so'],'|',w['en'],'|',w['pron'],'|',w['exSo']) for w in d['words'] if w.get('review')]"
+```
+
+Drop the flag once an entry has been checked. The glosses, the respellings and
+the example sentences are all places to look closely — particularly the
+definite-article suffixes in the examples (`shaqo` → `shaqada`, `su'aal` →
+`su'aasha`), which are easy to get wrong.
 
 Somali headwords are in **citation form** — no definite-article suffix. Write
 `albaab`, not `albaabka`; `magaalo`, not `magaalada`. Verbs are in the imperative

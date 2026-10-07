@@ -176,7 +176,8 @@ let config = {
 			module: "MMM-WordOfTheDay",
 			position: "bottom_bar",            // directly under the greeting
 			config: {
-				wordsPerDay: 10,               // ten words a day; 240 words = 24 days per full pass
+				wordsPerDay: 10,               // ten words a day; 300 words = 30 days per full pass
+				levels: ["core", "advanced"],  // ["advanced"] for only the harder 60 (a 6-day pass)
 				rotateInterval: 30000,         // each word holds the line for 30s
 				showExample: true              // set false to drop the example line and shorten the bar
 			}
