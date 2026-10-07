@@ -8,6 +8,18 @@ quran_data/_reciters/
 # Per-surah verse-duration cache written by quran_chainer.py (regenerable).
 quran_data/*/durations.*.json
 
+# Harvested recitation audio — 1.59 GB across 6,236 files, and the whole reason
+# this repo was 1.6 GB. Regenerable: quran_harvester.py pulls it from
+# cdn.islamic.network. The per-verse JSON beside it stays tracked (3.7 MB for
+# all 6,237 files), so a fresh clone still has every verse's Arabic and
+# translation and only needs the audio harvested.
+quran_data/**/*.mp3
+
+# Adhkar audio (115 MB). sync_adhkar_assets.py re-downloads anything missing
+# from the URLs in adhkar_manifest.json. adaan.mp3 is NOT ignored — that one is
+# a vendored module asset, not a downloaded one.
+magicmirror/modules/MMM-MyPrayerTimes/adhkar/**/*.mp3
+
 # MagicMirror specific
 magicmirror/node_modules/
 magicmirror/modules/*/node_modules/
