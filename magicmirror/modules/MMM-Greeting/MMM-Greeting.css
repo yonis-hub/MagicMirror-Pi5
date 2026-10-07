@@ -36,8 +36,12 @@
   --greet-english: #93a3ab;
   --greet-rule: rgb(123 227 141 / 55%); /* accent green, as the hairline below */
   --greet-ornament: #7be38d;
-  --greet-size: 2.8rem;
+  /* Eased down from 2.8rem so the lines that now wrap take two rows rather
+     than three. See the note on .greet-line. */
+  --greet-size: 2.4rem;
   --greet-english-size: 0.85rem;
+  /* Keeps the left edge at a predictable 960 - half of this. */
+  --greet-max-width: 900px;
 }
 
 /* The bottom bar is left-aligned so the two tickers can share one row
@@ -46,12 +50,25 @@
   text-align: center;
 }
 
+/* The cap is what keeps the greeting out of the left column, where the
+   scoreboard now sits under the holidays list. Without it the longest lines
+   ("Hodan, galabtaadu ha noqoto mid fudud oo qurux badan") run to x=148 at
+   1920 wide and straddle the whole column. Capping the line makes those wrap
+   to a second row instead, which pins the left edge at a known
+   960 - 1000/2 = 460px whatever the text says.
+
+   Shrinking the font was the obvious lever and it does not work: even at
+   1.3rem two greetings still reached in, because the problem is line length,
+   not glyph size. 22 of 46 clashed at the original 2.8rem. */
 .MMM-Greeting .greet-line {
   display: flex;
   align-items: baseline;
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.7em;
+  max-width: var(--greet-max-width);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .MMM-Greeting .greet-so {

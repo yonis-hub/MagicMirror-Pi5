@@ -286,17 +286,18 @@ let config = {
 		},
 		{
 			module: "MMM-MyScoreboard",
-			position: "bottom_left",
+			// top_left, declared after the calendar, so it flows directly under
+			// the holidays list instead of being positioned against the bottom
+			// bar. Two modules in one flow cannot overlap each other.
+			position: "top_left",
 			config: {
 				viewStyle: "oneLineWithLogos",
 				showPlayoffStatus: true,
 				rolloverHours: 5,
 				sports: [{ league: "NBA" }, { league: "FIFA_WORLD_CUP" }],
-				// Hard cap, not a suggestion: the board sits in the gap between
-				// the holidays list and the ticker row (see the bottom_left rule
-				// in css/main.css). Anything beyond this scrolls through rather
-				// than growing the board back up into the holidays.
-				maxHeight: 150,
+				// Hard cap so the board cannot run down into the ticker row at
+				// the foot of the screen. Anything beyond this scrolls through.
+				maxHeight: 160,
 				updateInterval: 300000 // Update every 5 minutes
 			}
 		}

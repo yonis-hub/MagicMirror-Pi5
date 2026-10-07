@@ -214,30 +214,10 @@ sup {
   bottom: 100%;
 }
 
-/* Local: drop bottom_left (MMM-MyScoreboard) down beside the bottom bar.
- *
- * `bottom: 100%` stacks it on top of the whole bar, and the left column no
- * longer has room for that — the holidays list reaches further down than the
- * scoreboard's top edge, so the two overlapped once the NBA season started.
- * The space beside the bar is free: the greeting and the word of the day are
- * centred and never reach this side.
- *
- * Measured from the bar's BOTTOM rather than its top on purpose. The bar's
- * bottom edge does not move when the greeting or the word of the day change
- * height, so the gap above the ticker row stays put; a top-anchored offset
- * would drift every time anything in the bar resized.
- *
- * Pair this with the scoreboard's own `maxHeight` in config.js.template, which
- * is what stops a busy night's fixtures growing back up into the holidays.
- */
-.region.bottom.left {
-  bottom: 52px; /* clears the ticker row, which is the bottom ~37px of the bar */
-}
-
-/* Local: the left column carries three stacked modules (prayer times, clock,
- * holidays) and then the scoreboard below. At the full 30px gap that stack
- * runs long enough to meet the scoreboard again on a screen shorter than
- * 1080p. 18px still reads as separate sections and buys back ~24px. */
+/* Local: the left column carries four stacked modules — prayer times, clock,
+ * holidays and the scoreboard. At the full 30px gap that stack runs long
+ * enough to reach the ticker row at the foot of the screen. 18px still reads
+ * as separate sections and buys back ~36px across the three gaps. */
 .region.top.left .module {
   margin-bottom: 18px;
 }
