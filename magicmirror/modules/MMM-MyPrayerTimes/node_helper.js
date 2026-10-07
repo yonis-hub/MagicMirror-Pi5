@@ -15,6 +15,7 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const { execFile, spawn } = require("child_process");
+const express = require("express");
 const NodeHelper = require("node_helper");
 
 const ADHAN_PLAYER_CANDIDATES = [
@@ -26,6 +27,24 @@ const ADHAN_PLAYER_CANDIDATES = [
 module.exports = NodeHelper.create({
 	start() {
 		console.log(`Starting node_helper for: ${this.name}`);
+
+		// Voice-triggered adhkar ("hey jarvis, play the morning adhkar").
+		// The listener is a separate Python process, so it reaches the mirror
+		// over HTTP exactly as it already does for MMM-QuranDisplay. The route
+		// lives here rather than there because this module owns the adhkar
+		// tracks and the playback state.
+		this.expressApp.use("/api/adhkar", express.json());
+
+		this.expressApp.post("/api/adhkar/play", (req, res) => {
+			const period = String((req.body && req.body.period) || "").trim().toLowerCase();
+			if (period !== "morning" && period !== "evening") {
+				res.status(400).json({ status: "error", error: "period must be 'morning' or 'evening'" });
+				return;
+			}
+
+			this.sendSocketNotification("ADHKAR_PLAY_REQUEST", { period });
+			res.status(200).json({ status: "success", period });
+		});
 	},
 
 	getDefaultTrackTitle(period, index) {

@@ -729,7 +729,7 @@ def coerce_int(value):
     except (TypeError, ValueError):
         return None
 
-def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=None, verse_end=None, confidence=DEFAULT_CONFIDENCE, reason=None, follow_up=False, juz=None, chat_text=None):
+def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=None, verse_end=None, confidence=DEFAULT_CONFIDENCE, reason=None, follow_up=False, juz=None, chat_text=None, adhkar=None):
     return {
         "action": action,
         "surah": surah,
@@ -739,6 +739,7 @@ def create_intent(action="none", surah=None, topic=None, mood=None, verse_start=
         "verse_end": verse_end,
         "juz": juz,
         "chat_text": chat_text,
+        "adhkar": adhkar,
         "confidence": clamp_confidence(confidence),
         "reason": reason,
         "follow_up": bool(follow_up)
@@ -1476,6 +1477,10 @@ class OllamaVoiceListener:
             juz = intent.get("juz")
             if juz and 1 <= int(juz) <= 30:
                 return ("play_juz", int(juz))
+        if action == "play_adhkar":
+            period = intent.get("adhkar")
+            if period in ("morning", "evening"):
+                return ("play_adhkar", period)
         if action == "search":
             verse_ref = self.get_verse_from_topic(intent.get("topic"))
             if verse_ref:
@@ -1569,6 +1574,8 @@ class OllamaVoiceListener:
         elif action == "play_juz":
             juz = intent.get("juz")
             message = f"Playing Juz {juz}."
+        elif action == "play_adhkar":
+            message = f"Playing the {intent.get('adhkar')} adhkar."
         elif action == "pause":
             message = "Pausing recitation."
         elif action == "resume":
@@ -1905,6 +1912,39 @@ class OllamaVoiceListener:
             "rewind", "go back to the beginning",
         )
         return any(m in t for m in markers)
+
+    def _match_adhkar(self, command_text):
+        """Return "morning"/"evening" if the user asked for the adhkar, else None.
+
+        Requires both a period word and an adhkar word, so "good morning" and a
+        bare "play adhkar" (which period?) both stay out of it. Whisper is
+        inconsistent on the Arabic, so the spellings below cover what it
+        actually produces -- adkar, azkar, athkar, zikr and so on.
+        """
+        if not command_text:
+            return None
+
+        t = " " + command_text.lower().strip().rstrip(".!?") + " "
+        t = t.replace("-", " ")
+
+        adhkar_words = (
+            "adhkar", "adkar", "azkar", "athkar", "adhker", "adkhar",
+            "dhikr", "dikr", "zikr", "zikir", "thikr", "remembrance",
+        )
+        if not any(w in t for w in adhkar_words):
+            return None
+
+        morning_words = ("morning", "sabah", "fajr", "sunrise", "am ")
+        evening_words = ("evening", "masa", "night", "maghrib", "sunset", "asr", "pm ")
+
+        has_morning = any(w in t for w in morning_words)
+        has_evening = any(w in t for w in evening_words)
+
+        # Both named, or neither: not a clear enough instruction to act on.
+        if has_morning == has_evening:
+            return None
+
+        return "morning" if has_morning else "evening"
 
     def _match_reciter_switch(self, command_text):
         """If `command_text` matches a reciter-switch phrase, return the
@@ -2251,6 +2291,17 @@ class OllamaVoiceListener:
                     self.play_error()
                     self.send_starting_status(False)
                     started_playback = False
+            elif action == "play_adhkar" and value:
+                self._remember_command(signature)
+                self.play_confirmation()
+                # Adhkar audio belongs to MMM-MyPrayerTimes and plays in the
+                # browser, so unlike a surah there is no chainer to launch here
+                # -- just ask the mirror. Stop our own recitation first so the
+                # two do not talk over each other, mirroring what the module's
+                # own scheduler does via pauseQuranForAdhkar.
+                self.stop_playback()
+                if not self.request_adhkar(value):
+                    self.play_error()
             elif action == "chat" and value:
                 self._remember_command(signature)
                 if self.enable_voice:
@@ -2768,6 +2819,16 @@ class OllamaVoiceListener:
         if require_wake and not wake_present:
             return (None, None, create_intent())
 
+        # Adhkar fast-path, ahead of the juz and play checks. "play morning
+        # adhkar" contains "play" but names no surah, so without this it fell
+        # through to the bare-play branch and came back unrecognized.
+        adhkar_period = self._match_adhkar(command_text)
+        if adhkar_period:
+            return ("play_adhkar", adhkar_period, create_intent(
+                action="play_adhkar", adhkar=adhkar_period, confidence=0.93,
+                reason="local adhkar fast-path",
+            ))
+
         # Juz fast-path: a recognised juz number wins over any other intent.
         # Local parse means no Ollama round-trip and confidence stays high so
         # the hybrid path doesn't second-guess it.
@@ -2956,6 +3017,27 @@ class OllamaVoiceListener:
             requests.post(url, json={"isStarting": starting}, timeout=1)
         except Exception as e:
             print(f" Could not send starting status: {e}")
+
+    def request_adhkar(self, period):
+        """Ask MMM-MyPrayerTimes to play a period's adhkar playlist.
+
+        That module owns the adhkar audio and plays it in the browser, so this
+        posts to its endpoint rather than starting anything locally. Returns
+        False when the mirror refuses (unknown period, or no tracks loaded for
+        it) so the caller can play the error tone instead of lying about it.
+        """
+        if period not in ("morning", "evening"):
+            return False
+        try:
+            url = f"{self.mirror_url}/api/adhkar/play"
+            response = requests.post(url, json={"period": period}, timeout=3)
+            if response.status_code != 200:
+                print(f" Adhkar request refused ({response.status_code}): {response.text[:120]}")
+                return False
+            return True
+        except Exception as e:
+            print(f" Could not request {period} adhkar: {e}")
+            return False
 
     def send_transcript_status(self, text="", phase="idle", raw_text=""):
         """Send latest recognized phrase to MagicMirror"""

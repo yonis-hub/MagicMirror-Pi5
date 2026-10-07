@@ -597,13 +597,50 @@ Module.register("MMM-MyPrayerTimes", {
 		}
 	},
 
-	startAdhkarPlaylist: function (period, dayKey) {
+	/**
+	 * Play a period's adhkar now, on request rather than on schedule.
+	 *
+	 * Deliberately skips the three gates checkAdhkarAutoPlay applies — the time
+	 * window, the once-a-day marker, and autoPlayAdhkar — because all of those
+	 * describe when to start adhkar *unprompted*. Someone who just asked for
+	 * them has answered that question.
+	 *
+	 * @param {string} period "morning" or "evening"
+	 */
+	startAdhkarOnDemand: function (period) {
+		const key = period === "morning" || period === "evening" ? period : null;
+		if (!key) {
+			Log.warn(`MMM-MyPrayerTimes: ignoring adhkar request for unknown period '${period}'`);
+			return;
+		}
+
+		const tracks = this.adhkarTracks[key];
+		if (!Array.isArray(tracks) || tracks.length === 0) {
+			Log.warn(`MMM-MyPrayerTimes: no ${key} adhkar tracks loaded — run sync_adhkar_assets.py`);
+			return;
+		}
+
+		// Asking again mid-playlist restarts it rather than stacking a second
+		// set of tracks on top of the first.
+		if (this.adhkarPlayback.isPlaying) {
+			this.finishAdhkarPlayback("manual-restart");
+		}
+
+		Log.info(`MMM-MyPrayerTimes: playing ${key} adhkar on request (${tracks.length} tracks)`);
+		this.startAdhkarPlaylist(key, null, { markPlayed: false });
+	},
+
+	startAdhkarPlaylist: function (period, dayKey, options) {
 		const tracks = this.adhkarTracks[period];
 		if (!Array.isArray(tracks) || tracks.length === 0) {
 			return;
 		}
 
-		this.playedAdhkarToday[period] = dayKey || this.getDateKey(new Date());
+		// A requested play does not count as the day's scheduled run, so the
+		// real window still fires later.
+		if (!options || options.markPlayed !== false) {
+			this.playedAdhkarToday[period] = dayKey || this.getDateKey(new Date());
+		}
 		this.adhkarPlayback = {
 			isPlaying: true,
 			period,
@@ -951,6 +988,8 @@ Module.register("MMM-MyPrayerTimes", {
 		if (notification === "MPT_RESULT") {
 			this.processMPT(payload);
 			this.updateDom(this.config.animationSpeed);
+		} else if (notification === "ADHKAR_PLAY_REQUEST") {
+			this.startAdhkarOnDemand(payload && payload.period);
 		} else if (notification === "ADHKAR_TRACKS") {
 			const safePayload = payload && typeof payload === "object" ? payload : {};
 			this.adhkarTracks = {

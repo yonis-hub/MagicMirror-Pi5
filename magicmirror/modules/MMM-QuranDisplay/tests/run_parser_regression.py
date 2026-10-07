@@ -137,6 +137,11 @@ def main():
         # scores >= LOCAL_HIGH_CONFIDENCE; a case can return the right action
         # and still be a latency regression if it scores below the gate.
         expected_min_confidence = case.get("expected_min_confidence")
+        # Optional assertion on the parsed value itself. Without it an action
+        # that carries a payload -- play_adhkar's morning/evening, say -- would
+        # pass on the action alone and never prove it read the payload right.
+        has_expected_value = "expected_value" in case
+        expected_value = case.get("expected_value")
 
         result = listener.parse_fallback(normalized_text, require_wake=require_wake)
         action, value, intent = result
@@ -145,6 +150,8 @@ def main():
         actual_surah = extract_surah(action, value, intent)
 
         mismatch = action != expected_action or actual_surah != expected_surah
+        if has_expected_value and value != expected_value:
+            mismatch = True
         low_confidence = (
             expected_min_confidence is not None
             and actual_confidence < expected_min_confidence
@@ -159,6 +166,8 @@ def main():
                 "actual_action": action,
                 "expected_surah": expected_surah,
                 "actual_surah": actual_surah,
+                "expected_value": expected_value if has_expected_value else "(any)",
+                "actual_value": value,
                 "expected_min_confidence": expected_min_confidence,
                 "actual_confidence": actual_confidence
             })

@@ -248,5 +248,99 @@
     "require_wake": false,
     "expected_action": "none",
     "expected_surah": null
+  },
+  {
+    "name": "adhkar_morning",
+    "input": "hey jarvis play morning adhkar",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning",
+    "expected_min_confidence": 0.9
+  },
+  {
+    "name": "adhkar_evening",
+    "input": "hey jarvis play evening adhkar",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "evening",
+    "expected_min_confidence": 0.9
+  },
+  {
+    "name": "adhkar_morning_the",
+    "input": "hey jarvis play the morning adhkar",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning"
+  },
+  {
+    "name": "adhkar_evening_of_the",
+    "input": "hey jarvis play the adhkar of the evening",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "evening"
+  },
+  {
+    "name": "adhkar_spelling_azkar",
+    "input": "hey jarvis play morning azkar",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning"
+  },
+  {
+    "name": "adhkar_spelling_athkar",
+    "input": "hey jarvis play evening athkar",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "evening"
+  },
+  {
+    "name": "adhkar_spelling_dhikr",
+    "input": "hey jarvis play the morning dhikr",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning"
+  },
+  {
+    "name": "adhkar_no_wake_required",
+    "input": "play evening adhkar",
+    "require_wake": false,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "evening"
+  },
+  {
+    "name": "adhkar_needs_a_period",
+    "input": "hey jarvis play adhkar",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "adhkar_not_a_greeting",
+    "input": "hey jarvis good morning",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "adhkar_ambiguous_both_periods",
+    "input": "hey jarvis play morning and evening adhkar",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
+  },
+  {
+    "name": "adhkar_does_not_shadow_surah",
+    "input": "hey jarvis play surah rahman",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 55
   }
 ]
