@@ -295,9 +295,14 @@ let config = {
 				showPlayoffStatus: true,
 				rolloverHours: 5,
 				sports: [{ league: "NBA" }, { league: "FIFA_WORLD_CUP" }],
-				// Hard cap so the board cannot run down into the ticker row at
-				// the foot of the screen. Anything beyond this scrolls through.
-				maxHeight: 160,
+				// Sized from the real row metrics: a league separator is 33px and
+				// each game row is 31px, so this holds the separator plus five
+				// games (193px) with nothing clipped on an ordinary night. A
+				// busier card exceeds it and the module scrolls instead, which
+				// is how every game stays reachable. Keep it under ~205px or the
+				// board reaches the ticker row at the foot of the screen.
+				maxHeight: 196,
+				scrollSpeed: 4, // lower is faster; 6 took ~36s to come round
 				updateInterval: 300000 // Update every 5 minutes
 			}
 		}
