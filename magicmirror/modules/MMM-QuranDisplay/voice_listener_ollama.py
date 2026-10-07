@@ -1924,27 +1924,50 @@ class OllamaVoiceListener:
         if not command_text:
             return None
 
-        t = " " + command_text.lower().strip().rstrip(".!?") + " "
-        t = t.replace("-", " ")
+        raw = " ".join(command_text.lower().strip().rstrip(".!?").replace("-", " ").split())
+        t = f" {raw} "
 
         adhkar_words = (
             "adhkar", "adkar", "azkar", "athkar", "adhker", "adkhar",
             "dhikr", "dikr", "zikr", "zikir", "thikr", "remembrance",
         )
-        if not any(w in t for w in adhkar_words):
+
+        if any(w in t for w in adhkar_words):
+            morning_words = ("morning", "sabah", "fajr", "sunrise", "am ")
+            evening_words = ("evening", "masa", "night", "maghrib", "sunset", "asr", "pm ")
+
+            has_morning = any(w in t for w in morning_words)
+            has_evening = any(w in t for w in evening_words)
+
+            # Both named, or neither: not a clear enough instruction to act on.
+            if has_morning != has_evening:
+                return "morning" if has_morning else "evening"
             return None
 
-        morning_words = ("morning", "sabah", "fajr", "sunrise", "am ")
-        evening_words = ("evening", "masa", "night", "maghrib", "sunset", "asr", "pm ")
-
-        has_morning = any(w in t for w in morning_words)
-        has_evening = any(w in t for w in evening_words)
-
-        # Both named, or neither: not a clear enough instruction to act on.
-        if has_morning == has_evening:
+        # Shorthand: a bare "play morning" / "play the evening", with no adhkar
+        # word at all. Deliberately strict — an explicit play verb, then only
+        # the exact word "morning" or "evening" and nothing after it. Several
+        # surahs are named for times of day ("morning star" is 86, "morning
+        # hours" is 93, "night" is 92, "afternoon" is 103), and this matcher
+        # runs before the surah lookup, so anything looser would swallow them.
+        play_leads = ("play", "start", "put on", "begin", "run")
+        rest = None
+        for lead in play_leads:
+            if raw.startswith(lead + " "):
+                rest = raw[len(lead) + 1:].strip()
+                break
+        if rest is None:
             return None
 
-        return "morning" if has_morning else "evening"
+        if rest.startswith("the "):
+            rest = rest[4:].strip()
+        for tail in (" please", " now", " for me"):
+            if rest.endswith(tail):
+                rest = rest[: -len(tail)].strip()
+
+        if rest in ("morning", "evening"):
+            return rest
+        return None
 
     def _match_reciter_switch(self, command_text):
         """If `command_text` matches a reciter-switch phrase, return the

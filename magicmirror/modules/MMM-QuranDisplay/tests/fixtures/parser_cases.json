@@ -342,5 +342,90 @@
     "require_wake": true,
     "expected_action": "play",
     "expected_surah": 55
+  },
+  {
+    "name": "adhkar_bare_play_morning",
+    "input": "hey jarvis play morning",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning",
+    "expected_min_confidence": 0.9
+  },
+  {
+    "name": "adhkar_bare_play_evening",
+    "input": "hey jarvis play evening",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "evening",
+    "expected_min_confidence": 0.9
+  },
+  {
+    "name": "adhkar_bare_play_the_morning",
+    "input": "hey jarvis play the morning",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning"
+  },
+  {
+    "name": "adhkar_bare_start_evening",
+    "input": "hey jarvis start evening",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "evening"
+  },
+  {
+    "name": "adhkar_bare_with_please",
+    "input": "hey jarvis play morning please",
+    "require_wake": true,
+    "expected_action": "play_adhkar",
+    "expected_surah": null,
+    "expected_value": "morning"
+  },
+  {
+    "name": "bare_period_does_not_eat_morning_star",
+    "input": "hey jarvis play morning star",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 86
+  },
+  {
+    "name": "bare_period_does_not_eat_morning_hours",
+    "input": "hey jarvis play morning hours",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 93
+  },
+  {
+    "name": "bare_period_does_not_eat_night",
+    "input": "hey jarvis play night",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 92
+  },
+  {
+    "name": "bare_period_does_not_eat_afternoon",
+    "input": "hey jarvis play afternoon",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 103
+  },
+  {
+    "name": "bare_period_does_not_eat_dawn",
+    "input": "hey jarvis play dawn",
+    "require_wake": true,
+    "expected_action": "play",
+    "expected_surah": 113,
+    "note": "'dawn' is an alias for both 89 (Al-Fajr) and 113 (Al-Falaq); the later entry wins. Pre-existing, unrelated to the bare-period rule. What this case guards is that 'play dawn' still reaches the surah lookup at all."
+  },
+  {
+    "name": "bare_period_not_a_greeting",
+    "input": "hey jarvis good evening",
+    "require_wake": true,
+    "expected_action": "none",
+    "expected_surah": null
   }
 ]
