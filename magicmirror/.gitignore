@@ -80,6 +80,14 @@ Temporary Items
 !/modules/MMM-Greeting/**
 !/modules/MMM-WordOfTheDay
 !/modules/MMM-WordOfTheDay/**
+# Adhkar audio (115 MB, regenerable). This has to live here rather than in the
+# root .gitignore: the negations above re-include everything under
+# MMM-MyPrayerTimes, and a nested .gitignore wins over the root for paths below
+# it, so a root rule was silently overridden. sync_adhkar_assets.py re-downloads
+# anything missing from adhkar_manifest.json. adaan.mp3 stays tracked — it is a
+# vendored asset, not a downloaded one.
+/modules/MMM-MyPrayerTimes/adhkar/**/*.mp3
+
 /modules/MMM-QuranDisplay/__pycache__/
 /modules/MMM-QuranDisplay/**/*.pyc
 /modules/MMM-FaceIdentity/__pycache__/

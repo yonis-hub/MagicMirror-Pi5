@@ -15,10 +15,9 @@ quran_data/*/durations.*.json
 # translation and only needs the audio harvested.
 quran_data/**/*.mp3
 
-# Adhkar audio (115 MB). sync_adhkar_assets.py re-downloads anything missing
-# from the URLs in adhkar_manifest.json. adaan.mp3 is NOT ignored — that one is
-# a vendored module asset, not a downloaded one.
-magicmirror/modules/MMM-MyPrayerTimes/adhkar/**/*.mp3
+# (Adhkar audio is ignored in magicmirror/.gitignore instead — the negations in
+# that file re-include everything under the module, and a nested .gitignore
+# overrides the root for paths beneath it.)
 
 # MagicMirror specific
 magicmirror/node_modules/
