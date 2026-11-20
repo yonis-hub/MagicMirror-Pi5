@@ -5,11 +5,13 @@
 #   bash ~/MagicMirror-Pi5/deploy/labwc/install-kiosk-toggle.sh
 # Safe to re-run: if the binding is already there it changes nothing.
 #
-# toggle-kiosk.sh existed for a long time with nothing bound to it, so
-# Ctrl+Alt+K did nothing. This adds one <keybind> to the existing <keyboard>
-# section of ~/.config/labwc/rc.xml (timestamped backup first) instead of
-# replacing the file, because Pi OS's Control Centre keeps mouse and keyboard
-# settings in there too. labwc is then told to reload, so no logout is needed.
+# The repo never recorded this binding. On MM01 it had been added by hand and
+# ran toggle-kiosk.sh directly, but the script was checked out without its
+# exec bit, so Ctrl+Alt+K silently did nothing. This makes the binding
+# reproducible: it adds one <keybind> to the existing <keyboard> section of
+# ~/.config/labwc/rc.xml (timestamped backup first) instead of replacing the
+# file, because Pi OS's Control Centre keeps mouse and keyboard settings in
+# there too. labwc is then told to reload, so no logout is needed.
 
 set -euo pipefail
 
@@ -64,10 +66,14 @@ def q(tag):
     return "{%s}%s" % (ns, tag) if ns else tag
 
 
+# An older hand-made binding runs the script directly ("/path/toggle-kiosk.sh",
+# no "bash" in front) -- that is the same binding, not a conflict.
+toggle = command.split()[-1]
+
 for kb in root.iter(q("keybind")):
     if kb.get("key", "").lower() == key.lower():
-        cmds = [a.get("command") for a in kb.iter(q("action"))]
-        if command in cmds:
+        cmds = [a.get("command") or "" for a in kb.iter(q("action"))]
+        if any(c.split()[-1:] == [toggle] for c in cmds):
             print(f"{key} is already bound to the kiosk toggle; nothing to change.")
             sys.exit(0)
         sys.exit(f"{rc} already binds {key} to {cmds}; not overwriting it. "
