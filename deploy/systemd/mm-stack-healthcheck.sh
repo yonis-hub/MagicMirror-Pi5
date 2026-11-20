@@ -19,6 +19,9 @@ VOICE_SERVICE="quran-voice@${TARGET_USER}.service"
 # the uptime. Never reference that unit here again.
 MIRROR_USER_SERVICES=("mm-server.service" "mm-kiosk.service")
 HEARTBEAT_MAX_AGE_SEC="${HEARTBEAT_MAX_AGE_SEC:-120}"
+# Written by deploy/labwc/toggle-kiosk.sh (Ctrl+Alt+K) when it hides the kiosk.
+KIOSK_PAUSE_FLAG="/run/user/${TARGET_UID}/mm-kiosk-paused"
+KIOSK_PAUSE_MAX_SEC="${KIOSK_PAUSE_MAX_SEC:-1800}"
 
 timestamp() {
   date '+%Y-%m-%d %H:%M:%S'
@@ -80,9 +83,29 @@ restart_voice() {
   systemctl restart "$VOICE_SERVICE" || log "WARN: restart failed: ${VOICE_SERVICE}"
 }
 
+# Ctrl+Alt+K hides the kiosk on purpose so the desktop is reachable (Bluetooth
+# pairing, settings), and leaves a flag behind. Without honouring it, the loop
+# below put the kiosk straight back within a minute, which made the toggle
+# useless. The flag expires so a forgotten pause can't leave the mirror dark.
+kiosk_paused() {
+  local mtime age
+  mtime="$(stat -c %Y "$KIOSK_PAUSE_FLAG" 2>/dev/null)" || return 1
+  age=$(( $(date +%s) - mtime ))
+  if (( age > KIOSK_PAUSE_MAX_SEC )); then
+    log "Kiosk pause expired after ${age}s; bringing the kiosk back"
+    rm -f "$KIOSK_PAUSE_FLAG"
+    return 1
+  fi
+  log "Kiosk hidden via Ctrl+Alt+K ${age}s ago; leaving it stopped"
+  return 0
+}
+
 ensure_system_running "ollama.service"
 
 for svc in "${MIRROR_USER_SERVICES[@]}"; do
+  if [[ "$svc" == "mm-kiosk.service" ]] && kiosk_paused; then
+    continue
+  fi
   ensure_user_running "$svc"
 done
 
