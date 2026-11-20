@@ -1,0 +1,11 @@
+[Unit]
+Description=Reconnect the Bluetooth speaker if another device took it
+After=default.target
+
+[Service]
+Type=oneshot
+# Override via `systemctl --user edit bt-reconnect.service` if you change speakers.
+Environment=BT_SPEAKER_MAC=FC:A8:9A:F6:FB:DA
+Environment=BT_SPEAKER_PROFILE=a2dp-sink
+ExecStart=/bin/bash %h/MagicMirror-Pi5/deploy/audio-keepalive/bt-reconnect.sh
+Nice=10

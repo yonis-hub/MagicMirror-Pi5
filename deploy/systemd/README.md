@@ -37,15 +37,21 @@ sudo systemctl enable --now myscoreboard-update@hyonis.timer
 
 Replace `hyonis` with your Pi username if different.
 
-Optional (recommended) for Bluetooth speaker auto-reconnect:
+Recommended: Bluetooth speaker auto-reconnect. If someone else's phone takes
+the speaker, the Pi doesn't try again by itself. This timer retries every
+minute and gets the speaker back as soon as the speaker is free again:
 
 ```bash
 sudo systemctl enable --now bluetooth
-bluetoothctl devices
-# Example:
-# bluetoothctl trust FC:A8:9A:F6:FB:DA
-# bluetoothctl connect FC:A8:9A:F6:FB:DA
+bluetoothctl devices                       # the speaker must already be paired
+cp ~/MagicMirror-Pi5/deploy/systemd/user/bt-reconnect.service ~/.config/systemd/user/
+cp ~/MagicMirror-Pi5/deploy/systemd/user/bt-reconnect.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now bt-reconnect.timer
 ```
+
+Different speaker? `systemctl --user edit bt-reconnect.service` and override
+`BT_SPEAKER_MAC`. Logs: `sudo journalctl -t bt-reconnect --since today`.
 
 ## 4) Verify runtime health
 
