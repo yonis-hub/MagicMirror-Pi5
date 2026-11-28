@@ -221,6 +221,7 @@ let config = {
 			position: "bottom_bar",            // below the word of the day (declared earlier in array)
 			config: {
 				displayMode: "static",         // all symbols side-by-side, no motion
+				align: "right",                // right side of the bar, under the weather column
 				symbols: [
 					{ symbol: "BTC-USD",  label: "BTC" },
 					{ symbol: "ETH-USD",  label: "ETH" },

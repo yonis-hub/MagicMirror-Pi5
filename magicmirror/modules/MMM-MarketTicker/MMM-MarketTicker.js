@@ -16,7 +16,8 @@ Module.register("MMM-MarketTicker", {
 			{ symbol: "ETH-USD", label: "ETH" }
 		],
 		updateInterval: 5 * 60 * 1000,
-		displayMode: "cycle", // "cycle" = one at a time with fade; "scroll" = marquee
+		displayMode: "cycle", // "cycle" = one at a time with fade; "scroll" = marquee; "static" = one row
+		align: "left", // static row only: "left", "center" or "right"
 		cycleIntervalMs: 5000,
 		scrollSecondsPerItem: 6,
 		decimals: 2,
@@ -242,6 +243,10 @@ Module.register("MMM-MarketTicker", {
 		// short symbol list (2-4 items) where scrolling looks silly.
 		if (this.config.displayMode === "static") {
 			wrapper.classList.add("mt-static");
+			const align = String(this.config.align || "left").toLowerCase();
+			if (align === "right" || align === "center") {
+				wrapper.classList.add(`mt-align-${align}`);
+			}
 			this.quotes.forEach((q) => wrapper.appendChild(this.renderItem(q)));
 			return wrapper;
 		}
