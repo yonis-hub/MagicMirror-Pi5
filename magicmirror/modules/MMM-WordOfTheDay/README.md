@@ -20,37 +20,74 @@ crowding the title off centre.
 
 ## How the daily draw works
 
-`words.json` holds 300 words in two tiers — 240 everyday words and 60 harder
-ones (see **Difficulty tiers** below). Each day draws ten at random from
-whatever the current pass has not used yet, so no word repeats until all of them
-have had a turn: with the default settings a word comes round again every
-**30 days**.
+`words.json` holds 529 words in two tiers — 240 everyday words and 289 harder
+ones (see **Difficulty tiers** below). Each day draws ten at random from the
+words the current **cycle** has not shown yet, so no word repeats until every
+word has had a turn. With the default settings a cycle is **53 days**; when it
+runs out, the next one starts by itself and the list goes round again.
 
-The draw is derived from the date alone, so it is stable: restarting the mirror
-mid-morning shows the same ten words, in the same order, and a second mirror on
-the same network shows the same ten. Nothing is stored between runs — the day
-index seeds a small deterministic PRNG, which is what lets the draw look random
-and still be reproducible.
+A word also has to **rest for half a cycle** (26 days) after it is shown. That
+is what stops a word from closing one cycle and opening the next. The old draw
+shuffled each pass on its own, so that happened often — over three years about
+one return in eight came within two weeks, some the very next day. Now the
+shortest possible return is 26 days and the typical one is a full cycle.
 
-Each day is seeded from the pass *and* the day, so the ten are grouped per day
-rather than being a fixed slice decided when the pass began.
+The draw runs in `node_helper.js` (logic in `draw.js`) and is **remembered**, in
+`state/history.json` (see **Tracking what has been shown**). So:
 
-If `wordsPerDay` does not divide the pool evenly, `ceil(total / wordsPerDay)`
-days hold more slots than there are words, and that many repeats inside the pass
-are unavoidable — 300 words at 7 a day is 43 days × 7 = 301 draws. The draw
-spreads those forced repeats rather than always re-showing the pass's first few,
-and every single day is still `wordsPerDay` distinct words.
+- Restarting the mirror mid-day keeps the same ten, in the same order.
+- Days the mirror is switched off cost nothing. The words it would have shown
+  are still waiting for their turn.
+- Words added to `words.json` join the current cycle straight away. Removed ones
+  are simply never drawn again. `words.json` is re-read every morning, so no
+  restart is needed.
+- If `wordsPerDay` does not divide the list evenly, the last day of a cycle
+  takes the cycle's remaining words and tops up from the start of the next. No
+  word repeats inside a cycle and every day is still ten distinct words.
 
-The day index is built from the local calendar date rather than a raw
-millisecond count, so it does not slide by an hour across a daylight-saving
-change.
+The day is the local calendar date (moved back by `dayRolloverHour`), so it does
+not slide by an hour across a daylight-saving change.
+
+## Tracking what has been shown
+
+`state/history.json` is written on the mirror and never committed (it's
+gitignored). It holds:
+
+| Field       | What it is                                                     |
+| ----------- | -------------------------------------------------------------- |
+| `cycle`     | Which pass through the list this is (1, 2, 3, …).              |
+| `used`      | Every word this cycle has shown so far.                        |
+| `lastShown` | The date each word was last on screen; drives the rest period. |
+| `today`     | Today's ten, so a restart shows the same ones.                 |
+| `history`   | One line per day: date, cycle and the ten words (≈ 3 years).   |
+
+Words are identified as `somali|english`, so correcting an entry gives the
+corrected version a fresh turn.
+
+For a readable summary on the Pi (cycle, words shown and left, today's ten,
+the last seven days):
+
+```bash
+curl -s localhost:8080/api/wotd/status | python3 -m json.tool
+```
+
+The mirror's log gets one line per day, e.g.
+`[MMM-WordOfTheDay] 2026-11-28: cycle 1, 270/529 shown, 259 to go`.
+
+To start over from a fresh cycle, stop the mirror, delete `state/history.json`
+and start it again. A damaged file is moved aside (`history.json.corrupt-…`) and
+replaced automatically rather than blanking the bar.
+
+**First run.** With no history yet, the helper replays what the old date-based
+draw showed recently and counts those words as used, so the switch itself
+doesn't bring back words from the last few weeks.
 
 ## Configuration
 
 | Option                | Default                               | Description                                                                                        |
 | --------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `wordsPerDay`         | `10`                                  | Words drawn per day. Fewer words means more days per pass.                                         |
-| `levels`              | `["core", "advanced"]`                | Difficulty tiers to draw from. `["advanced"]` gives only the harder 60. See **Difficulty tiers**.  |
+| `wordsPerDay`         | `10`                                  | Words drawn per day. Fewer words means more days per cycle.                                        |
+| `levels`              | `["core", "advanced"]`                | Difficulty tiers to draw from. `["advanced"]` gives only the harder 289. See **Difficulty tiers**. |
 | `rotateInterval`      | `30000`                               | How long each word holds the line, in ms. Ten words at 30s loop every 5 minutes.                   |
 | `fadeSpeed`           | `1200`                                | Cross-fade between words, in ms.                                                                   |
 | `showHeader`          | `true`                                | The `ERAYADA MAANTA` label line.                                                                   |
@@ -70,9 +107,14 @@ Append to the `words` array in `words.json`:
 { "so": "qorrax", "en": "sun", "pron": "qor-rakh", "cat": "cir", "exSo": "Qorraxdu way soo baxday.", "exEn": "The sun has risen." }
 ```
 
-`cat` must be a key in the `categories` object at the top of the file. Adding
-words changes the pass length automatically (`ceil(total / wordsPerDay)` days);
-nothing else needs updating.
+`cat` must be a key in the `categories` object at the top of the file. New
+words join the current cycle at the next day's draw, and the cycle length
+(`ceil(total / wordsPerDay)` days) follows automatically. Nothing else needs
+updating.
+
+Give new entries an `"added": "YYYY-MM-DD"` date. Apart from recording when a
+word arrived, it tells the first-run migration which entries the old date-based
+draw never had.
 
 ## Difficulty tiers
 
@@ -87,12 +129,20 @@ original 240 entries carry no such field — only the harder tier is tagged:
 
 `levels` in the config picks which tiers are in play. A value matching nothing
 falls back to the whole list rather than leaving the bar empty, so a typo cannot
-blank the display. The pass length follows the *active* pool, so
-`levels: ["advanced"]` means 60 words and a 6-day pass.
+blank the display. The cycle length follows the *active* pool, so
+`levels: ["advanced"]` means 289 words and a 29-day cycle.
+
+The advanced tier came in two batches: 60 words on 2026-10-07, and 229 more on
+2026-11-28 (those carry `"added": "2026-11-28"`). The second batch leans on
+vocabulary a learner meets later: abstract nouns (`ujeeddo` purpose, `qanacsanaan`
+contentment), civic words (`doorasho` election, `musuqmaasuq` corruption),
+literature (`suugaan`, `maanso`, `tiraab`), the four Somali seasons (`jiilaal`,
+`gu'`, `xagaa`, `dayr`), the extended family (`adeer`, `abti`, `eedo`, `habaryar`),
+and less common animals, landforms and body words.
 
 ### `review: true`
 
-The 60 advanced entries were drafted rather than verified. `review: true` marks
+Every advanced entry was drafted rather than verified. `review: true` marks
 them so they can be audited or removed without disturbing anything else:
 
 ```bash

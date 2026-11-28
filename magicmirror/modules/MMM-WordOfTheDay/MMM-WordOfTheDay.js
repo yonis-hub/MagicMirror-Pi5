@@ -3,9 +3,9 @@
  *
  * Bilingual Af-Soomaali / English vocabulary for the bottom bar. Ten words are
  * drawn for each calendar day and rotate on screen all day; tomorrow draws a
- * fresh ten. Every entry in words.json is shown exactly once before any word
- * comes round again, and the draw is derived from the date alone — so a restart
- * (or a second mirror) shows the same ten words on the same day.
+ * fresh ten. The draw itself happens in node_helper.js (see draw.js), which
+ * remembers what has been shown: every entry in words.json gets a turn before
+ * any word comes round again, and a restart keeps the same ten for the day.
  *
  * MIT Licensed.
  */
@@ -16,7 +16,7 @@ Module.register("MMM-WordOfTheDay", {
 		// Which difficulty tiers to draw from. An entry with no "level" in
 		// words.json counts as "core", so the original word list needs no edit.
 		// ["advanced"] alone gives only the harder tier; a short list means a
-		// short pass, since the pass length follows the active pool.
+		// short cycle, since the cycle length follows the active pool.
 		levels: ["core", "advanced"],
 		rotateInterval: 30 * 1000,
 		fadeSpeed: 1200,
@@ -39,199 +39,92 @@ Module.register("MMM-WordOfTheDay", {
 	start: function () {
 		Log.info(`Starting module: ${this.name}`);
 
-		this.words = [];
 		this.categories = {};
 		this.daySet = [];
 		this.dayKey = null;
+		this.requestedDay = null;
 		this.index = 0;
 		this.loaded = false;
 		this.error = null;
 
-		this.loadWords();
+		this.requestDay();
 
 		this.rotateTimer = setInterval(() => this.rotate(), Math.max(2000, this.config.rotateInterval));
 	},
 
 	/**
-	 * Read words.json from this module's own folder.
+	 * The current mirror-day as "YYYY-MM-DD", from the local calendar date, so
+	 * it does not slide by an hour across a daylight-saving change.
 	 *
-	 * @returns {Promise<void>} resolves once the list is loaded or the failure recorded
+	 * @returns {string} the day key node_helper draws and records against
 	 */
-	loadWords: async function () {
-		try {
-			const response = await fetch(this.file(this.config.wordsFile));
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
-			}
-
-			const data = await response.json();
-			this.categories = data && typeof data.categories === "object" ? data.categories : {};
-			this.words = Array.isArray(data && data.words) ? data.words.filter((word) => word && word.so && word.en) : [];
-
-			if (this.words.length === 0) {
-				throw new Error("no usable entries");
-			}
-
-			this.loaded = true;
-			this.refreshDaySet(true);
-			this.updateDom(this.config.fadeSpeed);
-		} catch (err) {
-			this.error = err.message || String(err);
-			Log.error(`${this.name}: could not load ${this.config.wordsFile} — ${this.error}`);
-			this.updateDom();
-		}
-	},
-
-	/**
-	 * Index of the current mirror-day. Built from the local calendar date rather
-	 * than a raw millisecond count, so it does not slide by an hour when the
-	 * clock crosses a daylight-saving boundary.
-	 *
-	 * @returns {number} whole days, counting up from 1970-01-01
-	 */
-	dayNumber: function () {
+	currentDayKey: function () {
 		const now = new Date();
 		const rollover = Number(this.config.dayRolloverHour) || 0;
 		if (rollover > 0) {
 			// Before the rollover hour we are still on yesterday's set.
 			now.setHours(now.getHours() - rollover);
 		}
-
-		return Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+		const pad = (n) => String(n).padStart(2, "0");
+		return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 	},
 
-	/**
-	 * mulberry32 — a small deterministic PRNG. The same seed yields the same
-	 * sequence on every machine, which is what lets the daily draw be random
-	 * to look at yet reproducible without storing anything.
-	 *
-	 * @param {number} seed any 32-bit integer
-	 * @returns {Function} generator returning floats in [0, 1)
-	 */
-	seededRandom: function (seed) {
-		let state = seed | 0;
-		return function () {
-			state = (state + 0x6d2b79f5) | 0;
-			let t = Math.imul(state ^ (state >>> 15), 1 | state);
-			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-			return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-		};
+	requestDay: function () {
+		this.requestedDay = this.currentDayKey();
+		this.requestedAt = Date.now();
+		this.sendSocketNotification("WOTD_GET_DAY", {
+			dayKey: this.requestedDay,
+			wordsFile: this.config.wordsFile,
+			levels: this.config.levels,
+			wordsPerDay: this.config.wordsPerDay
+		});
 	},
 
-	/**
-	 * The words eligible for a draw, after the difficulty filter.
-	 *
-	 * An entry with no "level" counts as "core" — that is what lets the original
-	 * hand-written list stay untouched. A filter that matches nothing falls back
-	 * to the whole list rather than leaving the bottom bar empty over a typo.
-	 *
-	 * @returns {object[]} words matching config.levels
-	 */
-	activeWords: function () {
-		const wanted = Array.isArray(this.config.levels) ? this.config.levels : null;
-		if (!wanted || wanted.length === 0) {
-			return this.words;
-		}
-
-		const allowed = new Set(wanted.map((level) => String(level).toLowerCase()));
-		const pool = this.words.filter((word) => allowed.has(String(word.level || "core").toLowerCase()));
-		if (pool.length === 0) {
-			Log.warn(`${this.name}: levels ${JSON.stringify(wanted)} matched no words; using the full list`);
-			return this.words;
-		}
-
-		return pool;
-	},
-
-	/**
-	 * The words for one specific day.
-	 *
-	 * Each day draws without replacement from whatever this pass has not used
-	 * yet, seeded from the pass *and* the day. So the grouping is decided per
-	 * day rather than being a fixed slice of one shuffle taken when the pass
-	 * began, while every word still appears exactly once per pass. It stays a
-	 * pure function of dayKey, so a restart mid-day — or a second mirror — draws
-	 * the same set.
-	 *
-	 * @param {number} dayKey day index from dayNumber()
-	 * @returns {object[]} today's words
-	 */
-	pickForDay: function (dayKey) {
-		const pool = this.activeWords();
-		const total = pool.length;
-		if (total === 0) {
-			return [];
-		}
-
-		const perDay = Math.max(1, Math.min(Number(this.config.wordsPerDay) || 1, total));
-		const daysPerPass = Math.ceil(total / perDay);
-		const pass = Math.floor(dayKey / daysPerPass);
-		const slot = dayKey - pass * daysPerPass;
-
-		let remaining = pool.map((_, i) => i);
-		let picked = [];
-
-		// Replay the pass from its first day so the exclusions are correct.
-		// At most daysPerPass-1 extra draws, and only once a day.
-		for (let day = 0; day <= slot; day++) {
-			const random = this.seededRandom(
-				Math.imul(pass + 1, 0x9e3779b1) ^ Math.imul(day + 1, 0x85ebca6b)
-			);
-			picked = [];
-
-			for (let i = 0; i < perDay; i++) {
-				if (remaining.length === 0) {
-					// total is not a multiple of perDay, so daysPerPass*perDay
-					// exceeds total and some repetition inside the pass is
-					// arithmetically forced (240 words at 7/day = 245 draws).
-					// Refill from whatever today has not taken, so the forced
-					// repeats land on random words instead of always being the
-					// first few of the pass, and the day stays perDay distinct.
-					const takenToday = new Set(picked);
-					remaining = pool.map((_, idx) => idx).filter((idx) => !takenToday.has(idx));
-					if (remaining.length === 0) {
-						break;
-					}
-				}
-
-				const j = Math.floor(random() * remaining.length);
-				picked.push(remaining[j]);
-				remaining.splice(j, 1);
+	socketNotificationReceived: function (notification, payload) {
+		if (notification === "WOTD_DAY") {
+			const words = Array.isArray(payload && payload.words) ? payload.words : [];
+			// The helper answers every connected client at once; ignore an answer
+			// for some other day once this one is already showing words.
+			if (words.length === 0 || (this.loaded && payload.dayKey !== this.currentDayKey())) {
+				return;
+			}
+			// A fresh day starts at its first word; a repeat of the same day
+			// (another client asked) leaves the rotation where it is.
+			if (payload.dayKey !== this.dayKey) {
+				this.index = 0;
+			}
+			this.dayKey = payload.dayKey;
+			this.daySet = words;
+			this.index = this.index % words.length;
+			this.categories = payload.categories || {};
+			this.loaded = true;
+			this.error = null;
+			this.updateDom(this.config.fadeSpeed);
+		} else if (notification === "WOTD_ERROR") {
+			Log.error(`${this.name}: ${payload && payload.message}`);
+			if (!this.loaded) {
+				this.error = (payload && payload.message) || "unknown error";
+				this.updateDom();
 			}
 		}
-
-		return picked.map((i) => pool[i]);
-	},
-
-	/**
-	 * Redraw today's set if the date has turned over.
-	 *
-	 * @param {boolean} force rebuild even when the day has not changed
-	 * @returns {boolean} true when a new set was drawn
-	 */
-	refreshDaySet: function (force) {
-		const dayKey = this.dayNumber();
-		if (!force && dayKey === this.dayKey) {
-			return false;
-		}
-
-		this.dayKey = dayKey;
-		this.daySet = this.pickForDay(dayKey);
-		this.index = 0;
-
-		return true;
 	},
 
 	rotate: function () {
+		// Not loaded yet (helper still starting, or it failed): ask again.
 		if (!this.loaded) {
+			this.requestDay();
 			return;
 		}
 
-		// A fresh day starts back at its first word instead of advancing.
-		if (!this.refreshDaySet(false)) {
-			this.index = (this.index + 1) % this.daySet.length;
+		// The date has turned over: ask for the new day, and keep showing the
+		// old one until it arrives. Ask again if a minute passes with no answer.
+		const today = this.currentDayKey();
+		const unanswered = today === this.requestedDay && Date.now() - (this.requestedAt || 0) > 60000;
+		if (today !== this.dayKey && (today !== this.requestedDay || unanswered)) {
+			this.requestDay();
 		}
 
+		this.index = (this.index + 1) % this.daySet.length;
 		this.updateDom(this.config.fadeSpeed);
 	},
 
