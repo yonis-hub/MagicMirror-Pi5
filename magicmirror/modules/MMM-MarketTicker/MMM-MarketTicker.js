@@ -20,7 +20,17 @@ Module.register("MMM-MarketTicker", {
 		cycleIntervalMs: 5000,
 		scrollSecondsPerItem: 6,
 		decimals: 2,
-		showCurrency: false,
+		showCurrency: true, // "$" before USD prices
+		// Show "▼ 697.21 (-1.16%)" instead of just "▼ 1.16%".
+		showChangeAmount: false,
+		// Logos shown in place of the text label, module-relative or absolute
+		// URLs. A symbol entry's own `icon` wins; symbols with neither keep
+		// their text label.
+		icons: {
+			"BTC-USD": "icons/btc.svg",
+			"ETH-USD": "icons/eth.svg",
+			"SOL-USD": "icons/sol.svg"
+		},
 		initialLoadDelay: 1000,
 		// Optional fallback when Yahoo fails. Free tier covers US stocks/ETFs only
 		// (not indices, futures, or crypto). Set in your local config.js, never commit.
@@ -62,12 +72,17 @@ Module.register("MMM-MarketTicker", {
 	socketNotificationReceived: function (notification, payload) {
 		if (notification !== "MARKET_QUOTES_RESULT") return;
 		const labels = {};
+		const icons = Object.assign({}, this.config.icons);
 		this.config.symbols.forEach((s) => {
-			if (s && typeof s === "object" && s.symbol) labels[s.symbol] = s.label || s.symbol;
+			if (s && typeof s === "object" && s.symbol) {
+				labels[s.symbol] = s.label || s.symbol;
+				if (s.icon) icons[s.symbol] = s.icon;
+			}
 		});
 		this.quotes = (Array.isArray(payload) ? payload : []).map((q) => ({
 			...q,
-			label: labels[q.symbol] || q.label || q.symbol
+			label: labels[q.symbol] || q.label || q.symbol,
+			icon: icons[q.symbol] || ""
 		}));
 		this.loaded = true;
 		if (this.cycleIndex >= this.quotes.length) {
@@ -101,6 +116,10 @@ Module.register("MMM-MarketTicker", {
 	formatChange: function (change, pct) {
 		if (!Number.isFinite(change) || !Number.isFinite(pct)) return "";
 		const arrow = change > 0 ? "▲" : change < 0 ? "▼" : "•";
+		if (!this.config.showChangeAmount) {
+			// The arrow already carries the sign.
+			return `${arrow} ${Math.abs(pct).toFixed(2)}%`;
+		}
 		const sign = change > 0 ? "+" : change < 0 ? "" : "";
 		const pctSign = pct > 0 ? "+" : "";
 		const dp = this.pickDecimals(change);
@@ -124,6 +143,17 @@ Module.register("MMM-MarketTicker", {
 		return `${Math.floor(hrs / 24)}d`;
 	},
 
+	// Absolute (http/https, protocol-relative or server-root) URLs are used
+	// as-is; anything else is a path inside this module folder, so the logos
+	// ship with the mirror and never wait on the network.
+	resolveIconUrl: function (raw) {
+		const src = String(raw || "").trim();
+		if (/^(https?:)?\/\//i.test(src) || src.startsWith("/")) {
+			return src;
+		}
+		return this.file(src);
+	},
+
 	renderItem: function (q) {
 		const item = document.createElement("span");
 		item.className = "mt-item";
@@ -136,11 +166,28 @@ Module.register("MMM-MarketTicker", {
 		const label = document.createElement("span");
 		label.className = "mt-label";
 		label.textContent = q.label;
-		item.appendChild(label);
+
+		if (q.icon) {
+			const icon = document.createElement("img");
+			icon.className = "mt-icon";
+			icon.alt = q.label;
+			// A missing or broken logo falls back to the text label.
+			icon.addEventListener("error", () => icon.replaceWith(label));
+			icon.src = this.resolveIconUrl(q.icon);
+			item.appendChild(icon);
+		} else {
+			item.appendChild(label);
+		}
 
 		const price = document.createElement("span");
 		price.className = "mt-price";
-		price.textContent = this.formatPrice(q.price);
+		if (this.config.showCurrency && Number.isFinite(q.price) && String(q.currency || "USD").toUpperCase() === "USD") {
+			const currency = document.createElement("span");
+			currency.className = "mt-currency";
+			currency.textContent = "$";
+			price.appendChild(currency);
+		}
+		price.appendChild(document.createTextNode(this.formatPrice(q.price)));
 		item.appendChild(price);
 
 		if (Number.isFinite(q.change)) {
