@@ -74,8 +74,6 @@ Temporary Items
 !/modules/MMM-FaceIdentity/**
 !/modules/MMM-MarketTicker
 !/modules/MMM-MarketTicker/**
-!/modules/MMM-SpyTrackerReport
-!/modules/MMM-SpyTrackerReport/**
 !/modules/MMM-Greeting
 !/modules/MMM-Greeting/**
 !/modules/MMM-WordOfTheDay

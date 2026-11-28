@@ -22,8 +22,8 @@
   --wotd-example-size: 0.85rem;
 }
 
-/* The bottom bar is left-aligned so the two tickers can share one row
-   (see MMM-SpyTrackerReport.css); this block keeps its own centred line. */
+/* This block keeps its own centred line whatever the bottom bar's
+   alignment; the market ticker row under it is left-aligned. */
 .MMM-WordOfTheDay .wotd {
   text-align: center;
   line-height: 1.15;

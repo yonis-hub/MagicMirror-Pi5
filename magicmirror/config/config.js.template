@@ -220,22 +220,15 @@ let config = {
 			module: "MMM-MarketTicker",
 			position: "bottom_bar",            // below the word of the day (declared earlier in array)
 			config: {
-				displayMode: "static",         // both symbols side-by-side, no motion
+				displayMode: "static",         // all symbols side-by-side, no motion
 				symbols: [
 					{ symbol: "BTC-USD",  label: "BTC" },
-					{ symbol: "ETH-USD",  label: "ETH" }
+					{ symbol: "ETH-USD",  label: "ETH" },
+					{ symbol: "SOL-USD",  label: "SOL" }
 				],
 				// Optional Finnhub fallback when Yahoo fails (US stocks/ETFs only).
 				// Replace placeholder on the Pi only — never commit your real key.
 				finnhubApiKey: "YOUR_FINNHUB_API_KEY_HERE"
-			}
-		},
-		{
-			module: "MMM-SpyTrackerReport",
-			position: "bottom_bar", // compact ticker line right under the market ticker
-			config: {
-				spyTrackerPath: "/home/hyonis/spy_tracker",
-				updateInterval: 300000 // Update every 5 minutes
 			}
 		},
 		{

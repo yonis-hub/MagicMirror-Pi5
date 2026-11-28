@@ -44,8 +44,8 @@
   --greet-max-width: 900px;
 }
 
-/* The bottom bar is left-aligned so the two tickers can share one row
-   (see MMM-SpyTrackerReport.css); the greeting keeps its own centred line. */
+/* The greeting keeps its own centred line whatever the bottom bar's
+   alignment; the market ticker row under it is left-aligned. */
 .MMM-Greeting .greet {
   text-align: center;
 }
