@@ -30,6 +30,8 @@ Module.register("MMM-QuranDisplay", {
 		adhanIndicatorLabel: "Adhan",
 		adhanIndicatorIcon: "https://cdn-icons-png.flaticon.com/512/2918/2918161.png",
 		showVoiceTranscript: true,
+		showReciterWhenIdle: true, // quiet "Qaariga — name" line under the wake-word prompt
+		reciterAnnounceMs: 6000, // how long the name stays up full-size after a switch
 		ayahLabelFormat: "ayah", // "ayah" => "Ayah X / Y", "compact" => "X:Y"
 		animationSpeed: 500,
 		fontSize: {
@@ -72,6 +74,9 @@ Module.register("MMM-QuranDisplay", {
 			rawText: "",
 			updatedAt: 0
 		};
+		this.activeReciter = null; // { key, name }, from reciters.json via node_helper
+		this.reciterAnnounceUntil = 0;
+		this.reciterAnnounceTimer = null;
 
 		this.sendSocketNotification("MODULE_READY", {
 			config: this.config
@@ -454,6 +459,71 @@ Module.register("MMM-QuranDisplay", {
 		wrapper.appendChild(transcriptDiv);
 	},
 
+	isAnnouncingReciter: function () {
+		return Boolean(this.activeReciter?.name && Date.now() < this.reciterAnnounceUntil);
+	},
+
+	announceReciter: function () {
+		const holdMs = Math.max(1000, Number(this.config.reciterAnnounceMs) || 6000);
+		this.reciterAnnounceUntil = Date.now() + holdMs;
+		clearTimeout(this.reciterAnnounceTimer);
+		this.reciterAnnounceTimer = setTimeout(() => {
+			this.reciterAnnounceUntil = 0;
+			this.updateDom(this.config.animationSpeed);
+		}, holdMs + 50);
+	},
+
+	// Shown for a few seconds after "switch to ...": the spoken "Switching to"
+	// is easy to miss across a room, the name on the glass is not.
+	renderReciterAnnouncement: function (wrapper) {
+		const card = document.createElement("div");
+		card.className = "reciter-switch";
+
+		const label = document.createElement("div");
+		label.className = "reciter-switch-label";
+		const so = document.createElement("span");
+		so.className = "reciter-switch-label-so";
+		so.textContent = "Qaariga";
+		const mid = document.createElement("span");
+		mid.className = "reciter-switch-mid";
+		mid.textContent = "·";
+		const en = document.createElement("span");
+		en.textContent = "Reciter";
+		label.append(so, mid, en);
+		card.appendChild(label);
+
+		const name = document.createElement("div");
+		name.className = "reciter-switch-name";
+		name.textContent = this.activeReciter.name;
+		card.appendChild(name);
+
+		const hint = document.createElement("div");
+		hint.className = "reciter-switch-hint";
+		hint.textContent = 'Say "switch reciter" to change';
+		card.appendChild(hint);
+
+		wrapper.appendChild(card);
+	},
+
+	renderIdleReciter: function (wrapper) {
+		if (!this.config.showReciterWhenIdle || !this.activeReciter?.name) {
+			return;
+		}
+		const line = document.createElement("div");
+		line.className = "idle-reciter";
+		const label = document.createElement("span");
+		label.className = "idle-reciter-label";
+		label.textContent = "Qaariga";
+		const mid = document.createElement("span");
+		mid.className = "idle-reciter-mid";
+		mid.textContent = "—";
+		const name = document.createElement("span");
+		name.className = "idle-reciter-name";
+		name.textContent = this.activeReciter.name;
+		line.append(label, mid, name);
+		wrapper.appendChild(line);
+	},
+
 	getDom: function () {
 		this.renderAmbientGlow();
 		const wrapper = document.createElement("div");
@@ -470,6 +540,10 @@ Module.register("MMM-QuranDisplay", {
 		wrapper.style.setProperty("--quran-bismillah-image-radius", `${imageRadius}px`);
 
 		const hasAdhkarNowPlaying = this.renderAdhkarNowPlaying(wrapper);
+		const announcingReciter = this.isAnnouncingReciter();
+		if (announcingReciter) {
+			this.renderReciterAnnouncement(wrapper);
+		}
 
 		if (!this.hasActivePlayback()) {
 			// The widget is not in the tree any more, so drop the refs the
@@ -478,11 +552,14 @@ Module.register("MMM-QuranDisplay", {
 			this._barFill = null;
 			this._timeText = null;
 
-			if (!hasAdhkarNowPlaying) {
+			// The announcement card already names the reciter, so the prompt
+			// and the idle reciter line wait until it has gone.
+			if (!hasAdhkarNowPlaying && !announcingReciter) {
 				const waitingDiv = document.createElement("div");
 				waitingDiv.className = "waiting";
 				waitingDiv.textContent = this.getWaitingText();
 				wrapper.appendChild(waitingDiv);
+				this.renderIdleReciter(wrapper);
 			}
 			this.renderVoiceTranscript(wrapper);
 		} else {
@@ -573,6 +650,15 @@ Module.register("MMM-QuranDisplay", {
 			this.isSpeaking = Boolean(payload && payload.isSpeaking);
 			this.renderSpeakingOverlay();
 			this.updateDom(0);
+		} else if (notification === "RECITER_UPDATE") {
+			if (!payload || !payload.name) {
+				return;
+			}
+			this.activeReciter = { key: payload.key || "", name: payload.name };
+			if (payload.announce) {
+				this.announceReciter();
+			}
+			this.updateDom(this.config.animationSpeed);
 		} else if (notification === "VOICE_TRANSCRIPT") {
 			this.voiceTranscript = {
 				text: payload && payload.text ? payload.text : "",

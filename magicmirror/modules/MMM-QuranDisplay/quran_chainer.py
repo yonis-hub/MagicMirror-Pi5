@@ -1140,7 +1140,7 @@ def main():
     parser.add_argument("--end-verse", "-e", type=int, default=None,
                         help="Stop after this verse (inclusive). Used for juz / partial-surah playback.")
     parser.add_argument("--mirror-url", "-m", default="http://localhost:8080", help="MagicMirror URL")
-    parser.add_argument("--reciter", "-r", default=None, help="Reciter key or alias (overrides reciters.json current). E.g. 'alafasy' or 'noreen-sedeeq'")
+    parser.add_argument("--reciter", "-r", default=None, help="Reciter key or alias (overrides reciters.json current). E.g. 'sudais' or 'noreen-sedeeq'")
     parser.add_argument("--start-position-sec", type=float, default=0.0,
                         help="Seek this many seconds into playback before starting (used to resume after stop).")
 

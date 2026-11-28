@@ -2018,22 +2018,69 @@ class OllamaVoiceListener:
         return None
 
     def _switch_reciter(self, target_key):
+        """Make `target_key` the active reciter and show it on the mirror.
+
+        Returns True when the switch restarted a recitation (the caller then
+        leaves the UI on "Starting" rather than "Listening"), False otherwise.
+
+        A surah that was playing carries on in the new voice, from the start
+        of the surah: the two recordings run at different speeds, so a
+        timestamp in one means nothing in the other. A paused surah or a juz
+        is simply stopped, as before.
+        """
         manifest = self._load_reciters_manifest()
         if not manifest or target_key not in manifest.get("reciters", {}):
             return False
-        previous = manifest.get("current")
+        previous = manifest.get("current") or manifest.get("default")
+        info = manifest["reciters"][target_key]
+        nice_name = info.get("name", target_key)
+
+        if target_key == previous:
+            print(f"  🎙 Reciter already active: {target_key} ({nice_name})")
+            self.send_reciter_status(target_key, nice_name, announce=True)
+            if not self._playback_active():
+                self.speak(f"{nice_name} is already selected.")
+            return False
+
         manifest["current"] = target_key
         if not self._save_reciters_manifest(manifest):
             return False
-        info = manifest["reciters"][target_key]
-        nice_name = info.get("name", target_key)
         print(f"  🎙 Switched reciter: {previous} -> {target_key} ({nice_name})")
-        if self.enable_voice:
-            self.speak(f"Switching to {nice_name}.")
-        # If playback is active, stop it so the next play uses the new reciter.
-        if self.current_process and self.current_process.poll() is None:
+
+        juz_worker = getattr(self, "_juz_worker", None)
+        juz_running = juz_worker is not None and juz_worker.is_alive()
+        carry_on_surah = (
+            self.last_played_surah
+            if self._playback_active() and not self._chainer_paused and not juz_running
+            else None
+        )
+        # Stop first: speak() stays silent while a recitation is playing, so
+        # announcing before the stop meant a mid-surah switch was never spoken.
+        if self._playback_active() or juz_running:
             self.stop_playback()
-        return True
+
+        self.send_reciter_status(target_key, nice_name, announce=True)
+        self.speak(f"Switching to {nice_name}.")
+
+        if carry_on_surah:
+            print(f"  🎙 Continuing surah {carry_on_surah} with {nice_name}")
+            self._begin_starting_state()
+            self.start_chainer(carry_on_surah)
+            return True
+        return False
+
+    def send_reciter_status(self, key, name, announce=False):
+        """Tell the mirror which reciter is active. `announce` pops the name
+        up full-size for a few seconds; otherwise it only updates the quiet
+        reciter line on the idle screen."""
+        try:
+            requests.post(
+                f"{self.mirror_url}/api/quran/reciter",
+                json={"key": key, "name": name, "announce": bool(announce)},
+                timeout=1,
+            )
+        except Exception as e:
+            print(f" Could not send reciter status: {e}")
 
     def send_chainer_command(self, command):
         if not self.current_process or self.current_process.poll() is not None:
@@ -2228,7 +2275,7 @@ class OllamaVoiceListener:
             # reciter" don't get misclassified).
             target_reciter = self._match_reciter_switch(command_text)
             if target_reciter:
-                self._switch_reciter(target_reciter)
+                started_playback = self._switch_reciter(target_reciter)
                 return
 
             # Sleep check — runs ahead of every other handler. After sleep

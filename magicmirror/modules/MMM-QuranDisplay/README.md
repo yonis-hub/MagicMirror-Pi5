@@ -22,6 +22,26 @@ Playback uses local files in `quran_data` first:
 If local data is missing for a surah/ayah, `quran_chainer.py` falls back to API/network sources.
 Surah names are loaded from local `surah_index.json` first. Set `QURAN_ALLOW_METADATA_API=1` only if you want network metadata fallback.
 
+The `<ayah>.json` files carry the Arabic text and translation shown on screen, whichever reciter is playing, so keep them even when no per-ayah audio is installed.
+
+## Reciters
+
+There are two reciters, listed in `reciters.json`. Each one is a single MP3 per surah, gitignored and copied to the Pi by hand:
+
+| Key | Name | Audio |
+| --- | --- | --- |
+| `sudais` (default, "first") | Sheikh Abdur-Rahman As-Sudais | `quran_data/_reciters/Abdur-Rahman As-Sudais/001.mp3` … `114.mp3` |
+| `noreen-sedeeq` ("second") | Sheikha Noreen Mohammad Siddiq | `quran_data/_reciters/noreen-sedeeq/001.mp3` … `114.mp3` |
+
+The Sudais set came from Quran Central (`https://podcasts.qurancentral.com/abdur-rahman-as-sudais/NNN.mp3`).
+
+Switching is by voice:
+
+- **"Switch reciter"** (or just "switch") flips to the other reciter.
+- **"Switch to Sudais"** or **"Switch to Noreen"** picks one by name. A bare "Sudais" or "Noreen" works too.
+
+After a switch the mirror shows the new reciter's name full-size for a few seconds (`reciterAnnounceMs`, 6000 by default). The idle screen keeps a small "Qaariga — name" line (`showReciterWhenIdle`). If a surah was playing, it starts again from the beginning in the new voice. The choice is saved in `reciters.json` as `current`, so it survives a restart.
+
 ## Installation
 
 ```bash
@@ -57,6 +77,8 @@ pip3 install sentence-transformers psutil
     showAdhanIndicator: true,
     adhanIndicatorLabel: "Adhan",
     adhanIndicatorIcon: "https://cdn-icons-png.flaticon.com/512/2918/2918161.png",
+    showReciterWhenIdle: true, // "Qaariga — name" line under the wake-word prompt
+    reciterAnnounceMs: 6000, // how long the name stays up after "switch reciter"
     ayahLabelFormat: "compact", // "ayah" or "compact"
     animationSpeed: 500,
     fontSize: {

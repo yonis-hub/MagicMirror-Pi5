@@ -54,6 +54,76 @@
   opacity: 0.85;
 }
 
+/* ---- Reciter: full-size card after a switch, quiet line when idle ----
+ * Colours carry !important for the reason given at the media widget below. */
+
+.mmm-quran-display .reciter-switch {
+  margin: 14px auto 4px;
+  padding: 12px 18px 10px;
+  border-radius: 12px;
+  border: 1px solid rgb(123 227 141 / 35%);
+  background: rgb(123 227 141 / 6%);
+  animation: reciter-switch-in 420ms ease-out;
+}
+
+.mmm-quran-display .reciter-switch-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8c9aa4 !important;
+}
+
+.mmm-quran-display .reciter-switch-label-so {
+  color: #7be38d !important;
+  opacity: 0.8;
+}
+
+.mmm-quran-display .reciter-switch-mid {
+  margin: 0 0.45em;
+  opacity: 0.55;
+}
+
+.mmm-quran-display .reciter-switch-name {
+  margin-top: 4px;
+  font-size: 1.5rem;
+  font-weight: 300;
+  line-height: 1.2;
+  color: #f2f7ff !important;
+}
+
+.mmm-quran-display .reciter-switch-hint {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: #8c9aa4 !important;
+}
+
+@keyframes reciter-switch-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mmm-quran-display .idle-reciter {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.mmm-quran-display .idle-reciter-label {
+  color: rgb(123 227 141 / 78%) !important;
+}
+
+.mmm-quran-display .idle-reciter-mid {
+  margin: 0 0.45em;
+  color: #8c9aa4 !important;
+  opacity: 0.55;
+}
+
+.mmm-quran-display .idle-reciter-name {
+  color: #b9c4cc !important;
+  opacity: 0.85;
+}
+
 /* ---- Media player, in the MMM-WordOfTheDay idiom ----
  *
  * Same vocabulary as the word of the day: a small letter-spaced title, a

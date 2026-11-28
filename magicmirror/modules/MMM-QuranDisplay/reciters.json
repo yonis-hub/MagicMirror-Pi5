@@ -1,13 +1,13 @@
 {
-  "default": "alafasy",
-  "current": "alafasy",
+  "default": "sudais",
+  "current": "sudais",
   "reciters": {
-    "alafasy": {
-      "name": "Mishary Alafasy",
-      "aliases": ["alafasy", "default", "first", "1st", "first reciter", "default reciter", "main reciter", "mishary"],
-      "layout": "verse",
-      "audio_dir": "quran_data",
-      "audio_pattern": "{surah:03d}/{verse:03d}.mp3"
+    "sudais": {
+      "name": "Sheikh Abdur-Rahman As-Sudais",
+      "aliases": ["sudais", "sudays", "sudaise", "sudes", "sudice", "sue dice", "su dice", "soudais", "sodais", "as sudais", "al sudais", "as-sudais", "al-sudais", "sheikh sudais", "imam sudais", "abdur rahman", "abdul rahman", "abdurrahman", "abdulrahman", "abdur-rahman", "first", "1st", "first reciter", "1st reciter", "default", "default reciter", "main reciter"],
+      "layout": "surah",
+      "audio_dir": "quran_data/_reciters/Abdur-Rahman As-Sudais",
+      "audio_pattern": "{surah:03d}.mp3"
     },
     "noreen-sedeeq": {
       "name": "Sheikha Noreen Mohammad Siddiq",

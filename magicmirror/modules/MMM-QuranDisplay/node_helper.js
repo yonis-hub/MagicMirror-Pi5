@@ -145,6 +145,21 @@ module.exports = NodeHelper.create({
 			}
 		});
 
+		// API endpoint: voice listener reports the active reciter after a
+		// "switch to ..." command. announce=true pops the name up full-size.
+		this.expressApp.post("/api/quran/reciter", (req, res) => {
+			const { key, name, announce } = req.body || {};
+			if (!name) {
+				return res.status(400).json({ status: "error", error: "name required" });
+			}
+			this.sendSocketNotification("RECITER_UPDATE", {
+				key: String(key || ""),
+				name: String(name),
+				announce: !!announce
+			});
+			res.status(200).json({ status: "success" });
+		});
+
 		// API endpoint for latest recognized transcript/phrase
 		this.expressApp.post("/api/quran/transcript", (req, res) => {
 			const { text, phase, rawText } = req.body || {};
@@ -168,6 +183,7 @@ module.exports = NodeHelper.create({
 		if (notification === "MODULE_READY") {
 			this.config = payload.config || {};
 			this.logDebug("MMM-QuranDisplay: Module ready");
+			this.sendCurrentReciter();
 		} else if (notification === "PLAY_SURAH") {
 			this.startPythonChainer(payload.surah, payload.startVerse);
 		} else if (notification === "STOP_PLAYBACK") {
@@ -181,6 +197,22 @@ module.exports = NodeHelper.create({
 			if (this.pythonProcess) {
 				this.pythonProcess.stdin.write("RESUME\n");
 			}
+		}
+	},
+
+	// The listener persists the active reciter in reciters.json, so on page
+	// load read it from there; the idle screen can name the reciter before
+	// anyone has said "switch".
+	sendCurrentReciter: function () {
+		try {
+			const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "reciters.json"), "utf8"));
+			const key = manifest.current || manifest.default;
+			const info = (manifest.reciters || {})[key];
+			if (info && info.name) {
+				this.sendSocketNotification("RECITER_UPDATE", { key, name: info.name, announce: false });
+			}
+		} catch (err) {
+			console.error(`MMM-QuranDisplay: could not read reciters.json: ${err.message}`);
 		}
 	},
 
